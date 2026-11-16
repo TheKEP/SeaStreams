@@ -12,11 +12,11 @@ import com.seastreams.tv.domain.usecase.GetLibraryUseCase
 import com.seastreams.tv.domain.usecase.LibraryEntry
 import com.seastreams.tv.domain.usecase.LibraryFilter
 import com.seastreams.tv.domain.usecase.LibraryQuery
+import com.seastreams.tv.ui.navigation.WhileUiSubscribed
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
@@ -64,7 +64,7 @@ class LibraryViewModel @Inject constructor(
                 stateFor(profile)
             }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), LibraryUiState())
+        .stateIn(viewModelScope, WhileUiSubscribed, LibraryUiState())
 
     fun open(id: Long) {
         filter.value = LibraryFilter.ALL
@@ -113,9 +113,5 @@ class LibraryViewModel @Inject constructor(
     private fun genreNames(): Flow<Map<Int, String>> = flow {
         emit(emptyMap())
         emit(genres.allNames())
-    }
-
-    private companion object {
-        const val STOP_TIMEOUT_MILLIS = 5_000L
     }
 }

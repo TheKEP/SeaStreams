@@ -10,10 +10,10 @@ import com.seastreams.tv.domain.model.CatalogRowState
 import com.seastreams.tv.domain.model.MediaType
 import com.seastreams.tv.domain.model.StreamingProvider
 import com.seastreams.tv.domain.usecase.GetDiscoverCatalogsUseCase
+import com.seastreams.tv.ui.navigation.WhileUiSubscribed
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
@@ -60,7 +60,7 @@ class DiscoverViewModel @Inject constructor(
                 }
             }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), DiscoverUiState())
+        .stateIn(viewModelScope, WhileUiSubscribed, DiscoverUiState())
 
     /**
      * What the tab for [profileId] can draw on its very first frame, before [show] has run: the rows
@@ -88,9 +88,5 @@ class DiscoverViewModel @Inject constructor(
 
     fun toggleProvider(provider: StreamingProvider, enabled: Boolean) {
         viewModelScope.launch { settings.setProviderEnabled(provider, enabled) }
-    }
-
-    private companion object {
-        const val STOP_TIMEOUT_MILLIS = 5_000L
     }
 }

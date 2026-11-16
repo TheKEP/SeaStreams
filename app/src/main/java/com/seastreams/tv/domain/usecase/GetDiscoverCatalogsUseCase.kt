@@ -4,16 +4,12 @@ import com.seastreams.tv.core.database.dao.CatalogDao
 import com.seastreams.tv.core.database.entity.ProfileEntity
 import com.seastreams.tv.core.datastore.SettingsDataStore
 import com.seastreams.tv.core.util.ApplicationScope
-import com.seastreams.tv.core.util.SharedLoadCache
 import com.seastreams.tv.core.util.orNullUnlessCancelled
 import com.seastreams.tv.data.catalog.DiscoverInputs
 import com.seastreams.tv.data.catalog.DiscoverSnapshotStore
 import com.seastreams.tv.data.catalog.LoadedCatalogStore
-import com.seastreams.tv.domain.model.AgeRestriction
 import com.seastreams.tv.domain.model.CatalogRow
-import com.seastreams.tv.domain.model.CatalogRowSpec
 import com.seastreams.tv.domain.model.CatalogRowState
-import com.seastreams.tv.domain.model.CatalogSource
 import com.seastreams.tv.domain.model.MediaType
 import com.seastreams.tv.domain.model.RowContent
 import com.seastreams.tv.domain.model.StreamingProvider
@@ -51,11 +47,13 @@ class GetDiscoverCatalogsUseCase @Inject constructor(
     private val catalogDao: CatalogDao,
     private val settings: SettingsDataStore,
     private val snapshots: DiscoverSnapshotStore,
-    private val loadedCatalogs: LoadedCatalogStore,
+    loadedCatalogs: LoadedCatalogStore,
     @ApplicationScope scope: CoroutineScope,
     clock: Clock,
 ) {
-    private val rowCache = SharedLoadCache<RowKey, CatalogRow>(scope, ROW_TTL_MILLIS, clock::millis)
+    private val rowCache = CatalogRowCache(loadedCatalogs, scope, ROW_TTL_MILLIS, clock::millis) { spec, restriction ->
+        loader.load(spec.source, restriction, GetHomeCatalogsUseCase.ROW_CAP)
+    }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     fun observeRows(profile: ProfileEntity, mediaType: MediaType): Flow<List<CatalogRowState>> {
@@ -66,16 +64,7 @@ class GetDiscoverCatalogsUseCase @Inject constructor(
         ) { providers, custom -> DiscoverInputs(profile, providers, DiscoverCatalogSources.rowSpecs(mediaType, providers, custom)) }
             .distinctUntilChanged()
             .onEach { snapshots.record(mediaType, it) }
-            .flatMapLatest { inputs ->
-                // Every row shown is recorded so its View More opens with these titles on frame 1.
-                val remember = { spec: CatalogRowSpec, row: CatalogRow ->
-                    loadedCatalogs.recordRow(profile.id, spec.source, restriction, row)
-                    row
-                }
-                rowStates(inputs.specs, cached = { spec -> peekRow(spec, restriction)?.let { remember(spec, it) } }) { spec ->
-                    remember(spec, loadRow(spec, restriction))
-                }
-            }
+            .flatMapLatest { inputs -> rowCache.observe(profile.id, inputs.specs, restriction) }
     }
 
     /**
@@ -87,7 +76,7 @@ class GetDiscoverCatalogsUseCase @Inject constructor(
         val inputs = snapshots.lookup(profileId, mediaType) ?: return null
         if (inputs.profile.isKids) return null
         val restriction = inputs.profile.toAgeRestriction()
-        val rows = initialRowStates(inputs.specs) { spec -> peekRow(spec, restriction) }
+        val rows = initialRowStates(inputs.specs) { spec -> rowCache.peek(spec, restriction) }
         if (rows.firstOrNull()?.content !is RowContent.Loaded) return null
         return DiscoverSnapshot(inputs.profile, inputs.enabledProviders, rows)
     }
@@ -105,21 +94,10 @@ class GetDiscoverCatalogsUseCase @Inject constructor(
         val custom = catalogDao.observeByPlacement(DiscoverCatalogSources.placementFor(mediaType)).first()
         val specs = DiscoverCatalogSources.rowSpecs(mediaType, providers, custom)
         snapshots.record(mediaType, DiscoverInputs(profile, providers, specs))
-        val loads = specs.map { spec -> rowCache.start(RowKey(spec.source, restriction)) { loadSpec(spec, restriction) } }
+        val loads = specs.map { spec -> rowCache.start(spec, restriction) }
         val rows = loads.map { orNullUnlessCancelled { it.await() } }
         return rows.firstOrNull()
     }
-
-    private fun peekRow(spec: CatalogRowSpec, restriction: AgeRestriction?): CatalogRow? =
-        rowCache.peek(RowKey(spec.source, restriction))
-
-    private suspend fun loadRow(spec: CatalogRowSpec, restriction: AgeRestriction?): CatalogRow =
-        rowCache.get(RowKey(spec.source, restriction)) { loadSpec(spec, restriction) }
-
-    private suspend fun loadSpec(spec: CatalogRowSpec, restriction: AgeRestriction?): CatalogRow =
-        loader.load(spec.source, restriction, GetHomeCatalogsUseCase.ROW_CAP)
-
-    private data class RowKey(val source: CatalogSource, val restriction: AgeRestriction?)
 
     companion object {
         const val ROW_TTL_MILLIS = 10 * 60 * 1000L

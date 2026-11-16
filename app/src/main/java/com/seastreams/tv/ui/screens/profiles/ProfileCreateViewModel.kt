@@ -10,9 +10,9 @@ import com.seastreams.tv.data.profile.ProfileRepository
 import com.seastreams.tv.data.setup.TmdbKeyRepository
 import com.seastreams.tv.domain.model.MovieCertification
 import com.seastreams.tv.domain.model.TvCertification
+import com.seastreams.tv.ui.navigation.WhileUiSubscribed
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
@@ -68,7 +68,7 @@ class ProfileCreateViewModel @Inject constructor(
         portalLinks.observe(),
     ) { mode, form, keySaved, masked, portal ->
         ProfileCreateUiState(mode, form, keySaved, masked, portal)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), ProfileCreateUiState())
+    }.stateIn(viewModelScope, WhileUiSubscribed, ProfileCreateUiState())
 
     /** (Re)initialises the editor; called whenever the screen is entered with a new [newMode]. */
     fun start(newMode: ProfileEditorMode) {
@@ -150,7 +150,4 @@ class ProfileCreateViewModel @Inject constructor(
     private fun editDraft(transform: ProfileDraft.() -> ProfileDraft) =
         form.update { it.copy(draft = it.draft.transform(), error = null) }
 
-    private companion object {
-        const val STOP_TIMEOUT_MILLIS = 5_000L
-    }
 }
