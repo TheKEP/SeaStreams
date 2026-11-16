@@ -3,6 +3,7 @@ package com.seastreams.tv.domain.usecase
 import com.seastreams.tv.core.database.dao.WatchProgressDao
 import com.seastreams.tv.core.database.entity.ProfileEntity
 import com.seastreams.tv.core.database.entity.WatchProgressEntity
+import com.seastreams.tv.core.util.orNullUnlessCancelled
 import com.seastreams.tv.data.catalog.MediaHydrator
 import com.seastreams.tv.data.catalog.TmdbImageUrls
 import com.seastreams.tv.domain.filter.AgeRestrictionEngine
@@ -10,7 +11,6 @@ import com.seastreams.tv.domain.model.AgeRestriction
 import com.seastreams.tv.domain.model.ContinueWatchingItem
 import com.seastreams.tv.domain.model.MediaItem
 import com.seastreams.tv.domain.model.MediaRef
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -43,13 +43,7 @@ class GetContinueWatchingUseCase @Inject constructor(
         }
 
     private suspend fun resolveOne(row: WatchProgressEntity, restriction: AgeRestriction?): ContinueWatchingItem? {
-        val hydrated = try {
-            hydrator.hydrate(MediaRef(row.tmdbId, row.mediaType))
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            null
-        }
+        val hydrated = orNullUnlessCancelled { hydrator.hydrate(MediaRef(row.tmdbId, row.mediaType)) }
         val media = when {
             hydrated != null -> {
                 if (!ageEngine.isAllowed(hydrated.certification, restriction, hydrated.isAdultContent)) return null

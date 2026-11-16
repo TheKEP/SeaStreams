@@ -3,6 +3,7 @@ package com.seastreams.tv.domain.usecase
 import com.seastreams.tv.core.database.dao.LibraryDao
 import com.seastreams.tv.core.database.entity.LibraryItemEntity
 import com.seastreams.tv.core.database.entity.ProfileEntity
+import com.seastreams.tv.core.network.ApiEndpoints
 import com.seastreams.tv.core.network.MdbListApiService
 import com.seastreams.tv.core.network.MdbListItem
 import com.seastreams.tv.core.network.TmdbApiService
@@ -12,11 +13,14 @@ import com.seastreams.tv.core.network.TmdbMovieDetails
 import com.seastreams.tv.core.network.TmdbReleaseDate
 import com.seastreams.tv.core.network.TmdbReleaseDates
 import com.seastreams.tv.data.UserFacingException
+import com.seastreams.tv.data.catalog.MediaHydrator
+import com.seastreams.tv.data.catalog.TmdbImageUrls
 import com.seastreams.tv.domain.filter.AgeRestrictionEngine
 import com.seastreams.tv.domain.model.MediaType
 import com.seastreams.tv.domain.model.MovieCertification
 import com.seastreams.tv.domain.model.TvCertification
 import com.seastreams.tv.testutil.FakeProfileDao
+import dagger.Lazy
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -39,7 +43,8 @@ class ImportMdbListUseCaseTest {
     private val profiles = FakeProfileDao()
     private val inserted = slot<List<LibraryItemEntity>>()
     private val clock = Clock.fixed(Instant.ofEpochMilli(42), ZoneOffset.UTC)
-    private val useCase = ImportMdbListUseCase(mdbList, tmdb, profiles, libraryDao, AgeRestrictionEngine(), clock)
+    private val hydrator = MediaHydrator(Lazy { tmdb }, TmdbImageUrls(ApiEndpoints()))
+    private val useCase = ImportMdbListUseCase(mdbList, hydrator, profiles, libraryDao, AgeRestrictionEngine(), clock)
 
     private var adultId = 0L
     private var kidsId = 0L

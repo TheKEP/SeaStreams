@@ -40,23 +40,28 @@ class MediaHydrator @Inject constructor(
      * @return the hydrated title, or `null` when TMDB has no such title or the lookup failed.
      * @throws TmdbApiKeyMissingException when no TMDB key is configured (every lookup would fail).
      */
-    suspend fun hydrate(ref: MediaRef): MediaItem? = withContext(Dispatchers.IO) {
-        gate.withPermit {
-            try {
-                val service = tmdb.get()
-                when (ref.mediaType) {
-                    MediaType.MOVIE -> service.getMovieDetails(ref.tmdbId).toMediaItem(imageUrls)
-                    MediaType.TV -> service.getTvDetails(ref.tmdbId).toMediaItem(imageUrls)
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: TmdbApiKeyMissingException) {
-                throw e
-            } catch (e: Exception) {
-                // One deleted/broken title must not take down the whole row.
-                null
+    suspend fun hydrate(ref: MediaRef): MediaItem? = try {
+        withTmdb { service ->
+            when (ref.mediaType) {
+                MediaType.MOVIE -> service.getMovieDetails(ref.tmdbId).toMediaItem(imageUrls)
+                MediaType.TV -> service.getTvDetails(ref.tmdbId).toMediaItem(imageUrls)
             }
         }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: TmdbApiKeyMissingException) {
+        throw e
+    } catch (e: Exception) {
+        // One deleted/broken title must not take down the whole row.
+        null
+    }
+
+    /**
+     * Runs a raw TMDB lookup on IO under the app-wide concurrency gate. Every per-title TMDB call
+     * (rows, Continue Watching, Library imports) goes through here so they share one rate budget.
+     */
+    suspend fun <T> withTmdb(block: suspend (TmdbApiService) -> T): T = withContext(Dispatchers.IO) {
+        gate.withPermit { block(tmdb.get()) }
     }
 
     /** Hydrates [refs] concurrently, preserving their order and dropping failed lookups. */

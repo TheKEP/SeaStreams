@@ -69,7 +69,6 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.tv.material)
-    implementation(libs.androidx.tv.foundation)
 
     // DI
     implementation(libs.hilt.android)
@@ -92,8 +91,7 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
 
-    // Playback, images, QR codes
-    implementation(libs.androidx.media3.exoplayer)
+    // Images, QR codes (Media3 ExoPlayer is added with the player in Milestone 6)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
     implementation(libs.zxing.core)

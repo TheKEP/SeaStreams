@@ -6,9 +6,9 @@ import com.seastreams.tv.core.database.entity.LibraryItemEntity
 import com.seastreams.tv.core.network.MdbListApiService
 import com.seastreams.tv.core.network.MdbListUrl
 import com.seastreams.tv.core.network.TmdbApiKeyMissingException
-import com.seastreams.tv.core.network.TmdbApiService
 import com.seastreams.tv.data.UserFacingException
 import com.seastreams.tv.data.catalog.CatalogRepository
+import com.seastreams.tv.data.catalog.MediaHydrator
 import com.seastreams.tv.data.catalog.fetchOrExplain
 import com.seastreams.tv.domain.filter.AgeRestrictionEngine
 import com.seastreams.tv.domain.model.MediaType
@@ -16,8 +16,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 import java.time.Clock
 import javax.inject.Inject
 
@@ -39,13 +37,13 @@ data class LibraryImportResult(
  * Imports an MDBList list into a profile's Movies or TV Shows Library.
  *
  * MDBList exports carry no posters or certifications, so each entry's TMDB details are loaded
- * (bounded concurrency, HTTP-cached for 12h). Age restrictions are enforced here, before anything
- * is written, so Kids libraries never contain out-of-range titles (CLAUDE.md rule 6). No
- * `/external_ids` calls are made.
+ * (under [MediaHydrator]'s app-wide concurrency gate, HTTP-cached for 12h). Age restrictions are
+ * enforced here, before anything is written, so Kids libraries never contain out-of-range titles
+ * (CLAUDE.md rule 6). No `/external_ids` calls are made.
  */
 class ImportMdbListUseCase @Inject constructor(
     private val mdbListApi: MdbListApiService,
-    private val tmdbApi: TmdbApiService,
+    private val hydrator: MediaHydrator,
     private val profileDao: ProfileDao,
     private val libraryDao: LibraryDao,
     private val ageEngine: AgeRestrictionEngine,
@@ -61,9 +59,8 @@ class ImportMdbListUseCase @Inject constructor(
         val restriction = profile.toAgeRestriction()
         val now = clock.millis()
 
-        val gate = Semaphore(MAX_CONCURRENT_LOOKUPS)
         val lookups: List<Lookup> = coroutineScope {
-            tmdbIds.map { id -> async { gate.withPermit { lookup(id, target.mediaType) } } }.awaitAll()
+            tmdbIds.map { id -> async { lookup(id, target.mediaType) } }.awaitAll()
         }
         val resolved = lookups.filterIsInstance<Lookup.Found>()
         if (resolved.isEmpty() && lookups.isNotEmpty()) throw UserFacingException("Couldn't load titles from TMDB")
@@ -91,13 +88,16 @@ class ImportMdbListUseCase @Inject constructor(
         )
     }
 
+    /** Runs through [MediaHydrator.withTmdb], sharing the app-wide TMDB concurrency gate. */
     private suspend fun lookup(tmdbId: Int, mediaType: MediaType): Lookup = try {
-        when (mediaType) {
-            MediaType.MOVIE -> tmdbApi.getMovieDetails(tmdbId).let {
-                Lookup.Found(it.id, it.title, it.posterPath, it.usCertification(), it.genres.map { g -> g.id }, it.adult)
-            }
-            MediaType.TV -> tmdbApi.getTvDetails(tmdbId).let {
-                Lookup.Found(it.id, it.name, it.posterPath, it.usCertification(), it.genres.map { g -> g.id }, it.adult)
+        hydrator.withTmdb { tmdbApi ->
+            when (mediaType) {
+                MediaType.MOVIE -> tmdbApi.getMovieDetails(tmdbId).let {
+                    Lookup.Found(it.id, it.title, it.posterPath, it.usCertification(), it.genres.map { g -> g.id }, it.adult)
+                }
+                MediaType.TV -> tmdbApi.getTvDetails(tmdbId).let {
+                    Lookup.Found(it.id, it.name, it.posterPath, it.usCertification(), it.genres.map { g -> g.id }, it.adult)
+                }
             }
         }
     } catch (e: CancellationException) {
@@ -124,6 +124,5 @@ class ImportMdbListUseCase @Inject constructor(
 
     companion object {
         const val MAX_IMPORT_ITEMS = 250
-        const val MAX_CONCURRENT_LOOKUPS = 6
     }
 }

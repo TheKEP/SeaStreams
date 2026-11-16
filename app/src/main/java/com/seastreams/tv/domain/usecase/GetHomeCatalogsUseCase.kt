@@ -7,6 +7,7 @@ import com.seastreams.tv.core.network.MdbListApiService
 import com.seastreams.tv.core.network.MdbListItem
 import com.seastreams.tv.core.util.ApplicationScope
 import com.seastreams.tv.core.util.SharedLoadCache
+import com.seastreams.tv.core.util.orNullUnlessCancelled
 import com.seastreams.tv.data.catalog.MediaHydrator
 import com.seastreams.tv.domain.filter.AgeRestrictionEngine
 import com.seastreams.tv.domain.model.AgeRestriction
@@ -17,7 +18,6 @@ import com.seastreams.tv.domain.model.MediaItem
 import com.seastreams.tv.domain.model.MediaRef
 import com.seastreams.tv.domain.model.RowContent
 import dagger.Lazy
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -72,8 +72,8 @@ class GetHomeCatalogsUseCase @Inject constructor(
         val specs = HomeCatalogSources.rowSpecs(profile.isKids, catalogDao.observeByPlacement(CatalogPlacement.HOME).first())
         val rows = specs.take(PREFETCH_ROW_COUNT).map { spec -> rowCache.start(RowKey(spec.listUrl, restriction)) { loadRow(spec, restriction) } }
         return HomePrefetch(
-            hero = awaitOrNull { hero.await() },
-            rows = rows.mapNotNull { row -> awaitOrNull { row.await() } },
+            hero = orNullUnlessCancelled { hero.await() },
+            rows = rows.mapNotNull { row -> orNullUnlessCancelled { row.await() } },
         )
     }
 
@@ -129,13 +129,9 @@ class GetHomeCatalogsUseCase @Inject constructor(
             send(states.toList())
             specs.forEachIndexed { index, spec ->
                 launch {
-                    val content = try {
+                    val content = orNullUnlessCancelled {
                         RowContent.Loaded(rowCache.get(RowKey(spec.listUrl, restriction)) { loadRow(spec, restriction) })
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        RowContent.Failed
-                    }
+                    } ?: RowContent.Failed
                     lock.withLock {
                         states[index] = states[index].copy(content = content)
                         send(states.toList())
@@ -171,21 +167,7 @@ class GetHomeCatalogsUseCase @Inject constructor(
     private suspend fun fetchRefs(listUrl: String): List<MediaRef> =
         withContext(Dispatchers.IO) { mdbList.get().fetchList(listUrl) }.toRefs()
 
-    private suspend fun fetchRefsOrNull(listUrl: String): List<MediaRef>? = try {
-        fetchRefs(listUrl)
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Exception) {
-        null
-    }
-
-    private suspend fun <T> awaitOrNull(block: suspend () -> T): T? = try {
-        block()
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Exception) {
-        null
-    }
+    private suspend fun fetchRefsOrNull(listUrl: String): List<MediaRef>? = orNullUnlessCancelled { fetchRefs(listUrl) }
 
     private fun ProfileEntity.heroKey() = HeroKey(id, isKids, toAgeRestriction())
 
