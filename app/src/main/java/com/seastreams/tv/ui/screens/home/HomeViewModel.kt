@@ -4,11 +4,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.seastreams.tv.core.database.entity.ProfileEntity
 import com.seastreams.tv.core.datastore.SettingsDataStore
+import com.seastreams.tv.core.util.orNullUnlessCancelled
 import com.seastreams.tv.data.profile.ProfileRepository
 import com.seastreams.tv.domain.usecase.GetContinueWatchingUseCase
 import com.seastreams.tv.domain.usecase.GetHomeCatalogsUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -84,15 +84,8 @@ class HomeViewModel @Inject constructor(
 
     private fun heroFor(profile: ProfileEntity): Flow<HeroState> = flow {
         emit(HeroState.Loading)
-        val state = try {
-            val items = homeCatalogs.takeHero(profile)
-            if (items.isEmpty()) HeroState.Failed else HeroState.Loaded(items)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            HeroState.Failed
-        }
-        emit(state)
+        val items = orNullUnlessCancelled { homeCatalogs.takeHero(profile) }
+        emit(if (items.isNullOrEmpty()) HeroState.Failed else HeroState.Loaded(items))
     }
 
     private companion object {

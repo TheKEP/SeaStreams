@@ -4,8 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.seastreams.tv.core.database.entity.ProfileEntity
 import com.seastreams.tv.core.datastore.SettingsDataStore
-import com.seastreams.tv.core.network.ApiEndpoints
 import com.seastreams.tv.core.network.TmdbApiService
+import com.seastreams.tv.data.catalog.TmdbImageUrls
 import com.seastreams.tv.data.profile.ProfileRepository
 import com.seastreams.tv.domain.usecase.GetHomeCatalogsUseCase
 import com.seastreams.tv.ui.screens.home.HomeImagePrewarmer
@@ -40,7 +40,7 @@ class ProfileSelectViewModel @Inject constructor(
     private val settings: SettingsDataStore,
     /** Lazy so the HTTP stack (and its disk cache directory) is built on IO, not during VM creation. */
     private val tmdb: Lazy<TmdbApiService>,
-    private val endpoints: ApiEndpoints,
+    private val imageUrls: TmdbImageUrls,
     private val homeCatalogs: GetHomeCatalogsUseCase,
     private val imagePrewarmer: HomeImagePrewarmer,
 ) : ViewModel() {
@@ -93,8 +93,7 @@ class ProfileSelectViewModel @Inject constructor(
                     .filter { !it.adult && it.backdropPath != null }
                     .take(BACKDROP_CANDIDATES)
                     .randomOrNull() ?: return@launch
-                val path = pick.backdropPath ?: return@launch
-                backdropUrl.value = "${endpoints.tmdbImageBaseUrl}/$BACKDROP_SIZE$path"
+                backdropUrl.value = imageUrls.heroBackdrop(pick.backdropPath)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -107,7 +106,6 @@ class ProfileSelectViewModel @Inject constructor(
     private companion object {
         const val STOP_TIMEOUT_MILLIS = 5_000L
         const val BACKDROP_CANDIDATES = 10
-        const val BACKDROP_SIZE = "w1280"
         const val PREFETCH_SETTLE_MILLIS = 150L
     }
 }

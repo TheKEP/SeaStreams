@@ -2,12 +2,11 @@ package com.seastreams.tv
 
 import android.app.Application
 import android.util.Log
+import com.seastreams.tv.core.util.ApplicationScope
 import com.seastreams.tv.data.setup.FirstLaunchSeeder
 import dagger.Lazy
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -18,8 +17,10 @@ class SeaStreamsApp : Application() {
     @Inject
     lateinit var firstLaunchSeeder: Lazy<FirstLaunchSeeder>
 
-    /** Process-lifetime scope for fire-and-forget startup work. */
-    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    /** Process-lifetime scope (off the main thread) for fire-and-forget startup work. */
+    @Inject
+    @ApplicationScope
+    lateinit var appScope: CoroutineScope
 
     override fun onCreate() {
         super.onCreate()
