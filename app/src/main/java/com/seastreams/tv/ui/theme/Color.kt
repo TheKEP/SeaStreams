@@ -1,0 +1,15 @@
+package com.seastreams.tv.ui.theme
+
+import androidx.compose.ui.graphics.Color
+
+// PRD §1 palette.
+val Obsidian = Color(0xFF0B0D12)
+val SurfaceCard = Color(0xFF161A23)
+val SurfaceRaised = Color(0xFF1F2430)
+val OutlineDim = Color(0xFF2A3040)
+val TextPrimary = Color(0xFFFFFFFF)
+val TextSecondary = Color(0xFFA0A8B8)
+val FocusPill = Color(0xFFE5E9F0)
+val OnFocusPill = Obsidian
+val SuccessGreen = Color(0xFF3DD68C)
+val ErrorRed = Color(0xFFFF6B6B)

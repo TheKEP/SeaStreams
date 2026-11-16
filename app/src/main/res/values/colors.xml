@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- PRD §1 visual design system -->
+    <color name="obsidian_background">#FF0B0D12</color>
+    <color name="surface_card">#FF161A23</color>
+    <color name="text_primary">#FFFFFFFF</color>
+</resources>

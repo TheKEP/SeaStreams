@@ -1,0 +1,144 @@
+package com.seastreams.tv.core.datastore
+
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import app.cash.turbine.test
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runTest
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.CsvSource
+import java.io.File
+
+class SettingsDataStoreTest {
+
+    @TempDir
+    lateinit var dir: File
+
+    private lateinit var scope: CoroutineScope
+    private lateinit var rawStore: androidx.datastore.core.DataStore<androidx.datastore.preferences.core.Preferences>
+    private lateinit var settings: SettingsDataStore
+
+    @BeforeEach
+    fun setUp() {
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        rawStore = PreferenceDataStoreFactory.create(scope = scope) { File(dir, "test.preferences_pb") }
+        settings = SettingsDataStore(rawStore)
+    }
+
+    @AfterEach
+    fun tearDown() = scope.cancel()
+
+    @Test
+    fun `fresh install emits PRD defaults`() = runTest {
+        val defaults = settings.settings.first()
+
+        assertEquals(AppSettings(), defaults)
+        assertEquals(5, defaults.player.fallbackTimeoutSeconds)
+        assertEquals(ExternalPlayer.NONE, defaults.player.externalPlayer)
+        assertEquals(DialogueBoost.OFF, defaults.audio.dialogueBoost)
+        assertEquals(0, defaults.audio.audioDelayMs)
+        assertNull(settings.tmdbApiKey.first())
+        assertNull(settings.activeProfileId.first())
+    }
+
+    @Test
+    fun `TMDB key is trimmed, observable and cleared by blank input`() = runTest {
+        settings.tmdbApiKey.test {
+            assertNull(awaitItem())
+
+            settings.setTmdbApiKey("  abc123  ")
+            assertEquals("abc123", awaitItem())
+            assertEquals("abc123", settings.currentApiKey())
+
+            settings.setTmdbApiKey("   ")
+            assertNull(awaitItem())
+        }
+    }
+
+    @Test
+    fun `active profile id can be set and cleared`() = runTest {
+        settings.activeProfileId.test {
+            assertNull(awaitItem())
+            settings.setActiveProfileId(3L)
+            assertEquals(3L, awaitItem())
+            settings.setActiveProfileId(null)
+            assertNull(awaitItem())
+        }
+    }
+
+    @ParameterizedTest(name = "{0}s -> {1}s")
+    @CsvSource("0, 1", "1, 1", "5, 5", "10, 10", "42, 10", "-3, 1")
+    fun `stream fallback timeout is clamped to 1-10 seconds`(input: Int, expected: Int) = runTest {
+        settings.updatePlayer { it.copy(fallbackTimeoutSeconds = input) }
+        assertEquals(expected, settings.settings.first().player.fallbackTimeoutSeconds)
+    }
+
+    @ParameterizedTest(name = "{0}ms -> {1}ms")
+    @CsvSource("37, 25", "38, 50", "-12, 0", "-13, -25", "500, 500", "510, 500", "-900, -500", "250, 250")
+    fun `audio delay snaps to 25ms steps within plus or minus 500ms`(input: Int, expected: Int) = runTest {
+        settings.updateAudio { it.copy(audioDelayMs = input) }
+        assertEquals(expected, settings.settings.first().audio.audioDelayMs)
+    }
+
+    @Test
+    fun `audio and player updates persist and emit through the settings flow`() = runTest {
+        settings.settings.test {
+            assertEquals(AppSettings(), awaitItem())
+
+            settings.updateAudio { it.copy(passthroughEnabled = false, dialogueBoost = DialogueBoost.PLUS_9, nightMode = true) }
+            val audio = awaitItem().audio
+            assertEquals(false, audio.passthroughEnabled)
+            assertEquals(DialogueBoost.PLUS_9, audio.dialogueBoost)
+            assertEquals(true, audio.nightMode)
+
+            settings.updatePlayer { it.copy(externalPlayer = ExternalPlayer.VLC, preferredAutoPlayAddonUrl = "https://a/manifest.json") }
+            val player = awaitItem().player
+            assertEquals(ExternalPlayer.VLC, player.externalPlayer)
+            assertEquals("https://a/manifest.json", player.preferredAutoPlayAddonUrl)
+
+            settings.updatePlayer { it.copy(preferredAutoPlayAddonUrl = null) }
+            assertNull(awaitItem().player.preferredAutoPlayAddonUrl)
+        }
+    }
+
+    @Test
+    fun `subtitle style values are clamped`() = runTest {
+        settings.updateSubtitles {
+            it.copy(
+                mode = SubtitleMode.ALWAYS_ON,
+                cleanSdh = true,
+                style = it.style.copy(fontScale = 9f, backgroundOpacity = -1f, edgeType = SubtitleEdgeType.DROP_SHADOW),
+            )
+        }
+
+        val subs = settings.settings.first().subtitles
+        assertEquals(SubtitleMode.ALWAYS_ON, subs.mode)
+        assertEquals(true, subs.cleanSdh)
+        assertEquals(SubtitleStyle.MAX_FONT_SCALE, subs.style.fontScale)
+        assertEquals(0f, subs.style.backgroundOpacity)
+        assertEquals(SubtitleEdgeType.DROP_SHADOW, subs.style.edgeType)
+    }
+
+    @Test
+    fun `unknown enum values written by an older or newer build fall back to defaults`() = runTest {
+        rawStore.edit {
+            it[stringPreferencesKey("audio_dialogue_boost")] = "PLUS_99"
+            it[stringPreferencesKey("player_external")] = "WINAMP"
+        }
+
+        val loaded = settings.settings.first()
+        assertEquals(DialogueBoost.OFF, loaded.audio.dialogueBoost)
+        assertEquals(ExternalPlayer.NONE, loaded.player.externalPlayer)
+    }
+}
