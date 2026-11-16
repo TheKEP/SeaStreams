@@ -1,6 +1,7 @@
 package com.seastreams.tv.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -24,6 +25,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableIntState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -33,8 +35,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.LocalDensity
@@ -48,6 +50,7 @@ import com.seastreams.tv.ui.theme.PivotBringIntoViewSpec
 import com.seastreams.tv.ui.theme.TextSecondary
 import com.seastreams.tv.ui.theme.onDpadEdgeWrap
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
+import com.seastreams.tv.ui.theme.throttleHorizontalDpadRepeat
 import com.seastreams.tv.ui.theme.trailingOverflowPx
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
@@ -55,18 +58,36 @@ import kotlinx.coroutines.launch
 /** Left/right page gutter shared by the Home rows, hero and nav bar. */
 val RowGutter = 48.dp
 private val CardSpacing = 12.dp
-private val InfoHeight = 112.dp
+/**
+ * Title (24) + metadata line (20) + 2-line synopsis (40) + 2 × 2dp gaps. With the 36dp header,
+ * 218dp artwork and [InfoTopPadding], a focused row is 348dp tall, so on a 540dp-tall screen the
+ * next row's title and the top ~45–50dp of its posters still show below it.
+ */
+private val InfoHeight = 88.dp
+private val InfoTopPadding = 6.dp
 private const val VIEW_MORE_KEY = "view-more"
+
+/**
+ * Info panel expand/collapse time. Kept under [SNAP_TO_TOP_MILLIS] so that on `Down` the row
+ * above has finished collapsing before the page's snap-to-top glide makes its final, exact moves.
+ */
+private const val INFO_ANIM_MILLIS = 130
 
 /**
  * Horizontal catalog row (`catalog1.jpg`, `catalog2.jpg`, `home-catalogs.png`).
  *
- * - The focused card expands from a 2:3 poster to a 16:9 backdrop and is held at the left gutter
- *   while the row scrolls beneath it; its title, rating, year, genre, runtime and synopsis show below.
- * - [items] should already be capped (30 on Home); [hasMore] appends a `View More` card.
+ * - Every row always shows one 16:9 backdrop card: its last-focused card (the first card by default).
+ *   It stays wide after focus leaves the row; only the card holding D-pad focus draws the focus ring.
+ *   The focused card is held at the left gutter while the row scrolls beneath it, and its title,
+ *   rating, year, genre, runtime and synopsis show below while the row has focus.
+ * - [items] should already be capped (`ROW_CAP` = 20 on every tab); [hasMore] appends a `View More`
+ *   card at position 21 (index 20).
  * - Edge-stop-then-wrap (PRD §1): holding `Right` stops on the last card (or `View More`); a fresh
  *   `Right` press while already there wraps focus back to the first card.
- * - Re-entering the row from above/below restores the last-focused card (first card by default).
+ * - Held `Left`/`Right` is paced to [com.seastreams.tv.ui.theme.HORIZONTAL_REPEAT_INTERVAL_MS]; fresh
+ *   taps are never throttled. The throttle sits on the row container, ahead of the edge-wrap cards.
+ * - Re-entering the row with `Up`/`Down` restores the last-focused card (first card by default),
+ *   kept in [focusedIndexState] so the page can hold it while the row is scrolled away and disposed.
  */
 @OptIn(ExperimentalFoundationApi::class) // LocalBringIntoViewSpec
 @Composable
@@ -77,40 +98,78 @@ fun ExpandingCatalogRow(
     onItemClick: (index: Int) -> Unit,
     onViewMore: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Focuses the first card; also where re-entry lands when no card was focused before. */
+    firstCard: FocusRequester = remember { FocusRequester() },
     cardOverlay: @Composable BoxScope.(index: Int, expanded: Boolean) -> Unit = { _, _ -> },
+    /** Returning from this row's View More: scroll back to the first card, focus it, then [onFocusReturned]. */
+    returnFocusToStart: Boolean = false,
+    onFocusReturned: () -> Unit = {},
+    /** Last-focused card; pass [RowFocusMemory.stateFor] so it outlives the row's composition. */
+    focusedIndexState: MutableIntState = remember { mutableIntStateOf(0) },
+    /** Attached to the active (expanded) card, i.e. [focusedIndexState]'s card; lets the page focus it directly. */
+    activeCard: FocusRequester = remember { FocusRequester() },
 ) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
-    val firstCard = remember { FocusRequester() }
-    var focusedIndex by remember { mutableIntStateOf(0) }
+    var focusedIndex by focusedIndexState
+    val lastFocusedCard = activeCard
     var rowFocused by remember { mutableStateOf(false) }
-    val lastIndex = if (hasMore) items.size else items.lastIndex
+    var viewMoreFocused by remember { mutableStateOf(false) }
+    val expandedIndex = expandedCardIndex(focusedIndex, items.size, viewMoreFocused)
+    val lastIndex = rowLastIndex(items.size, hasMore)
     val wrapToStart: () -> Unit = {
         scope.launch {
             listState.scrollToItem(0)
             firstCard.requestFocusAfterFrame()
         }
     }
+    LaunchedEffect(returnFocusToStart) {
+        if (!returnFocusToStart) return@LaunchedEffect
+        listState.scrollToItem(RETURN_CARD_INDEX)
+        focusedIndex = RETURN_CARD_INDEX
+        firstCard.requestFocusAfterFrame()
+        // Last: clearing the request flips the key above and cancels this effect.
+        onFocusReturned()
+    }
     val pivotPx = with(LocalDensity.current) { RowGutter.toPx() }
     val bringIntoViewSpec = remember(pivotPx) { PivotBringIntoViewSpec(pivotPx) }
     KeepFocusedCardInView(listState, focusedIndex, rowFocused)
 
-    Column(modifier.onFocusChanged { rowFocused = it.hasFocus }) {
+    Column(modifier.onFocusChanged { rowFocused = it.hasFocus }.throttleHorizontalDpadRepeat()) {
         RowTitle(title)
         CompositionLocalProvider(LocalBringIntoViewSpec provides bringIntoViewSpec) {
             LazyRow(
                 state = listState,
-                modifier = Modifier.fillMaxWidth().height(CardHeight).focusRestorer(firstCard),
+                modifier = Modifier.fillMaxWidth().height(CardHeight).focusProperties {
+                    onEnter = {
+                        val target = restoreIndex(focusedIndex, lastIndex)
+                        val visible = listState.layoutInfo.visibleItemsInfo.any { it.index == target }
+                        when (rowEntry(requestedFocusDirection, visible)) {
+                            RowEntry.DEFAULT -> Unit
+                            // An unattached requester (not laid out yet) falls back to default search.
+                            RowEntry.FOCUS_LAST -> runCatching { lastFocusedCard.requestFocus() }
+                            RowEntry.SCROLL_THEN_FOCUS_LAST -> {
+                                cancelFocusChange()
+                                scope.launch {
+                                    listState.scrollToItem(target)
+                                    if (!lastFocusedCard.requestFocusAfterFrame()) firstCard.requestFocusAfterFrame()
+                                }
+                            }
+                        }
+                    }
+                },
                 contentPadding = PaddingValues(horizontal = RowGutter),
                 horizontalArrangement = Arrangement.spacedBy(CardSpacing),
             ) {
                 itemsIndexed(items, key = { _, item -> item.key }) { index, item ->
                     ExpandingMediaCard(
                         item = item,
+                        expanded = index == expandedIndex,
                         onClick = { onItemClick(index) },
                         onFocused = { focusedIndex = index },
                         modifier = Modifier
                             .then(if (index == 0) Modifier.focusRequester(firstCard) else Modifier)
+                            .then(if (index == focusedIndex) Modifier.focusRequester(lastFocusedCard) else Modifier)
                             .then(if (index == lastIndex) Modifier.onDpadEdgeWrap(Key.DirectionRight, wrapToStart) else Modifier),
                         overlay = { expanded -> cardOverlay(index, expanded) },
                     )
@@ -119,8 +178,13 @@ fun ExpandingCatalogRow(
                     item(key = VIEW_MORE_KEY) {
                         ViewMoreCard(
                             onClick = onViewMore,
-                            onFocused = { focusedIndex = items.size },
-                            modifier = Modifier.onDpadEdgeWrap(Key.DirectionRight, wrapToStart),
+                            onFocusChanged = { focused ->
+                                viewMoreFocused = focused
+                                if (focused) focusedIndex = items.size
+                            },
+                            modifier = Modifier
+                                .then(if (focusedIndex == items.size) Modifier.focusRequester(lastFocusedCard) else Modifier)
+                                .onDpadEdgeWrap(Key.DirectionRight, wrapToStart),
                         )
                     }
                 }
@@ -128,11 +192,11 @@ fun ExpandingCatalogRow(
         }
         AnimatedVisibility(
             visible = rowFocused,
-            enter = fadeIn() + expandVertically(),
-            exit = fadeOut() + shrinkVertically(),
+            enter = fadeIn(tween(INFO_ANIM_MILLIS)) + expandVertically(tween(INFO_ANIM_MILLIS)),
+            exit = fadeOut(tween(INFO_ANIM_MILLIS)) + shrinkVertically(tween(INFO_ANIM_MILLIS)),
         ) {
             // Fixed height so moving between cards (or onto View More) never shifts the rows below.
-            Box(Modifier.padding(start = RowGutter, top = 12.dp).height(InfoHeight)) {
+            Box(Modifier.padding(start = RowGutter, top = InfoTopPadding).height(InfoHeight)) {
                 items.getOrNull(focusedIndex)?.let { CatalogItemInfo(it) }
             }
         }
@@ -167,14 +231,14 @@ fun RowTitle(title: String, modifier: Modifier = Modifier) {
         title,
         style = MaterialTheme.typography.titleLarge,
         fontWeight = FontWeight.Bold,
-        modifier = modifier.padding(start = RowGutter, bottom = 10.dp),
+        modifier = modifier.padding(start = RowGutter, bottom = 8.dp),
     )
 }
 
-/** Title, `👍 74%  2026  Comedy  1h 47m` and a 3-line synopsis under the expanded card. */
+/** Title, `👍 74%  2026  Comedy  1h 47m` and a 2-line synopsis under the expanded card. */
 @Composable
 private fun CatalogItemInfo(item: MediaItem) {
-    Column(Modifier.width(560.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(Modifier.width(560.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(
             item.title,
             style = MaterialTheme.typography.titleMedium,
@@ -188,7 +252,7 @@ private fun CatalogItemInfo(item: MediaItem) {
                 item.overview,
                 style = MaterialTheme.typography.bodyMedium,
                 color = TextSecondary,
-                maxLines = 3,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
         }

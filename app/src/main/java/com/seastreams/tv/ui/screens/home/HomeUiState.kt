@@ -1,6 +1,7 @@
 package com.seastreams.tv.ui.screens.home
 
 import com.seastreams.tv.core.database.entity.ProfileEntity
+import com.seastreams.tv.domain.model.CatalogRowSpec
 import com.seastreams.tv.domain.model.CatalogRowState
 import com.seastreams.tv.domain.model.ContinueWatchingItem
 import com.seastreams.tv.domain.model.MediaItem
@@ -26,7 +27,7 @@ data class HomeUiState(
 sealed interface HomeDestination {
     data class Details(val item: MediaItem) : HomeDestination
     data class Play(val item: ContinueWatchingItem) : HomeDestination
-    data class ViewMore(val rowId: String, val title: String, val listUrl: String) : HomeDestination
+    data class ViewMore(val row: CatalogRowSpec) : HomeDestination
 }
 
 /** PRD §3: Continue Watching plays immediately when auto-play is on, else opens Details. */

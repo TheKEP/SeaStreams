@@ -47,11 +47,29 @@ class TmdbApiService @Inject constructor(
         }
     }
 
-    suspend fun discoverMovies(provider: StreamingProvider? = null, page: Int = 1): TmdbPage<TmdbMovieSummary> =
-        get("discover", "movie") { discoverParameters(provider, page) }
+    suspend fun discoverMovies(
+        provider: StreamingProvider? = null,
+        page: Int = 1,
+        genreId: Int? = null,
+    ): TmdbPage<TmdbMovieSummary> = get("discover", "movie") { discoverParameters(provider, page, genreId) }
 
-    suspend fun discoverTv(provider: StreamingProvider? = null, page: Int = 1): TmdbPage<TmdbTvSummary> =
-        get("discover", "tv") { discoverParameters(provider, page) }
+    suspend fun discoverTv(
+        provider: StreamingProvider? = null,
+        page: Int = 1,
+        genreId: Int? = null,
+    ): TmdbPage<TmdbTvSummary> = get("discover", "tv") { discoverParameters(provider, page, genreId) }
+
+    /** This week's trending movies (Search's default `Trending Movies` category). */
+    suspend fun trendingMovies(page: Int = 1): TmdbPage<TmdbMovieSummary> =
+        get("trending", "movie", TRENDING_WINDOW) { pageParameters(page) }
+
+    /** This week's trending shows (Search's `Trending Shows` category). */
+    suspend fun trendingTv(page: Int = 1): TmdbPage<TmdbTvSummary> =
+        get("trending", "tv", TRENDING_WINDOW) { pageParameters(page) }
+
+    /** Every TMDB genre for [mediaType] (`/genre/movie/list` or `/genre/tv/list`). */
+    suspend fun genres(mediaType: MediaType): List<TmdbGenre> =
+        get<TmdbGenreList>("genre", mediaType.tmdbPath, "list") { parameter("language", LANGUAGE) }.genres
 
     suspend fun searchMovies(query: String, page: Int = 1): TmdbPage<TmdbMovieSummary> =
         get("search", "movie") { searchParameters(query, page) }
@@ -96,14 +114,19 @@ class TmdbApiService @Inject constructor(
         if (isV4AccessToken(key)) header(HttpHeaders.Authorization, "Bearer $key") else parameter("api_key", key)
     }
 
-    private fun HttpRequestBuilder.discoverParameters(provider: StreamingProvider?, page: Int) {
+    private fun HttpRequestBuilder.discoverParameters(provider: StreamingProvider?, page: Int, genreId: Int?) {
+        if (genreId != null) parameter("with_genres", genreId)
         if (provider != null) {
-            parameter("with_watch_providers", provider.tmdbProviderId)
+            parameter("with_watch_providers", provider.watchProviderFilter)
             parameter("watch_region", WATCH_REGION)
             parameter("with_watch_monetization_types", "flatrate")
         }
         parameter("sort_by", "popularity.desc")
         parameter("include_adult", false)
+        pageParameters(page)
+    }
+
+    private fun HttpRequestBuilder.pageParameters(page: Int) {
         parameter("language", LANGUAGE)
         parameter("page", page)
     }
@@ -118,6 +141,10 @@ class TmdbApiService @Inject constructor(
     companion object {
         const val LANGUAGE = "en-US"
         const val WATCH_REGION = "US"
+        const val TRENDING_WINDOW = "week"
+
+        /** TMDB list endpoints return at most this many results per page. */
+        const val PAGE_SIZE = 20
 
         /** Artwork languages for `images`: English plus language-neutral ("null") logos. */
         const val IMAGE_LANGUAGES = "en,null"

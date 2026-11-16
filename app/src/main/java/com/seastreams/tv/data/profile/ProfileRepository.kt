@@ -5,6 +5,8 @@ import com.seastreams.tv.core.database.entity.ProfileEntity
 import com.seastreams.tv.core.datastore.SettingsDataStore
 import com.seastreams.tv.core.network.TmdbApiKeyProvider
 import com.seastreams.tv.data.UserFacingException
+import com.seastreams.tv.data.catalog.DiscoverSnapshotStore
+import com.seastreams.tv.data.catalog.LoadedCatalogStore
 import com.seastreams.tv.domain.model.MovieCertification
 import com.seastreams.tv.domain.model.ProfileAvatar
 import com.seastreams.tv.domain.model.TvCertification
@@ -54,6 +56,8 @@ class ProfileRepository @Inject constructor(
     private val apiKeyProvider: TmdbApiKeyProvider,
     private val settings: SettingsDataStore,
     private val clock: Clock,
+    private val discoverSnapshots: DiscoverSnapshotStore,
+    private val loadedCatalogs: LoadedCatalogStore,
 ) {
     private val writeLock = Mutex()
 
@@ -82,12 +86,16 @@ class ProfileRepository @Inject constructor(
         val updated = draft.validated().toEntity(id = existing.id, createdAtMillis = existing.createdAtMillis)
             .copy(librarySortOrder = existing.librarySortOrder)
         profileDao.update(updated)
+        discoverSnapshots.forget(profileId)
+        loadedCatalogs.forget(profileId)
         updated
     }
 
     suspend fun delete(profileId: Long) = writeLock.withLock {
         val existing = profileDao.getById(profileId) ?: throw UserFacingException("Profile not found")
         profileDao.delete(existing)
+        discoverSnapshots.forget(profileId)
+        loadedCatalogs.forget(profileId)
         if (settings.activeProfileId.first() == profileId) settings.setActiveProfileId(null)
     }
 

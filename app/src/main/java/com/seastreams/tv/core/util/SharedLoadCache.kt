@@ -2,6 +2,7 @@ package com.seastreams.tv.core.util
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 
 /**
@@ -31,6 +32,16 @@ class SharedLoadCache<K : Any, V>(
             if (cause != null) synchronized(lock) { if (entries[key]?.value === deferred) entries.remove(key) }
         }
         deferred
+    }
+
+    /**
+     * The result of a finished, still-fresh load for [key], or `null` when there is none yet. Never
+     * starts a load or suspends, so a screen can use it to draw already-loaded content on its first frame.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class) // Deferred.getCompleted
+    fun peek(key: K): V? = synchronized(lock) {
+        val entry = entries[key]?.takeIf { isUsable(it) && it.value.isCompleted } ?: return null
+        entry.value.getCompleted()
     }
 
     /** Awaits the shared load for [key]. */

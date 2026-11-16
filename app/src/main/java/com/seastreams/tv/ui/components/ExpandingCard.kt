@@ -4,7 +4,6 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,44 +33,50 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.seastreams.tv.domain.model.MediaItem
-import com.seastreams.tv.ui.theme.FocusBorderWidth
-import com.seastreams.tv.ui.theme.FocusPill
 import com.seastreams.tv.ui.theme.Obsidian
 import com.seastreams.tv.ui.theme.SurfaceCard
 import com.seastreams.tv.ui.theme.TextPrimary
+import com.seastreams.tv.ui.theme.focusRing
 
-val CardHeight = 180.dp
-val PosterWidth = 120.dp
-val ExpandedCardWidth = 320.dp
+/** Row artwork height: 2:3 posters are 145 × 218dp, the expanded 16:9 card 388 × 218dp. */
+val CardHeight = 218.dp
+val PosterWidth = 145.dp
+val ExpandedCardWidth = 388.dp
 val PosterSize = DpSize(PosterWidth, CardHeight)
 private val ExpandedSize = DpSize(ExpandedCardWidth, CardHeight)
-private val CardLogoSize = DpSize(180.dp, 56.dp)
+private val CardLogoSize = DpSize(216.dp, 68.dp)
 private val CardShape = RoundedCornerShape(12.dp)
 
 /** Short enough to read as instant, long enough to be smooth (≈11 frames at 60fps). */
 private const val EXPAND_MILLIS = 180
 
 /**
- * Catalog card that is a 2:3 poster at rest and widens into a 16:9 backdrop (with title logo)
- * while focused. Both images are decoded once at their final size, so the animation only
- * re-lays-out and re-draws.
+ * Catalog card that is a 2:3 poster at rest and a 16:9 backdrop (with title logo) while [expanded].
+ * Expansion is decided by the row (its remembered card stays wide after focus leaves the row);
+ * the focus ring only follows real D-pad focus. Both images are decoded once at their final size,
+ * so the animation only re-lays-out and re-draws.
  */
 @Composable
 fun ExpandingMediaCard(
     item: MediaItem,
+    expanded: Boolean,
     onClick: () -> Unit,
     onFocused: () -> Unit,
     modifier: Modifier = Modifier,
     overlay: @Composable BoxScope.(expanded: Boolean) -> Unit = {},
 ) {
-    ExpandingCardSurface(onClick = onClick, onFocused = onFocused, modifier = modifier) { expanded ->
+    ExpandingCardSurface(
+        onClick = onClick,
+        onFocusChanged = { if (it) onFocused() },
+        modifier = modifier,
+        wide = { expanded },
+    ) { expanded ->
         val backdropAlpha by animateFloatAsState(
             targetValue = if (expanded) 1f else 0f,
             animationSpec = tween(EXPAND_MILLIS),
@@ -110,10 +115,13 @@ fun ExpandingMediaCard(
     }
 }
 
-/** The `>>  View More` card at position 31 of a capped row; it expands like a title card. */
+/**
+ * The `>>  View More` card at position 21 (index 20) of a capped row. It widens only while it
+ * holds focus, so it never stays behind as an empty 16:9 card once focus leaves the row.
+ */
 @Composable
-fun ViewMoreCard(onClick: () -> Unit, onFocused: () -> Unit, modifier: Modifier = Modifier) {
-    ExpandingCardSurface(onClick = onClick, onFocused = onFocused, modifier = modifier) { _ ->
+fun ViewMoreCard(onClick: () -> Unit, onFocusChanged: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+    ExpandingCardSurface(onClick = onClick, onFocusChanged = onFocusChanged, modifier = modifier, wide = { it }) { _ ->
         Column(
             Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.Center,
@@ -134,17 +142,22 @@ fun ViewMoreCard(onClick: () -> Unit, onFocused: () -> Unit, modifier: Modifier 
     }
 }
 
-/** Shared focusable shell: animates 2:3 → 16:9 on focus and draws the focus ring. */
+/**
+ * Shared focusable shell: animates between 2:3 and 16:9 as [wide] (given the card's focus) changes,
+ * and draws the focus ring only while this card holds D-pad focus ([cardAppearance]).
+ */
 @Composable
 private fun ExpandingCardSurface(
     onClick: () -> Unit,
-    onFocused: () -> Unit,
+    onFocusChanged: (Boolean) -> Unit,
     modifier: Modifier,
+    wide: (focused: Boolean) -> Boolean,
     content: @Composable BoxScope.(expanded: Boolean) -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
+    val appearance = cardAppearance(wide = wide(focused), focused = focused)
     val width by animateDpAsState(
-        targetValue = if (focused) ExpandedCardWidth else PosterWidth,
+        targetValue = if (appearance.wide) ExpandedCardWidth else PosterWidth,
         animationSpec = tween(EXPAND_MILLIS, easing = FastOutSlowInEasing),
         label = "cardWidth",
     )
@@ -154,14 +167,16 @@ private fun ExpandingCardSurface(
             .width(width)
             .height(CardHeight)
             .onFocusChanged {
-                focused = it.isFocused
-                if (it.isFocused) onFocused()
-            },
+                if (focused != it.isFocused) {
+                    focused = it.isFocused
+                    onFocusChanged(it.isFocused)
+                }
+            }
+            .focusRing(appearance.focusRing, CardShape),
         shape = ClickableSurfaceDefaults.shape(CardShape),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
-        border = ClickableSurfaceDefaults.border(focusedBorder = Border(BorderStroke(FocusBorderWidth, FocusPill), shape = CardShape)),
         colors = ClickableSurfaceDefaults.colors(containerColor = SurfaceCard, focusedContainerColor = SurfaceCard),
     ) {
-        Box(Modifier.fillMaxSize()) { content(focused) }
+        Box(Modifier.fillMaxSize()) { content(appearance.wide) }
     }
 }

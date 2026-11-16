@@ -4,10 +4,13 @@ import com.seastreams.tv.core.network.ApiEndpoints
 import com.seastreams.tv.core.network.MdbListApiService
 import com.seastreams.tv.core.network.MdbListItem
 import com.seastreams.tv.core.network.TmdbApiService
+import com.seastreams.tv.data.catalog.GenreRepository
+import com.seastreams.tv.data.catalog.LoadedCatalogStore
 import com.seastreams.tv.data.catalog.MediaHydrator
 import com.seastreams.tv.data.catalog.TmdbImageUrls
 import com.seastreams.tv.domain.filter.AgeRestrictionEngine
 import com.seastreams.tv.domain.model.CatalogRowSpec
+import com.seastreams.tv.domain.model.CatalogSource
 import com.seastreams.tv.testutil.FakeCatalogDao
 import com.seastreams.tv.testutil.movieDetails
 import com.seastreams.tv.testutil.testProfile
@@ -25,11 +28,18 @@ abstract class HomeCatalogsTestBase {
     protected val mdbList = mockk<MdbListApiService>()
     protected val tmdb = mockk<TmdbApiService>()
     protected val catalogDao = FakeCatalogDao()
-    protected val useCase = GetHomeCatalogsUseCase(
+    private val hydrator = MediaHydrator(Lazy { tmdb }, TmdbImageUrls(ApiEndpoints()))
+    protected val loader = CatalogLoader(
         Lazy { mdbList },
-        MediaHydrator(Lazy { tmdb }, TmdbImageUrls(ApiEndpoints())),
-        catalogDao,
+        hydrator,
+        TmdbImageUrls(ApiEndpoints()),
+        GenreRepository(hydrator),
         AgeRestrictionEngine(),
+    )
+    protected val useCase = GetHomeCatalogsUseCase(
+        loader,
+        catalogDao,
+        LoadedCatalogStore(Clock.systemUTC()),
         CoroutineScope(SupervisorJob() + Dispatchers.Default),
         Clock.systemUTC(),
     )
@@ -46,3 +56,6 @@ abstract class HomeCatalogsTestBase {
         }
     }
 }
+
+/** The list URL of an MDBList-backed row spec. */
+val CatalogRowSpec.listUrl: String get() = (source as CatalogSource.MdbList).listUrl

@@ -53,6 +53,9 @@ class TmdbApiServiceTest {
                     call.respondText(DISCOVER_JSON, ContentType.Application.Json)
                 }
             }
+            get("/3/discover/tv") {
+                call.respondText("""{"page":1,"total_pages":1,"total_results":0,"results":[]}""", ContentType.Application.Json)
+            }
             get("/3/movie/{id}/external_ids") {
                 call.respondText(
                     """{"id":${call.parameters["id"]},"imdb_id":"tt0137523","tvdb_id":null}""",
@@ -64,6 +67,10 @@ class TmdbApiServiceTest {
             }
             get("/3/movie/550") { call.respondText(MOVIE_DETAILS_JSON, ContentType.Application.Json) }
             get("/3/tv/1399") { call.respondText(TV_DETAILS_JSON, ContentType.Application.Json) }
+            get("/3/trending/movie/week") { call.respondText(DISCOVER_JSON, ContentType.Application.Json) }
+            get("/3/genre/movie/list") {
+                call.respondText("""{"genres":[{"id":28,"name":"Action"},{"id":12,"name":"Adventure"}]}""", ContentType.Application.Json)
+            }
             get("/3/search/tv") {
                 call.respondText("boom", status = HttpStatusCode.InternalServerError)
             }
@@ -143,6 +150,52 @@ class TmdbApiServiceTest {
         assertEquals("false", query.queryParam("include_adult"))
         assertEquals("en-US", query.queryParam("language"))
         assertEquals("1", query.queryParam("page"))
+    }
+
+    @Test
+    fun `paramount plus ORs its US provider ids on movie and tv discover`() = runTest {
+        service.discoverMovies(StreamingProvider.PARAMOUNT_PLUS)
+        service.discoverTv(StreamingProvider.PARAMOUNT_PLUS)
+
+        assertEquals(listOf("/3/discover/movie", "/3/discover/tv"), server.requests.map { it.path })
+        server.requests.forEach { query ->
+            assertEquals("2303|531|2616", query.queryParam("with_watch_providers"))
+            assertEquals("US", query.queryParam("watch_region"))
+            assertEquals("flatrate", query.queryParam("with_watch_monetization_types"))
+            assertEquals("popularity.desc", query.queryParam("sort_by"))
+            assertEquals("false", query.queryParam("include_adult"))
+            assertEquals("en-US", query.queryParam("language"))
+            assertEquals("1", query.queryParam("page"))
+        }
+        assertEquals(531, StreamingProvider.PARAMOUNT_PLUS.tmdbProviderId)
+    }
+
+    @Test
+    fun `genre discover filters by with_genres without provider parameters`() = runTest {
+        service.discoverMovies(genreId = 28, page = 2)
+
+        val query = server.requests.single()
+        assertEquals("28", query.queryParam("with_genres"))
+        assertEquals("2", query.queryParam("page"))
+        assertNull(query.queryParam("with_watch_providers"))
+    }
+
+    @Test
+    fun `trending movies read the weekly trending list and are disk cached`() = runTest {
+        val first = service.trendingMovies()
+        service.trendingMovies()
+
+        assertEquals(listOf("Fight Club"), first.results.map { it.title })
+        assertEquals(1, server.hits("/3/trending/movie/week"))
+        assertEquals("en-US", server.requests.single().queryParam("language"))
+    }
+
+    @Test
+    fun `movie genre list is parsed in TMDB order`() = runTest {
+        val genres = service.genres(MediaType.MOVIE)
+
+        assertEquals(listOf("Action", "Adventure"), genres.map { it.name })
+        assertEquals(1, server.hits("/3/genre/movie/list"))
     }
 
     @Test

@@ -8,6 +8,7 @@ import com.seastreams.tv.core.util.orNullUnlessCancelled
 import com.seastreams.tv.data.profile.ProfileRepository
 import com.seastreams.tv.domain.usecase.GetContinueWatchingUseCase
 import com.seastreams.tv.domain.usecase.GetHomeCatalogsUseCase
+import com.seastreams.tv.ui.screens.catalog.CatalogWarmupManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -39,6 +40,7 @@ class HomeViewModel @Inject constructor(
     private val homeCatalogs: GetHomeCatalogsUseCase,
     private val continueWatching: GetContinueWatchingUseCase,
     private val imagePrewarmer: HomeImagePrewarmer,
+    private val catalogWarmup: CatalogWarmupManager,
 ) : ViewModel() {
 
     private val profileId = MutableStateFlow<Long?>(null)
@@ -65,6 +67,14 @@ class HomeViewModel @Inject constructor(
     suspend fun awaitFirstScreen(id: Long): Boolean {
         showProfile(id)
         return awaitHomeReveal(uiState, id, imagePrewarmer::warm)
+    }
+
+    /**
+     * Called once Home's first load has finished for [profile]: warms the Movies and TV Shows tabs in
+     * the background (delayed, so Home stays uncontested). Kids profiles cancel any running warm-up.
+     */
+    fun onFirstLoadFinished(profile: ProfileEntity) {
+        catalogWarmup.schedule(profile)
     }
 
     private fun contentFor(profile: ProfileEntity): Flow<HomeUiState> = combine(

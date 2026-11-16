@@ -10,8 +10,10 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.seastreams.tv.core.network.TmdbApiKeyProvider
 import com.seastreams.tv.core.util.enumByNameOrNull
+import com.seastreams.tv.domain.model.StreamingProvider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -43,6 +45,22 @@ class SettingsDataStore @Inject constructor(
     val activeProfileId: Flow<Long?> = preferences.map { it[Keys.ACTIVE_PROFILE_ID] }.distinctUntilChanged()
 
     override suspend fun currentApiKey(): String? = tmdbApiKey.first()
+
+    /**
+     * Streaming-service rows shown on the Movies/TV Shows tabs, in [StreamingProvider] order. The
+     * *disabled* set is what is stored, so every provider (including ones added later) starts on.
+     */
+    val enabledProviders: Flow<List<StreamingProvider>> = preferences
+        .map { prefs ->
+            val disabled = prefs[Keys.DISABLED_PROVIDERS].orEmpty()
+            StreamingProvider.entries.filterNot { it.name in disabled }
+        }
+        .distinctUntilChanged()
+
+    suspend fun setProviderEnabled(provider: StreamingProvider, enabled: Boolean) = edit { prefs ->
+        val disabled = prefs[Keys.DISABLED_PROVIDERS].orEmpty()
+        prefs[Keys.DISABLED_PROVIDERS] = if (enabled) disabled - provider.name else disabled + provider.name
+    }
 
     suspend fun setTmdbApiKey(apiKey: String?) = edit { prefs ->
         val trimmed = apiKey?.trim()
@@ -155,6 +173,7 @@ class SettingsDataStore @Inject constructor(
         val TMDB_API_KEY = stringPreferencesKey("tmdb_api_key")
         val ACTIVE_PROFILE_ID = longPreferencesKey("active_profile_id")
         val DEFAULTS_SEEDED = booleanPreferencesKey("defaults_seeded_v1")
+        val DISABLED_PROVIDERS = stringSetPreferencesKey("catalog_disabled_providers")
 
         val EXTERNAL_PLAYER = stringPreferencesKey("player_external")
         val AUTO_PLAY_TOP_STREAM = booleanPreferencesKey("player_autoplay_top_stream")

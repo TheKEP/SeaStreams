@@ -45,7 +45,7 @@ import com.seastreams.tv.ui.theme.TextSecondary
 fun TvTextField(
     value: String,
     onValueChange: (String) -> Unit,
-    label: String,
+    label: String?,
     placeholder: String,
     modifier: Modifier = Modifier,
     keyboardType: KeyboardType = KeyboardType.Text,
@@ -58,10 +58,13 @@ fun TvTextField(
     val shape = RoundedCornerShape(12.dp)
 
     Column(modifier) {
-        Text(label, style = MaterialTheme.typography.labelLarge, color = TextSecondary)
+        if (label != null) Text(label, style = MaterialTheme.typography.labelLarge, color = TextSecondary)
         Surface(
             onClick = { editing = true },
-            modifier = Modifier.fillMaxWidth().padding(top = 6.dp).focusRequester(surfaceFocus),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = if (label != null) 6.dp else 0.dp)
+                .focusRequester(surfaceFocus),
             shape = ClickableSurfaceDefaults.shape(shape),
             scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
             colors = ClickableSurfaceDefaults.colors(

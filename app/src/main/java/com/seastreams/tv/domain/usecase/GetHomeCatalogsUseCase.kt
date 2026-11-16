@@ -3,36 +3,26 @@ package com.seastreams.tv.domain.usecase
 import com.seastreams.tv.core.database.dao.CatalogDao
 import com.seastreams.tv.core.database.entity.CatalogPlacement
 import com.seastreams.tv.core.database.entity.ProfileEntity
-import com.seastreams.tv.core.network.MdbListApiService
-import com.seastreams.tv.core.network.MdbListItem
 import com.seastreams.tv.core.util.ApplicationScope
 import com.seastreams.tv.core.util.SharedLoadCache
 import com.seastreams.tv.core.util.orNullUnlessCancelled
-import com.seastreams.tv.data.catalog.MediaHydrator
-import com.seastreams.tv.domain.filter.AgeRestrictionEngine
+import com.seastreams.tv.data.catalog.LoadedCatalogStore
 import com.seastreams.tv.domain.model.AgeRestriction
 import com.seastreams.tv.domain.model.CatalogRow
 import com.seastreams.tv.domain.model.CatalogRowSpec
 import com.seastreams.tv.domain.model.CatalogRowState
+import com.seastreams.tv.domain.model.CatalogSource
 import com.seastreams.tv.domain.model.MediaItem
 import com.seastreams.tv.domain.model.MediaRef
-import com.seastreams.tv.domain.model.RowContent
-import dagger.Lazy
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.time.Clock
 import javax.inject.Inject
@@ -42,19 +32,17 @@ import kotlin.random.Random
 /**
  * Builds the Home hero and catalog rows for a profile (PRD §3).
  *
- * Every title passes through [AgeRestrictionEngine] here, before it can reach a ViewModel, so Kids
- * profiles only ever receive titles inside their rating ceilings (CLAUDE.md rule 6).
+ * Every title passes through [CatalogLoader]'s age filter here, before it can reach a ViewModel, so
+ * Kids profiles only ever receive titles inside their rating ceilings (CLAUDE.md rule 6).
  *
  * Hero and row loads are shared through in-memory caches, so a [prefetch] started while a profile
  * card is focused is simply awaited when Home opens instead of being fetched again.
  */
 @Singleton
 class GetHomeCatalogsUseCase @Inject constructor(
-    /** Lazy so the HTTP stack is built on IO, never during ViewModel creation on the main thread. */
-    private val mdbList: Lazy<MdbListApiService>,
-    private val hydrator: MediaHydrator,
+    private val loader: CatalogLoader,
     private val catalogDao: CatalogDao,
-    private val ageEngine: AgeRestrictionEngine,
+    private val loadedCatalogs: LoadedCatalogStore,
     @ApplicationScope scope: CoroutineScope,
     clock: Clock,
 ) {
@@ -70,7 +58,7 @@ class GetHomeCatalogsUseCase @Inject constructor(
         val restriction = profile.toAgeRestriction()
         val hero = heroCache.start(profile.heroKey()) { loadHero(profile) }
         val specs = HomeCatalogSources.rowSpecs(profile.isKids, catalogDao.observeByPlacement(CatalogPlacement.HOME).first())
-        val rows = specs.take(PREFETCH_ROW_COUNT).map { spec -> rowCache.start(RowKey(spec.listUrl, restriction)) { loadRow(spec, restriction) } }
+        val rows = specs.take(PREFETCH_ROW_COUNT).map { spec -> rowCache.start(RowKey(spec.source, restriction)) { loadRow(spec, restriction) } }
         return HomePrefetch(
             hero = orNullUnlessCancelled { hero.await() },
             rows = rows.mapNotNull { row -> orNullUnlessCancelled { row.await() } },
@@ -93,11 +81,11 @@ class GetHomeCatalogsUseCase @Inject constructor(
         catalogDao.observeByPlacement(CatalogPlacement.HOME)
             .map { custom -> HomeCatalogSources.rowSpecs(profile.isKids, custom) }
             .distinctUntilChanged()
-            .flatMapLatest { specs -> loadRows(specs, profile.toAgeRestriction()) }
+            .flatMapLatest { specs -> loadRows(specs, profile) }
 
     /** Loads one row: the first [ROW_CAP] age-approved titles of its list. */
     suspend fun loadRow(spec: CatalogRowSpec, restriction: AgeRestriction?): CatalogRow =
-        collectAllowed(fetchRefs(spec.listUrl), restriction, ROW_CAP)
+        loader.load(spec.source, restriction, ROW_CAP)
 
     /**
      * Hero titles in random order: the top [HERO_SOURCE_TOP_N] of the profile's movie list plus the
@@ -119,61 +107,28 @@ class GetHomeCatalogsUseCase @Inject constructor(
         }
         if (movies == null && shows == null) throw IOException("Couldn't load hero lists")
         val pool = buildHeroPool(movies.orEmpty(), shows.orEmpty(), random)
-        return collectAllowed(pool, profile.toAgeRestriction(), HERO_SIZE) { it.heroBackdropUrl != null }.items
+        return loader.collectAllowed(pool, profile.toAgeRestriction(), HERO_SIZE) { it.heroBackdropUrl != null }.items
     }
 
-    private fun loadRows(specs: List<CatalogRowSpec>, restriction: AgeRestriction?): Flow<List<CatalogRowState>> =
-        channelFlow {
-            val states = specs.map { CatalogRowState(it, RowContent.Loading) }.toMutableList()
-            val lock = Mutex()
-            send(states.toList())
-            specs.forEachIndexed { index, spec ->
-                launch {
-                    val content = orNullUnlessCancelled {
-                        RowContent.Loaded(rowCache.get(RowKey(spec.listUrl, restriction)) { loadRow(spec, restriction) })
-                    } ?: RowContent.Failed
-                    lock.withLock {
-                        states[index] = states[index].copy(content = content)
-                        send(states.toList())
-                    }
-                }
-            }
+    /** Rows as they load; each one shown is also recorded so its View More opens with it on frame 1. */
+    private fun loadRows(specs: List<CatalogRowSpec>, profile: ProfileEntity): Flow<List<CatalogRowState>> {
+        val restriction = profile.toAgeRestriction()
+        val remember = { spec: CatalogRowSpec, row: CatalogRow ->
+            loadedCatalogs.recordRow(profile.id, spec.source, restriction, row)
+            row
         }
-
-    /**
-     * Hydrates [refs] in order, keeping titles allowed by [restriction] (and [accept]) until [cap]
-     * are collected. Titles stripped by the filter are back-filled from further down the list, up to
-     * [MAX_SCAN_FACTOR] × [cap] lookups.
-     */
-    internal suspend fun collectAllowed(
-        refs: List<MediaRef>,
-        restriction: AgeRestriction?,
-        cap: Int,
-        accept: (MediaItem) -> Boolean = { true },
-    ): CatalogRow {
-        val accepted = ArrayList<MediaItem>(cap)
-        val scanLimit = minOf(refs.size, cap * MAX_SCAN_FACTOR)
-        var scanned = 0
-        while (accepted.size < cap && scanned < scanLimit) {
-            val batch = refs.subList(scanned, minOf(scanned + cap - accepted.size, scanLimit))
-            scanned += batch.size
-            accepted += hydrator.hydrateAll(batch).filter { item ->
-                accept(item) && ageEngine.isAllowed(item.certification, restriction, item.isAdultContent)
-            }
+        return rowStates(specs, cached = { spec -> rowCache.peek(RowKey(spec.source, restriction))?.let { remember(spec, it) } }) { spec ->
+            remember(spec, rowCache.get(RowKey(spec.source, restriction)) { loadRow(spec, restriction) })
         }
-        return CatalogRow(items = accepted.take(cap), hasMore = accepted.size > cap || scanned < refs.size)
     }
 
-    private suspend fun fetchRefs(listUrl: String): List<MediaRef> =
-        withContext(Dispatchers.IO) { mdbList.get().fetchList(listUrl) }.toRefs()
-
-    private suspend fun fetchRefsOrNull(listUrl: String): List<MediaRef>? = orNullUnlessCancelled { fetchRefs(listUrl) }
+    private suspend fun fetchRefsOrNull(listUrl: String): List<MediaRef>? = orNullUnlessCancelled { loader.fetchRefs(listUrl) }
 
     private fun ProfileEntity.heroKey() = HeroKey(id, isKids, toAgeRestriction())
 
     private data class HeroKey(val profileId: Long, val isKids: Boolean, val restriction: AgeRestriction?)
 
-    private data class RowKey(val listUrl: String, val restriction: AgeRestriction?)
+    private data class RowKey(val source: CatalogSource, val restriction: AgeRestriction?)
 
     companion object {
         /** Rows [prefetch] loads ahead of Home: the ones visible without scrolling. */
@@ -182,14 +137,17 @@ class GetHomeCatalogsUseCase @Inject constructor(
         /** How long a prefetched hero/row is reused; the HTTP cache (6–12h) backs it afterwards. */
         const val PREFETCH_TTL_MILLIS = 10 * 60 * 1000L
 
-        /** Titles per row before the `View More` card (PRD §4). */
-        const val ROW_CAP = 30
+        /**
+         * Titles per row before the `View More` card at position `ROW_CAP + 1` (PRD §4). Equal to one
+         * TMDB page, so `/discover` and `/trending` rows need only `page=1`.
+         */
+        const val ROW_CAP = 20
+
         /** Hero items per Home load (PRD §3). */
         const val HERO_SIZE = 10
 
         /** Entries taken from the top of each hero source list (PRD §3). */
         const val HERO_SOURCE_TOP_N = 15
-        const val MAX_SCAN_FACTOR = 4
 
         /** The top [HERO_SOURCE_TOP_N] of each list, de-duplicated and shuffled. */
         fun buildHeroPool(movies: List<MediaRef>, shows: List<MediaRef>, random: Random): List<MediaRef> =
@@ -199,10 +157,3 @@ class GetHomeCatalogsUseCase @Inject constructor(
 
 /** What [GetHomeCatalogsUseCase.prefetch] resolved: hero titles (`null` if it failed) and the top rows. */
 data class HomePrefetch(val hero: List<MediaItem>?, val rows: List<CatalogRow>)
-
-/** Usable references in list order: entries without a TMDB id or a known media type are dropped. */
-internal fun List<MdbListItem>.toRefs(): List<MediaRef> = mapNotNull { item ->
-    val id = item.tmdbId ?: return@mapNotNull null
-    val type = item.mediaType ?: return@mapNotNull null
-    MediaRef(id, type)
-}.distinct()

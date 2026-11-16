@@ -40,6 +40,10 @@ data class TmdbTvSummary(
 @Serializable
 data class TmdbGenre(val id: Int, val name: String = "")
 
+/** Response of `/genre/{movie|tv}/list`. */
+@Serializable
+data class TmdbGenreList(val genres: List<TmdbGenre> = emptyList())
+
 @Serializable
 data class TmdbCastMember(
     val id: Int,
