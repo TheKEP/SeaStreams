@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -19,10 +21,21 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"
+
+        // Developer TMDB key from local.properties (never committed); "" when absent.
+        val tmdbApiKey = rootProject.file("local.properties")
+            .takeIf { it.isFile }
+            ?.let { file -> Properties().apply { file.inputStream().use(::load) } }
+            ?.getProperty("TMDB_API_KEY")
+            ?.trim()
+            .orEmpty()
+        buildConfigField("String", "TMDB_API_KEY", "\"${tmdbApiKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
     }
 
     buildTypes {
         release {
+            // The developer key from local.properties is for debug builds only.
+            buildConfigField("String", "TMDB_API_KEY", "\"\"")
             signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = false
             isShrinkResources = false
@@ -34,6 +47,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     packaging {
         resources {

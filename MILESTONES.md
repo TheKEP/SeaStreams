@@ -62,7 +62,7 @@
 >    - Lifecycle-aware continuous 5-second auto-advance (wraps #10 → #1), running even while focus is on the nav bar or rows; only Left/Right or a press on the hero resets the countdown; pauses on `ON_PAUSE`/`ON_STOP` or when leaving Home.
 > 4. Build `ExpandingCatalogRow.kt`:
 >    - Focused card smoothly transitions from 2:3 poster to 16:9 wide backdrop with title, rating %, year, genre, runtime, and synopsis underneath.
->    - Caps at 30 items + `View More` (`>>`) card if >30 items exist; pressing `Right` past the end loops back to item #1.
+>    - Caps at 20 items + `View More` (`>>`) card at position 21 if >20 items exist; pressing `Right` past the end loops back to item #1.
 > 5. Assemble `HomeScreen.kt` with Hero, `Continue Watching` (last 10 items, honoring auto-play toggle), Adult `Most Watched Movies`/`Shows`, or Kids rows (`Trending Kids Movies`, `Trending Kids Shows`, `Latest Family Movies`, `Latest Family Shows`), plus custom Home MDBLists.
 > Run `./gradlew testDebugUnitTest` and `./gradlew assembleDebug`.
 

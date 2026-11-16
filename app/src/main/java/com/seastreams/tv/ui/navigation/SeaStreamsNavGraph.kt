@@ -14,7 +14,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.tv.material3.MaterialTheme
 import com.seastreams.tv.ui.screens.home.HomeRevealGate
-import com.seastreams.tv.ui.screens.home.HomeScreen
 import com.seastreams.tv.ui.screens.home.HomeViewModel
 import com.seastreams.tv.ui.screens.profiles.ProfileCreateScreen
 import com.seastreams.tv.ui.screens.profiles.ProfileEditorMode
@@ -41,7 +40,7 @@ fun SeaStreamsNavGraph() {
     }
 }
 
-/** Profile switcher, and once a profile is chosen, that profile's Home. */
+/** Profile switcher, and once a profile is chosen, that profile's tabs (starting on Home). */
 @Composable
 private fun ProfileGate() {
     var homeProfileId by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -49,14 +48,7 @@ private fun ProfileGate() {
     if (openProfileId != null) {
         val homeViewModel: HomeViewModel = activityViewModel()
         HomeRevealGate(profileId = openProfileId, viewModel = homeViewModel, onBack = { homeProfileId = null }) {
-            HomeScreen(
-                profileId = openProfileId,
-                viewModel = homeViewModel,
-                // Details, the player, View More and the other tabs are added by Milestones 4-6.
-                onNavigate = {},
-                onTabSelected = {},
-                onSwitchProfile = { homeProfileId = null },
-            )
+            ProfileShell(profileId = openProfileId, homeViewModel = homeViewModel, onSwitchProfile = { homeProfileId = null })
         }
         return
     }

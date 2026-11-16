@@ -1,19 +1,14 @@
 package com.seastreams.tv.ui.screens.home
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
@@ -24,13 +19,10 @@ import com.seastreams.tv.domain.model.ContinueWatchingItem
 import com.seastreams.tv.domain.model.RowContent
 import com.seastreams.tv.ui.components.CardHeight
 import com.seastreams.tv.ui.components.MetadataFormat
-import com.seastreams.tv.ui.components.PosterWidth
-import com.seastreams.tv.ui.components.RowGutter
-import com.seastreams.tv.ui.components.RowTitle
+import com.seastreams.tv.ui.components.RowRestoreStep
+import com.seastreams.tv.ui.components.resolveRowRestore
 import com.seastreams.tv.ui.theme.FocusPill
 import com.seastreams.tv.ui.theme.Obsidian
-import com.seastreams.tv.ui.theme.SurfaceCard
-import com.seastreams.tv.ui.theme.TextSecondary
 
 /** One vertical slot of the Home page, top to bottom. */
 sealed interface HomeSection {
@@ -70,31 +62,10 @@ fun buildHomeSections(state: HomeUiState): List<HomeSection> = buildList {
     }
 }
 
-/** Non-focusable skeleton for a row that is still loading. */
-@Composable
-fun LoadingRow(title: String) {
-    Column {
-        RowTitle(title)
-        Row(Modifier.padding(start = RowGutter), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            repeat(PLACEHOLDER_CARDS) {
-                Box(Modifier.size(PosterWidth, CardHeight).clip(RoundedCornerShape(12.dp)).background(SurfaceCard))
-            }
-        }
-    }
-}
-
-/** Non-focusable notice for a row whose list couldn't be fetched. */
-@Composable
-fun FailedRow(title: String) {
-    Column {
-        RowTitle(title)
-        Text(
-            "Couldn't load this row. Check your connection and reopen Home.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = TextSecondary,
-            modifier = Modifier.padding(start = RowGutter),
-        )
-    }
+/** Where Home's page must go to return focus to catalog row [rowId] (back from its View More). */
+fun homeRowRestore(sections: List<HomeSection>, rowId: String): RowRestoreStep {
+    val index = sections.indexOfFirst { it is HomeSection.Catalog && it.spec.id == rowId }
+    return resolveRowRestore(index, (sections.getOrNull(index) as? HomeSection.Catalog)?.content)
 }
 
 /** Progress bar plus `S7:E10` badge drawn on a Continue Watching card. */
@@ -118,4 +89,3 @@ fun ContinueWatchingOverlay(item: ContinueWatchingItem) {
     }
 }
 
-private const val PLACEHOLDER_CARDS = 7

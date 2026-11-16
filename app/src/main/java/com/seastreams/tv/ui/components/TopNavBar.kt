@@ -66,23 +66,23 @@ enum class NavTab(val label: String, val icon: ImageVector? = null) {
  * Top-right: translucent pill bar with the tabs for this profile.
  *
  * The bar is one focus group: entering it from below restores the last-focused pill, defaulting to
- * [homeFocusRequester] (the Home pill).
+ * [selectedTabFocusRequester] (the pill of the screen being shown).
  */
 @Composable
 fun TopNavBar(
     profile: ProfileEntity?,
     selectedTab: NavTab,
-    homeFocusRequester: FocusRequester,
+    selectedTabFocusRequester: FocusRequester,
     onTabSelected: (NavTab) -> Unit,
     onAvatarClick: () -> Unit,
-    onHomeFocusChanged: (Boolean) -> Unit,
+    onSelectedTabFocusChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
         modifier
             .fillMaxWidth()
             .padding(horizontal = RowGutter, vertical = 16.dp)
-            .focusRestorer(homeFocusRequester)
+            .focusRestorer(selectedTabFocusRequester)
             .focusGroup(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -113,8 +113,8 @@ fun TopNavBar(
                     tab = tab,
                     selected = tab == selectedTab,
                     onClick = { onTabSelected(tab) },
-                    modifier = if (tab == NavTab.HOME) {
-                        Modifier.focusRequester(homeFocusRequester).onFocusChanged { onHomeFocusChanged(it.isFocused) }
+                    modifier = if (tab == selectedTab) {
+                        Modifier.focusRequester(selectedTabFocusRequester).onFocusChanged { onSelectedTabFocusChanged(it.isFocused) }
                     } else {
                         Modifier
                     },

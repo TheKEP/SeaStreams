@@ -21,14 +21,15 @@ import java.io.IOException
 class GetHomeCatalogsUseCaseTest : HomeCatalogsTestBase() {
 
     @Test
-    fun `adult row caps at 30 and flags more when the list is longer`() = runTest {
+    fun `adult row caps at 20 and flags more when the list is longer`() = runTest {
         givenMovieList(spec.listUrl, 45)
 
         val row = useCase.loadRow(spec, restriction = null)
 
-        assertEquals((1..30).toList(), row.items.map { it.tmdbId })
+        assertEquals(20, GetHomeCatalogsUseCase.ROW_CAP)
+        assertEquals((1..20).toList(), row.items.map { it.tmdbId })
         assertTrue(row.hasMore)
-        coVerify(exactly = 30) { tmdb.getMovieDetails(any()) }
+        coVerify(exactly = 20) { tmdb.getMovieDetails(any()) }
         coVerify(exactly = 0) { tmdb.getExternalIds(any(), any()) }
     }
 
@@ -43,15 +44,35 @@ class GetHomeCatalogsUseCaseTest : HomeCatalogsTestBase() {
     }
 
     @Test
+    fun `exactly 20 titles fill the row without View More`() = runTest {
+        givenMovieList(spec.listUrl, 20)
+
+        val row = useCase.loadRow(spec, restriction = null)
+
+        assertEquals((1..20).toList(), row.items.map { it.tmdbId })
+        assertFalse(row.hasMore)
+    }
+
+    @Test
+    fun `21 titles show 20 plus View More`() = runTest {
+        givenMovieList(spec.listUrl, 21)
+
+        val row = useCase.loadRow(spec, restriction = null)
+
+        assertEquals((1..20).toList(), row.items.map { it.tmdbId })
+        assertTrue(row.hasMore)
+    }
+
+    @Test
     fun `kids row strips out-of-range titles and back-fills from further down the list`() = runTest {
         givenMovieList(spec.listUrl, 60)
 
         val row = useCase.loadRow(spec, kids.toAgeRestriction())
 
-        assertEquals(30, row.items.size)
+        assertEquals(20, row.items.size)
         assertTrue(row.items.all { it.certification == "G" })
         assertTrue(row.items.none { it.tmdbId % 3 == 0 })
-        assertEquals((1..44).filter { it % 3 != 0 }, row.items.map { it.tmdbId })
+        assertEquals((1..29).filter { it % 3 != 0 }, row.items.map { it.tmdbId })
         assertTrue(row.hasMore)
     }
 

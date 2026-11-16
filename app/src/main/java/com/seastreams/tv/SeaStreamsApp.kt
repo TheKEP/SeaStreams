@@ -3,6 +3,7 @@ package com.seastreams.tv
 import android.app.Application
 import android.util.Log
 import com.seastreams.tv.core.util.ApplicationScope
+import com.seastreams.tv.data.setup.DebugProfileSeeder
 import com.seastreams.tv.data.setup.FirstLaunchSeeder
 import dagger.Lazy
 import dagger.hilt.android.HiltAndroidApp
@@ -17,6 +18,10 @@ class SeaStreamsApp : Application() {
     @Inject
     lateinit var firstLaunchSeeder: Lazy<FirstLaunchSeeder>
 
+    /** Debug builds only: a ready-made `Test` profile + developer TMDB key on a fresh install. */
+    @Inject
+    lateinit var debugProfileSeeder: Lazy<DebugProfileSeeder>
+
     /** Process-lifetime scope (off the main thread) for fire-and-forget startup work. */
     @Inject
     @ApplicationScope
@@ -27,6 +32,10 @@ class SeaStreamsApp : Application() {
         appScope.launch {
             runCatching { firstLaunchSeeder.get().seedIfNeeded() }
                 .onFailure { Log.e("SeaStreamsApp", "Seeding default addons failed", it) }
+            if (BuildConfig.DEBUG) {
+                runCatching { debugProfileSeeder.get().seedIfNeeded() }
+                    .onFailure { Log.e("SeaStreamsApp", "Seeding the debug profile failed", it) }
+            }
         }
     }
 }

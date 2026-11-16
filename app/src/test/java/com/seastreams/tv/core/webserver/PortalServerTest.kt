@@ -1,5 +1,7 @@
 package com.seastreams.tv.core.webserver
 
+import com.seastreams.tv.data.catalog.DiscoverSnapshotStore
+import com.seastreams.tv.data.catalog.LoadedCatalogStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import app.cash.turbine.test
 import com.seastreams.tv.core.database.entity.CatalogPlacement
@@ -107,7 +109,7 @@ class PortalServerTest {
         catalogDao = FakeCatalogDao()
         val controller = PortalController(
             tmdbKeys = tmdbKeys,
-            profiles = ProfileRepository(profileDao, settings, settings, clock),
+            profiles = ProfileRepository(profileDao, settings, settings, clock, DiscoverSnapshotStore(), LoadedCatalogStore(Clock.systemUTC())),
             addons = AddonRepository(addonDao, StremioAddonClient(appHttp), clock),
             catalogs = CatalogRepository(catalogDao, MdbListApiService(appHttp, endpoints, NetworkModule.provideJson()), clock),
             importMdbList = importUseCase,
