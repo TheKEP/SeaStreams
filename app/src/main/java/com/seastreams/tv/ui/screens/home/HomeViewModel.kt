@@ -6,21 +6,21 @@ import com.seastreams.tv.core.database.entity.ProfileEntity
 import com.seastreams.tv.core.datastore.SettingsDataStore
 import com.seastreams.tv.core.util.orNullUnlessCancelled
 import com.seastreams.tv.data.profile.ProfileRepository
+import com.seastreams.tv.data.profile.contentForProfile
 import com.seastreams.tv.domain.usecase.GetContinueWatchingUseCase
 import com.seastreams.tv.domain.usecase.GetHomeCatalogsUseCase
 import com.seastreams.tv.ui.screens.catalog.CatalogWarmupManager
+import com.seastreams.tv.ui.navigation.WhileUiSubscribed
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
@@ -47,11 +47,9 @@ class HomeViewModel @Inject constructor(
 
     val uiState: StateFlow<HomeUiState> = profileId.filterNotNull()
         .flatMapLatest { id ->
-            profiles.observeProfile(id).distinctUntilChanged().flatMapLatest { profile ->
-                if (profile == null) flowOf(HomeUiState(missingProfileId = id)) else contentFor(profile)
-            }
+            profiles.contentForProfile(id, missing = { HomeUiState(missingProfileId = id) }, content = ::contentFor)
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), HomeUiState())
+        .stateIn(viewModelScope, WhileUiSubscribed, HomeUiState())
 
     /** Called by the screen with the profile chosen on the profile gate. */
     fun showProfile(id: Long) {
@@ -96,9 +94,5 @@ class HomeViewModel @Inject constructor(
         emit(HeroState.Loading)
         val items = orNullUnlessCancelled { homeCatalogs.takeHero(profile) }
         emit(if (items.isNullOrEmpty()) HeroState.Failed else HeroState.Loaded(items))
-    }
-
-    private companion object {
-        const val STOP_TIMEOUT_MILLIS = 5_000L
     }
 }

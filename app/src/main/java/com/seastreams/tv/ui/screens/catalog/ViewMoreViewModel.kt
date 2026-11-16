@@ -9,10 +9,10 @@ import com.seastreams.tv.data.profile.contentForProfile
 import com.seastreams.tv.domain.model.CatalogSource
 import com.seastreams.tv.domain.model.MediaItem
 import com.seastreams.tv.domain.usecase.GetViewMoreUseCase
+import com.seastreams.tv.ui.navigation.WhileUiSubscribed
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
@@ -75,7 +75,7 @@ class ViewMoreViewModel @Inject constructor(
                 }
             }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), ViewMoreUiState.Loading(null))
+        .stateIn(viewModelScope, WhileUiSubscribed, ViewMoreUiState.Loading(null))
 
     /**
      * What View More for [profileId] and [source] can draw on its very first frame, before [show] has
@@ -96,7 +96,4 @@ class ViewMoreViewModel @Inject constructor(
     private fun seededState(req: ViewMoreRequest, seed: LoadedCatalog?): ViewMoreUiState =
         if (seed == null) ViewMoreUiState.Loading(req) else ViewMoreUiState.Loaded(req, seed.items, loadingMore = !seed.complete)
 
-    private companion object {
-        const val STOP_TIMEOUT_MILLIS = 5_000L
-    }
 }

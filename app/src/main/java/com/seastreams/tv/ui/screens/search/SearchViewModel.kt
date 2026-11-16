@@ -11,12 +11,12 @@ import com.seastreams.tv.domain.model.MediaItem
 import com.seastreams.tv.domain.usecase.SearchCatalogUseCase
 import com.seastreams.tv.domain.usecase.SearchCategory
 import com.seastreams.tv.domain.usecase.SearchResults
+import com.seastreams.tv.ui.navigation.WhileUiSubscribed
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -81,7 +81,7 @@ class SearchViewModel @Inject constructor(
         .flatMapLatest { id ->
             profiles.contentForProfile(id, missing = { SearchUiState(missingProfileId = id) }) { profile -> stateFor(profile) }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), SearchUiState())
+        .stateIn(viewModelScope, WhileUiSubscribed, SearchUiState())
 
     fun open(id: Long) {
         _query.value = ""
@@ -162,7 +162,6 @@ class SearchViewModel @Inject constructor(
         }
 
     private companion object {
-        const val STOP_TIMEOUT_MILLIS = 5_000L
         const val TYPING_DEBOUNCE_MILLIS = 400L
         const val CATEGORY_SETTLE_MILLIS = 150L
     }

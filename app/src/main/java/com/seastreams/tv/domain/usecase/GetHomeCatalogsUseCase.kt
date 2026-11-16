@@ -11,7 +11,6 @@ import com.seastreams.tv.domain.model.AgeRestriction
 import com.seastreams.tv.domain.model.CatalogRow
 import com.seastreams.tv.domain.model.CatalogRowSpec
 import com.seastreams.tv.domain.model.CatalogRowState
-import com.seastreams.tv.domain.model.CatalogSource
 import com.seastreams.tv.domain.model.MediaItem
 import com.seastreams.tv.domain.model.MediaRef
 import kotlinx.coroutines.CoroutineScope
@@ -42,12 +41,12 @@ import kotlin.random.Random
 class GetHomeCatalogsUseCase @Inject constructor(
     private val loader: CatalogLoader,
     private val catalogDao: CatalogDao,
-    private val loadedCatalogs: LoadedCatalogStore,
+    loadedCatalogs: LoadedCatalogStore,
     @ApplicationScope scope: CoroutineScope,
     clock: Clock,
 ) {
     private val heroCache = SharedLoadCache<HeroKey, List<MediaItem>>(scope, PREFETCH_TTL_MILLIS, clock::millis)
-    private val rowCache = SharedLoadCache<RowKey, CatalogRow>(scope, PREFETCH_TTL_MILLIS, clock::millis)
+    private val rowCache = CatalogRowCache(loadedCatalogs, scope, PREFETCH_TTL_MILLIS, clock::millis, ::loadRow)
 
     /**
      * Starts loading [profile]'s hero and its first [PREFETCH_ROW_COUNT] Home rows in the background
@@ -58,7 +57,7 @@ class GetHomeCatalogsUseCase @Inject constructor(
         val restriction = profile.toAgeRestriction()
         val hero = heroCache.start(profile.heroKey()) { loadHero(profile) }
         val specs = HomeCatalogSources.rowSpecs(profile.isKids, catalogDao.observeByPlacement(CatalogPlacement.HOME).first())
-        val rows = specs.take(PREFETCH_ROW_COUNT).map { spec -> rowCache.start(RowKey(spec.source, restriction)) { loadRow(spec, restriction) } }
+        val rows = specs.take(PREFETCH_ROW_COUNT).map { spec -> rowCache.start(spec, restriction) }
         return HomePrefetch(
             hero = orNullUnlessCancelled { hero.await() },
             rows = rows.mapNotNull { row -> orNullUnlessCancelled { row.await() } },
@@ -81,7 +80,7 @@ class GetHomeCatalogsUseCase @Inject constructor(
         catalogDao.observeByPlacement(CatalogPlacement.HOME)
             .map { custom -> HomeCatalogSources.rowSpecs(profile.isKids, custom) }
             .distinctUntilChanged()
-            .flatMapLatest { specs -> loadRows(specs, profile) }
+            .flatMapLatest { specs -> rowCache.observe(profile.id, specs, profile.toAgeRestriction()) }
 
     /** Loads one row: the first [ROW_CAP] age-approved titles of its list. */
     suspend fun loadRow(spec: CatalogRowSpec, restriction: AgeRestriction?): CatalogRow =
@@ -110,25 +109,11 @@ class GetHomeCatalogsUseCase @Inject constructor(
         return loader.collectAllowed(pool, profile.toAgeRestriction(), HERO_SIZE) { it.heroBackdropUrl != null }.items
     }
 
-    /** Rows as they load; each one shown is also recorded so its View More opens with it on frame 1. */
-    private fun loadRows(specs: List<CatalogRowSpec>, profile: ProfileEntity): Flow<List<CatalogRowState>> {
-        val restriction = profile.toAgeRestriction()
-        val remember = { spec: CatalogRowSpec, row: CatalogRow ->
-            loadedCatalogs.recordRow(profile.id, spec.source, restriction, row)
-            row
-        }
-        return rowStates(specs, cached = { spec -> rowCache.peek(RowKey(spec.source, restriction))?.let { remember(spec, it) } }) { spec ->
-            remember(spec, rowCache.get(RowKey(spec.source, restriction)) { loadRow(spec, restriction) })
-        }
-    }
-
     private suspend fun fetchRefsOrNull(listUrl: String): List<MediaRef>? = orNullUnlessCancelled { loader.fetchRefs(listUrl) }
 
     private fun ProfileEntity.heroKey() = HeroKey(id, isKids, toAgeRestriction())
 
     private data class HeroKey(val profileId: Long, val isKids: Boolean, val restriction: AgeRestriction?)
-
-    private data class RowKey(val source: CatalogSource, val restriction: AgeRestriction?)
 
     companion object {
         /** Rows [prefetch] loads ahead of Home: the ones visible without scrolling. */
