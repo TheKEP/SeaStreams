@@ -1,0 +1,127 @@
+package com.seastreams.tv.core.network
+
+import com.seastreams.tv.domain.model.MediaType
+import com.seastreams.tv.domain.model.StreamingProvider
+import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.plugins.ClientRequestException
+import io.ktor.client.request.HttpRequestBuilder
+import io.ktor.client.request.get
+import io.ktor.client.request.header
+import io.ktor.client.request.parameter
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import javax.inject.Inject
+import javax.inject.Singleton
+
+/** Thrown when a TMDB call is attempted before the user has saved an API key. */
+class TmdbApiKeyMissingException : IllegalStateException("No TMDB API key has been configured")
+
+/**
+ * TMDB v3 client. Responses flow through the shared OkHttp client, so they are disk-cached for
+ * 6–12h ([HttpCachePolicy]) and 429s are retried with backoff ([RateLimitRetryInterceptor]).
+ *
+ * `/external_ids` is exposed **only** as a single-title lookup ([getExternalIds]); there is
+ * deliberately no list/batch variant (CLAUDE.md rule 5). Callers must invoke it lazily from
+ * the Details screen, never while loading catalog rows.
+ */
+@Singleton
+class TmdbApiService @Inject constructor(
+    private val client: HttpClient,
+    private val endpoints: ApiEndpoints,
+    private val apiKeyProvider: TmdbApiKeyProvider,
+) {
+
+    /**
+     * Checks a candidate key against `/configuration` (never cached).
+     * @return `true` for a working key, `false` when TMDB answers 401 Unauthorized.
+     */
+    suspend fun validateApiKey(candidateKey: String): Boolean {
+        val key = candidateKey.trim()
+        if (key.isEmpty()) return false
+        return try {
+            client.get(url("configuration")) { authenticate(key) }
+            true
+        } catch (e: ClientRequestException) {
+            if (e.response.status == HttpStatusCode.Unauthorized) false else throw e
+        }
+    }
+
+    suspend fun discoverMovies(provider: StreamingProvider? = null, page: Int = 1): TmdbPage<TmdbMovieSummary> =
+        get("discover", "movie") { discoverParameters(provider, page) }
+
+    suspend fun discoverTv(provider: StreamingProvider? = null, page: Int = 1): TmdbPage<TmdbTvSummary> =
+        get("discover", "tv") { discoverParameters(provider, page) }
+
+    suspend fun searchMovies(query: String, page: Int = 1): TmdbPage<TmdbMovieSummary> =
+        get("search", "movie") { searchParameters(query, page) }
+
+    suspend fun searchTv(query: String, page: Int = 1): TmdbPage<TmdbTvSummary> =
+        get("search", "tv") { searchParameters(query, page) }
+
+    /** Movie details with US release certifications, cast and title logos in a single request. */
+    suspend fun getMovieDetails(tmdbId: Int): TmdbMovieDetails = get("movie", tmdbId.toString()) {
+        parameter("language", LANGUAGE)
+        parameter("append_to_response", "release_dates,credits,images")
+        parameter("include_image_language", IMAGE_LANGUAGES)
+    }
+
+    /** Show details with US content ratings, cast and title logos in a single request. */
+    suspend fun getTvDetails(tmdbId: Int): TmdbTvDetails = get("tv", tmdbId.toString()) {
+        parameter("language", LANGUAGE)
+        parameter("append_to_response", "content_ratings,credits,images")
+        parameter("include_image_language", IMAGE_LANGUAGES)
+    }
+
+    /** Single-title IMDb/TVDB id lookup. One call → exactly one `/external_ids` request. */
+    suspend fun getExternalIds(mediaType: MediaType, tmdbId: Int): TmdbExternalIds =
+        get(mediaType.tmdbPath, tmdbId.toString(), "external_ids")
+
+    private suspend inline fun <reified T> get(
+        vararg pathSegments: String,
+        crossinline configure: HttpRequestBuilder.() -> Unit = {},
+    ): T {
+        val key = apiKeyProvider.currentApiKey()?.takeIf { it.isNotBlank() } ?: throw TmdbApiKeyMissingException()
+        return client.get(url(*pathSegments)) {
+            authenticate(key)
+            configure()
+        }.body()
+    }
+
+    private fun url(vararg pathSegments: String): String =
+        endpoints.tmdbBaseUrl.trimEnd('/') + "/" + pathSegments.joinToString("/")
+
+    /** v4 read-access tokens (JWTs) go in a Bearer header; v3 keys go in the `api_key` query. */
+    private fun HttpRequestBuilder.authenticate(key: String) {
+        if (isV4AccessToken(key)) header(HttpHeaders.Authorization, "Bearer $key") else parameter("api_key", key)
+    }
+
+    private fun HttpRequestBuilder.discoverParameters(provider: StreamingProvider?, page: Int) {
+        if (provider != null) {
+            parameter("with_watch_providers", provider.tmdbProviderId)
+            parameter("watch_region", WATCH_REGION)
+            parameter("with_watch_monetization_types", "flatrate")
+        }
+        parameter("sort_by", "popularity.desc")
+        parameter("include_adult", false)
+        parameter("language", LANGUAGE)
+        parameter("page", page)
+    }
+
+    private fun HttpRequestBuilder.searchParameters(query: String, page: Int) {
+        parameter("query", query.trim())
+        parameter("include_adult", false)
+        parameter("language", LANGUAGE)
+        parameter("page", page)
+    }
+
+    companion object {
+        const val LANGUAGE = "en-US"
+        const val WATCH_REGION = "US"
+
+        /** Artwork languages for `images`: English plus language-neutral ("null") logos. */
+        const val IMAGE_LANGUAGES = "en,null"
+
+        fun isV4AccessToken(key: String): Boolean = key.startsWith("eyJ") && key.count { it == '.' } == 2
+    }
+}

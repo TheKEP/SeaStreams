@@ -1,0 +1,9 @@
+<resources>
+    <!-- Window theme only; all in-app UI is drawn by Compose for TV. -->
+    <style name="Theme.SeaStreams" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/obsidian_background</item>
+        <item name="android:colorBackground">@color/obsidian_background</item>
+        <item name="android:navigationBarColor">@color/obsidian_background</item>
+        <item name="android:statusBarColor">@color/obsidian_background</item>
+    </style>
+</resources>
