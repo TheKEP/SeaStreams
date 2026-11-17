@@ -25,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -38,6 +39,7 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import com.seastreams.tv.core.datastore.CatalogRowScrollSpeed
 import com.seastreams.tv.domain.model.MediaItem
 import com.seastreams.tv.ui.theme.Obsidian
 import com.seastreams.tv.ui.theme.SurfaceCard
@@ -53,9 +55,6 @@ private val ExpandedSize = DpSize(ExpandedCardWidth, CardHeight)
 private val CardLogoSize = DpSize(216.dp, 68.dp)
 private val CardShape = RoundedCornerShape(12.dp)
 
-/** Short enough to read as instant, long enough to be smooth (≈11 frames at 60fps). */
-private const val EXPAND_MILLIS = 180
-
 /**
  * Catalog card that is a 2:3 poster at rest and a 16:9 backdrop (with title logo) while [expanded].
  * Expansion is decided by the row (its remembered card stays wide after focus leaves the row);
@@ -69,17 +68,23 @@ fun ExpandingMediaCard(
     onClick: () -> Unit,
     onFocused: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Held `OK`; `null` (the default) leaves long-press unhandled. */
+    onLongClick: (() -> Unit)? = null,
+    /** Poster ↔ backdrop width and cross-fade time; from the Catalog row scroll speed setting. */
+    expandDurationMs: Int = CatalogRowScrollSpeed.DEFAULT.expandDurationMs,
     overlay: @Composable BoxScope.(expanded: Boolean) -> Unit = {},
 ) {
     ExpandingCardSurface(
         onClick = onClick,
+        onLongClick = onLongClick,
         onFocusChanged = { if (it) onFocused() },
         modifier = modifier,
         wide = { expanded },
+        expandDurationMs = expandDurationMs,
     ) { expanded ->
         val backdropAlpha by animateFloatAsState(
             targetValue = if (expanded) 1f else 0f,
-            animationSpec = tween(EXPAND_MILLIS),
+            animationSpec = tween(expandDurationMs, easing = FastOutSlowInEasing),
             label = "cardBackdrop",
         )
         val posterUrl = item.posterUrl ?: item.backdropUrl
@@ -112,6 +117,8 @@ fun ExpandingMediaCard(
             }
         }
         overlay(expanded)
+        // Same top-right corner in both the 2:3 poster and 16:9 backdrop shapes (PRD §1).
+        WatchedBadgeIfWatched(item)
     }
 }
 
@@ -120,8 +127,19 @@ fun ExpandingMediaCard(
  * holds focus, so it never stays behind as an empty 16:9 card once focus leaves the row.
  */
 @Composable
-fun ViewMoreCard(onClick: () -> Unit, onFocusChanged: (Boolean) -> Unit, modifier: Modifier = Modifier) {
-    ExpandingCardSurface(onClick = onClick, onFocusChanged = onFocusChanged, modifier = modifier, wide = { it }) { _ ->
+fun ViewMoreCard(
+    onClick: () -> Unit,
+    onFocusChanged: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    expandDurationMs: Int = CatalogRowScrollSpeed.DEFAULT.expandDurationMs,
+) {
+    ExpandingCardSurface(
+        onClick = onClick,
+        onFocusChanged = onFocusChanged,
+        modifier = modifier,
+        wide = { it },
+        expandDurationMs = expandDurationMs,
+    ) { _ ->
         Column(
             Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.Center,
@@ -149,21 +167,29 @@ fun ViewMoreCard(onClick: () -> Unit, onFocusChanged: (Boolean) -> Unit, modifie
 @Composable
 private fun ExpandingCardSurface(
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
     onFocusChanged: (Boolean) -> Unit,
     modifier: Modifier,
     wide: (focused: Boolean) -> Boolean,
+    expandDurationMs: Int,
     content: @Composable BoxScope.(expanded: Boolean) -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
+    val origin = rememberFocusOrigin()
     val appearance = cardAppearance(wide = wide(focused), focused = focused)
     val width by animateDpAsState(
         targetValue = if (appearance.wide) ExpandedCardWidth else PosterWidth,
-        animationSpec = tween(EXPAND_MILLIS, easing = FastOutSlowInEasing),
+        animationSpec = tween(expandDurationMs, easing = FastOutSlowInEasing),
         label = "cardWidth",
     )
     Surface(
-        onClick = onClick,
+        onClick = {
+            origin.mark()
+            onClick()
+        },
+        onLongClick = onLongClick,
         modifier = modifier
+            .focusRequester(origin.requester)
             .width(width)
             .height(CardHeight)
             .onFocusChanged {

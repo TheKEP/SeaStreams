@@ -23,7 +23,6 @@ import com.seastreams.tv.domain.model.MediaItem
 import com.seastreams.tv.ui.components.PosterGrid
 import com.seastreams.tv.ui.components.PosterGridPlaceholder
 import com.seastreams.tv.ui.components.RowGutter
-import com.seastreams.tv.ui.theme.Obsidian
 import com.seastreams.tv.ui.theme.TextSecondary
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
 
@@ -54,7 +53,7 @@ fun ViewMoreScreen(
     val loaded = state is ViewMoreUiState.Loaded && state.items.isNotEmpty()
     LaunchedEffect(loaded) { if (loaded) firstPoster.requestFocusAfterFrame() }
 
-    Column(Modifier.fillMaxSize().background(Obsidian).padding(top = 32.dp)) {
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(top = 32.dp)) {
         Text(
             title,
             style = MaterialTheme.typography.headlineSmall,

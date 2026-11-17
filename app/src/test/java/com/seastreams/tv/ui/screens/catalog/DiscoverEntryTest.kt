@@ -18,7 +18,7 @@ import org.junit.jupiter.params.provider.EnumSource
 class DiscoverEntryTest {
 
     private fun loadingRows(type: MediaType): List<CatalogRowState> =
-        DiscoverCatalogSources.rowSpecs(type, StreamingProvider.entries, emptyList()).map { CatalogRowState(it, RowContent.Loading) }
+        DiscoverCatalogSources.rowSpecs(type, StreamingProvider.entries).map { CatalogRowState(it, RowContent.Loading) }
 
     /** A list that has drifted, e.g. anchored to the bottom bar when the rows were inserted above it. */
     private fun driftedList() = LazyListState(firstVisibleItemIndex = 7, firstVisibleItemScrollOffset = 120)

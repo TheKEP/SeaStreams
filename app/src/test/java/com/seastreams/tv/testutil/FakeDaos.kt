@@ -1,11 +1,8 @@
 package com.seastreams.tv.testutil
 
 import com.seastreams.tv.core.database.dao.AddonDao
-import com.seastreams.tv.core.database.dao.CatalogDao
 import com.seastreams.tv.core.database.dao.ProfileDao
 import com.seastreams.tv.core.database.entity.AddonEntity
-import com.seastreams.tv.core.database.entity.CatalogPlacement
-import com.seastreams.tv.core.database.entity.CustomCatalogEntity
 import com.seastreams.tv.core.database.entity.LibrarySortOrder
 import com.seastreams.tv.core.database.entity.ProfileEntity
 import kotlinx.coroutines.flow.Flow
@@ -61,27 +58,4 @@ class FakeProfileDao : ProfileDao {
         rows.update { list -> list.map { if (it.id == profileId) it.copy(librarySortOrder = sortOrder) else it } }
 
     override suspend fun delete(profile: ProfileEntity) = rows.update { list -> list.filterNot { it.id == profile.id } }
-}
-
-class FakeCatalogDao : CatalogDao {
-    val rows = MutableStateFlow<List<CustomCatalogEntity>>(emptyList())
-    private var nextId = 1L
-
-    override fun observeByPlacement(placement: CatalogPlacement): Flow<List<CustomCatalogEntity>> =
-        rows.map { list -> list.filter { it.placement == placement }.sortedBy { it.sortOrder } }
-
-    override fun observeAll(): Flow<List<CustomCatalogEntity>> = rows
-
-    override suspend fun nextSortOrder(placement: CatalogPlacement): Int =
-        (rows.value.filter { it.placement == placement }.maxOfOrNull { it.sortOrder } ?: -1) + 1
-
-    override suspend fun insert(catalog: CustomCatalogEntity): Long {
-        if (rows.value.any { it.listUrl == catalog.listUrl && it.placement == catalog.placement }) return -1L
-        val id = nextId++
-        rows.update { it + catalog.copy(id = id) }
-        return id
-    }
-
-    override suspend fun getById(catalogId: Long): CustomCatalogEntity? = rows.value.firstOrNull { it.id == catalogId }
-    override suspend fun delete(catalogId: Long) = rows.update { list -> list.filterNot { it.id == catalogId } }
 }

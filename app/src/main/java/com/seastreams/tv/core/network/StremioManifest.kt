@@ -18,7 +18,11 @@ data class StremioResource(
     val idPrefixes: List<String>,
 )
 
-data class StremioCatalog(val type: String, val id: String, val name: String)
+/**
+ * One `catalogs[]` entry. [requiresExtra] is true when the catalog can only be fetched with an extra
+ * parameter (e.g. search- or genre-only catalogs), so it cannot be shown as a plain row.
+ */
+data class StremioCatalog(val type: String, val id: String, val name: String, val requiresExtra: Boolean = false)
 
 /** The subset of a Stremio addon `manifest.json` that SeaStreams uses. */
 data class StremioManifest(
@@ -32,10 +36,9 @@ data class StremioManifest(
     val resources: List<StremioResource>,
     val catalogs: List<StremioCatalog>,
 ) {
-    /** True when the addon declares [resource] for [type] (e.g. `stream` for `movie`). */
-    fun supports(resource: String, type: String): Boolean = resources.any { res ->
-        res.name == resource && type in res.types.ifEmpty { types }
-    }
+    /** The declaration of [resource] for [type] (e.g. `stream` for `movie`), or `null` if the addon doesn't serve it. */
+    fun resourceFor(resource: String, type: String): StremioResource? =
+        resources.firstOrNull { it.name == resource && type in it.types.ifEmpty { types } }
 }
 
 class InvalidManifestException(message: String) : IllegalArgumentException(message)
@@ -87,7 +90,15 @@ object StremioManifestParser {
         val obj = element as? JsonObject ?: return null
         val type = obj.string("type") ?: return null
         val id = obj.string("id") ?: return null
-        return StremioCatalog(type = type, id = id, name = obj.string("name") ?: id)
+        val requiredExtra = (obj["extra"] as? JsonArray).orEmpty().any { extra ->
+            ((extra as? JsonObject)?.get("isRequired") as? JsonPrimitive)?.content == "true"
+        }
+        return StremioCatalog(
+            type = type,
+            id = id,
+            name = obj.string("name") ?: id,
+            requiresExtra = requiredExtra || obj.stringList("extraRequired").isNotEmpty(),
+        )
     }
 
     private fun JsonObject.string(key: String): String? =

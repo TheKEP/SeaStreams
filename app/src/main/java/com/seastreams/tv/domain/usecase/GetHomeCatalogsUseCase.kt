@@ -1,7 +1,7 @@
 package com.seastreams.tv.domain.usecase
 
-import com.seastreams.tv.core.database.dao.CatalogDao
-import com.seastreams.tv.core.database.entity.CatalogPlacement
+import com.seastreams.tv.core.database.dao.AddonDao
+import com.seastreams.tv.core.database.entity.AddonEntity
 import com.seastreams.tv.core.database.entity.ProfileEntity
 import com.seastreams.tv.core.util.ApplicationScope
 import com.seastreams.tv.core.util.SharedLoadCache
@@ -40,7 +40,7 @@ import kotlin.random.Random
 @Singleton
 class GetHomeCatalogsUseCase @Inject constructor(
     private val loader: CatalogLoader,
-    private val catalogDao: CatalogDao,
+    private val addonDao: AddonDao,
     loadedCatalogs: LoadedCatalogStore,
     @ApplicationScope scope: CoroutineScope,
     clock: Clock,
@@ -56,7 +56,7 @@ class GetHomeCatalogsUseCase @Inject constructor(
     suspend fun prefetch(profile: ProfileEntity): HomePrefetch {
         val restriction = profile.toAgeRestriction()
         val hero = heroCache.start(profile.heroKey()) { loadHero(profile) }
-        val specs = HomeCatalogSources.rowSpecs(profile.isKids, catalogDao.observeByPlacement(CatalogPlacement.HOME).first())
+        val specs = rowSpecs(profile, addonDao.observeEnabled().first())
         val rows = specs.take(PREFETCH_ROW_COUNT).map { spec -> rowCache.start(spec, restriction) }
         return HomePrefetch(
             hero = orNullUnlessCancelled { hero.await() },
@@ -72,15 +72,20 @@ class GetHomeCatalogsUseCase @Inject constructor(
     suspend fun takeHero(profile: ProfileEntity): List<MediaItem> = heroCache.take(profile.heroKey()) { loadHero(profile) }
 
     /**
-     * Fixed rows for the profile type plus the user's Home MDBLists. Emits immediately with every row
-     * loading, then again as each row finishes (rows load in parallel).
+     * The built-in rows for the profile type, then the catalogs of enabled Stremio addons in
+     * installed order (Home is the only screen that shows addon catalogs). Emits immediately with
+     * every row loading, then again as each row finishes (rows load in parallel); enabling,
+     * disabling or reordering addons re-emits.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
     fun observeRows(profile: ProfileEntity): Flow<List<CatalogRowState>> =
-        catalogDao.observeByPlacement(CatalogPlacement.HOME)
-            .map { custom -> HomeCatalogSources.rowSpecs(profile.isKids, custom) }
+        addonDao.observeEnabled()
+            .map { addons -> rowSpecs(profile, addons) }
             .distinctUntilChanged()
             .flatMapLatest { specs -> rowCache.observe(profile.id, specs, profile.toAgeRestriction()) }
+
+    private fun rowSpecs(profile: ProfileEntity, enabledAddons: List<AddonEntity>): List<CatalogRowSpec> =
+        HomeCatalogSources.rowSpecs(profile.isKids, AddonCatalogSources.rowSpecs(enabledAddons))
 
     /** Loads one row: the first [ROW_CAP] age-approved titles of its list. */
     suspend fun loadRow(spec: CatalogRowSpec, restriction: AgeRestriction?): CatalogRow =

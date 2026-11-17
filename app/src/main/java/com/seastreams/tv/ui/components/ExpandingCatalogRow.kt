@@ -39,14 +39,14 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import com.seastreams.tv.core.datastore.CatalogRowScrollSpeed
 import com.seastreams.tv.domain.model.MediaItem
-import com.seastreams.tv.ui.theme.PivotBringIntoViewSpec
+import com.seastreams.tv.ui.theme.ManualBringIntoViewSpec
 import com.seastreams.tv.ui.theme.TextSecondary
 import com.seastreams.tv.ui.theme.onDpadEdgeWrap
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
@@ -84,6 +84,9 @@ private const val INFO_ANIM_MILLIS = 130
  *   card at position 21 (index 20).
  * - Edge-stop-then-wrap (PRD §1): holding `Right` stops on the last card (or `View More`); a fresh
  *   `Right` press while already there wraps focus back to the first card.
+ * - Focus moves glide the row so the focused card lands on the left gutter, and cards widen, at the
+ *   [scrollSpeed] timing (Catalog row scroll speed setting). Fast taps and held keys retarget the
+ *   glide mid-flight without losing momentum ([rowGlideEasing]).
  * - Held `Left`/`Right` is paced to [com.seastreams.tv.ui.theme.HORIZONTAL_REPEAT_INTERVAL_MS]; fresh
  *   taps are never throttled. The throttle sits on the row container, ahead of the edge-wrap cards.
  * - Re-entering the row with `Up`/`Down` restores the last-focused card (first card by default),
@@ -101,6 +104,8 @@ fun ExpandingCatalogRow(
     /** Focuses the first card; also where re-entry lands when no card was focused before. */
     firstCard: FocusRequester = remember { FocusRequester() },
     cardOverlay: @Composable BoxScope.(index: Int, expanded: Boolean) -> Unit = { _, _ -> },
+    /** Held `OK` on card [index] (Continue Watching's action menu); `null` leaves long-press unhandled. */
+    onItemLongClick: ((index: Int) -> Unit)? = null,
     /** Returning from this row's View More: scroll back to the first card, focus it, then [onFocusReturned]. */
     returnFocusToStart: Boolean = false,
     onFocusReturned: () -> Unit = {},
@@ -108,6 +113,8 @@ fun ExpandingCatalogRow(
     focusedIndexState: MutableIntState = remember { mutableIntStateOf(0) },
     /** Attached to the active (expanded) card, i.e. [focusedIndexState]'s card; lets the page focus it directly. */
     activeCard: FocusRequester = remember { FocusRequester() },
+    /** Catalog row scroll speed setting: horizontal glide and card widen timing. */
+    scrollSpeed: CatalogRowScrollSpeed,
 ) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -131,13 +138,18 @@ fun ExpandingCatalogRow(
         // Last: clearing the request flips the key above and cancels this effect.
         onFocusReturned()
     }
-    val pivotPx = with(LocalDensity.current) { RowGutter.toPx() }
-    val bringIntoViewSpec = remember(pivotPx) { PivotBringIntoViewSpec(pivotPx) }
+    // Focus moves never scroll the row on their own; each one glides the card to the left gutter.
+    val glideTo: (Int) -> Unit = { index ->
+        scope.launch {
+            val easing = rowGlideEasing(interruptsGlide = listState.isScrollInProgress)
+            listState.glideItemToStart(index, scrollSpeed.scrollDurationMs, easing)
+        }
+    }
     KeepFocusedCardInView(listState, focusedIndex, rowFocused)
 
     Column(modifier.onFocusChanged { rowFocused = it.hasFocus }.throttleHorizontalDpadRepeat()) {
         RowTitle(title)
-        CompositionLocalProvider(LocalBringIntoViewSpec provides bringIntoViewSpec) {
+        CompositionLocalProvider(LocalBringIntoViewSpec provides ManualBringIntoViewSpec) {
             LazyRow(
                 state = listState,
                 modifier = Modifier.fillMaxWidth().height(CardHeight).focusProperties {
@@ -166,7 +178,12 @@ fun ExpandingCatalogRow(
                         item = item,
                         expanded = index == expandedIndex,
                         onClick = { onItemClick(index) },
-                        onFocused = { focusedIndex = index },
+                        onFocused = {
+                            focusedIndex = index
+                            glideTo(index)
+                        },
+                        onLongClick = onItemLongClick?.let { { it(index) } },
+                        expandDurationMs = scrollSpeed.expandDurationMs,
                         modifier = Modifier
                             .then(if (index == 0) Modifier.focusRequester(firstCard) else Modifier)
                             .then(if (index == focusedIndex) Modifier.focusRequester(lastFocusedCard) else Modifier)
@@ -180,8 +197,12 @@ fun ExpandingCatalogRow(
                             onClick = onViewMore,
                             onFocusChanged = { focused ->
                                 viewMoreFocused = focused
-                                if (focused) focusedIndex = items.size
+                                if (focused) {
+                                    focusedIndex = items.size
+                                    glideTo(items.size)
+                                }
                             },
+                            expandDurationMs = scrollSpeed.expandDurationMs,
                             modifier = Modifier
                                 .then(if (focusedIndex == items.size) Modifier.focusRequester(lastFocusedCard) else Modifier)
                                 .onDpadEdgeWrap(Key.DirectionRight, wrapToStart),
@@ -204,10 +225,9 @@ fun ExpandingCatalogRow(
 }
 
 /**
- * The pivot [LocalBringIntoViewSpec] scrolls only when focus moves, but the focused card keeps
- * widening (poster → 16:9) for ~180 ms afterwards. Near the row's end the list is clamped
- * at max scroll, so that late growth would push the card (notably `View More`, reached by holding
- * `Right`) past the right edge. Once the focus scroll has settled, nudge the row every frame the
+ * The row glides only when focus moves, but near the row's end the glide is clamped at max scroll,
+ * so a card that is still widening (poster → 16:9) could be pushed (notably `View More`, reached by
+ * holding `Right`) past the right edge. Once the glide has settled, nudge the row every frame the
  * card's trailing edge overflows the end gutter.
  */
 @Composable
