@@ -1,9 +1,10 @@
 package com.seastreams.tv.core.network
 
-import okhttp3.Interceptor
-import okhttp3.Response
+import com.seastreams.tv.core.util.MILLIS_PER_SECOND
 import java.io.IOException
 import java.io.InterruptedIOException
+import okhttp3.Interceptor
+import okhttp3.Response
 
 /** Blocking delay used between retries; replaced by a recording fake in tests. */
 fun interface Sleeper {
@@ -71,7 +72,6 @@ class RateLimitRetryInterceptor(
         const val DEFAULT_MAX_RETRIES = 3
         const val DEFAULT_BASE_DELAY_MS = 1_000L
         const val DEFAULT_MAX_DELAY_MS = 16_000L
-        private const val MILLIS_PER_SECOND = 1_000L
 
         // Keeps `baseDelayMs shl shift` far from Long overflow.
         private const val MAX_SHIFT = 20

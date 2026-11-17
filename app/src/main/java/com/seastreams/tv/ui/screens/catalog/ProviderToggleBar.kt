@@ -34,10 +34,9 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.seastreams.tv.domain.model.StreamingProvider
 import com.seastreams.tv.ui.components.RowGutter
-import com.seastreams.tv.ui.theme.FocusPill
-import com.seastreams.tv.ui.theme.OnFocusPill
 import com.seastreams.tv.ui.theme.TextPrimary
 import com.seastreams.tv.ui.theme.TextSecondary
+import com.seastreams.tv.ui.theme.focusPillColors
 import com.seastreams.tv.ui.theme.onDpadEdgeWrap
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
 import kotlinx.coroutines.launch
@@ -118,11 +117,9 @@ private fun ProviderChip(provider: StreamingProvider, isOn: Boolean, onClick: ()
         modifier = modifier,
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(50)),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
-        colors = ClickableSurfaceDefaults.colors(
+        colors = focusPillColors(
             containerColor = if (isOn) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.05f),
             contentColor = if (isOn) TextPrimary else TextSecondary,
-            focusedContainerColor = FocusPill,
-            focusedContentColor = OnFocusPill,
         ),
     ) {
         Row(

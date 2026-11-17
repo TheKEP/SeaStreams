@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import com.seastreams.tv.core.util.MILLIS_PER_SECOND
 import com.seastreams.tv.ui.components.LocalTransientMessages
 import com.seastreams.tv.ui.screens.playback.RESTORE_FRAMES
 import com.seastreams.tv.ui.theme.AppearanceViewModel
@@ -210,5 +211,4 @@ private fun keyFor(panel: SettingsPanel): String = when (panel) {
 
 private const val FIRST_ROW_KEY = "addons"
 private const val LEFT_WEIGHT = 0.3f
-private const val MILLIS_PER_SECOND = 1_000L
 private const val TICK_MILLIS = 250L

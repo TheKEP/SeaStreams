@@ -15,7 +15,6 @@ import com.seastreams.tv.domain.playback.PlaybackTarget
 import com.seastreams.tv.domain.playback.ProgressPoint
 import com.seastreams.tv.domain.playback.SeasonEpisodeSelection
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
@@ -112,13 +111,9 @@ class EpisodesViewModel @Inject constructor(
         if (_state.value.seasons[season] is SeasonEpisodes.Loaded || seasonJobs[season]?.isActive == true) return
         _state.update { it.copy(seasons = it.seasons + (season to SeasonEpisodes.Loading)) }
         seasonJobs[season] = viewModelScope.launch {
-            val result = try {
-                SeasonEpisodes.Loaded(titles.episodes(details.media.tmdbId, season))
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                SeasonEpisodes.Failed
-            }
+            val result = orNullUnlessCancelled { titles.episodes(details.media.tmdbId, season) }
+                ?.let { SeasonEpisodes.Loaded(it) }
+                ?: SeasonEpisodes.Failed
             _state.update { it.copy(seasons = it.seasons + (season to result)) }
         }
     }

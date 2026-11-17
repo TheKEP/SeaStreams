@@ -116,9 +116,6 @@ class FakeWatchProgressDao : WatchProgressDao {
         seasonNumber: Int,
         episodeNumber: Int,
     ) = rows.update { list -> list.filterNot { it.key() == listOf(profileId, tmdbId, mediaType, seasonNumber, episodeNumber) } }
-
-    override suspend fun clearForTitle(profileId: Long, tmdbId: Int, mediaType: MediaType) =
-        rows.update { list -> list.filterNot { it.profileId == profileId && it.tmdbId == tmdbId && it.mediaType == mediaType } }
 }
 
 fun testMedia(tmdbId: Int, type: MediaType = MediaType.MOVIE, runtimeMinutes: Int? = 100) = MediaItem(

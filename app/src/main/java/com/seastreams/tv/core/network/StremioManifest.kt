@@ -36,10 +36,9 @@ data class StremioManifest(
     val resources: List<StremioResource>,
     val catalogs: List<StremioCatalog>,
 ) {
-    /** True when the addon declares [resource] for [type] (e.g. `stream` for `movie`). */
-    fun supports(resource: String, type: String): Boolean = resources.any { res ->
-        res.name == resource && type in res.types.ifEmpty { types }
-    }
+    /** The declaration of [resource] for [type] (e.g. `stream` for `movie`), or `null` if the addon doesn't serve it. */
+    fun resourceFor(resource: String, type: String): StremioResource? =
+        resources.firstOrNull { it.name == resource && type in it.types.ifEmpty { types } }
 }
 
 class InvalidManifestException(message: String) : IllegalArgumentException(message)

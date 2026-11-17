@@ -52,6 +52,6 @@ object EpisodeNavigator {
         val pool = seasons.filter { it.episodeCount > 0 }.sortedBy { it.number }.flatMap { season ->
             (1..season.episodeCount).map { EpisodeRef(season.number, it) }
         }.filter { lastAired == null || it <= lastAired }
-        return if (pool.isEmpty()) null else pool[random.nextInt(pool.size)]
+        return pool.randomOrNull(random)
     }
 }

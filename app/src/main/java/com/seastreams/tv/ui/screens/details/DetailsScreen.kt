@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import com.seastreams.tv.core.util.MILLIS_PER_MINUTE
 import com.seastreams.tv.domain.model.MediaItem
 import com.seastreams.tv.domain.model.TitleDetails
 import com.seastreams.tv.ui.components.LocalTransientMessages
@@ -181,5 +182,4 @@ private fun resumeNote(state: DetailsUiState): String? {
 private val BackdropSize = DpSize(960.dp, 540.dp)
 private val LogoSize = DpSize(340.dp, 80.dp)
 private const val MAX_GENRES = 2
-private const val MILLIS_PER_MINUTE = 60_000L
 private const val YOUTUBE_WATCH = "https://www.youtube.com/watch?v="

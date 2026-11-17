@@ -37,11 +37,9 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
-import com.seastreams.tv.ui.theme.FocusPill
-import com.seastreams.tv.ui.theme.OnFocusPill
 import com.seastreams.tv.ui.theme.SurfaceCard
-import com.seastreams.tv.ui.theme.TextPrimary
 import com.seastreams.tv.ui.theme.TextSecondary
+import com.seastreams.tv.ui.theme.focusPillColors
 import com.seastreams.tv.ui.theme.onDpadEdgeWrap
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
 import com.seastreams.tv.ui.theme.tryRequestFocus
@@ -139,12 +137,7 @@ private fun MenuEntry(label: String, onClick: () -> Unit, modifier: Modifier) {
         modifier = modifier.fillMaxWidth(),
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color.White.copy(alpha = 0.08f),
-            contentColor = TextPrimary,
-            focusedContainerColor = FocusPill,
-            focusedContentColor = OnFocusPill,
-        ),
+        colors = focusPillColors(containerColor = Color.White.copy(alpha = 0.08f)),
     ) {
         Text(
             label,

@@ -2,14 +2,15 @@ package com.seastreams.tv.domain.playback
 
 import com.seastreams.tv.core.database.dao.WatchProgressDao
 import com.seastreams.tv.core.database.entity.WatchProgressEntity
+import com.seastreams.tv.core.util.MILLIS_PER_MINUTE
 import com.seastreams.tv.domain.model.EpisodeRef
 import com.seastreams.tv.domain.model.MediaRef
 import com.seastreams.tv.domain.model.MediaType
 import com.seastreams.tv.domain.model.TitleDetails
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 import java.time.Clock
 import javax.inject.Inject
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 /** One movie, or one episode of a show, that the user asked to play. */
 data class PlaybackTarget(
@@ -24,10 +25,6 @@ data class PlaybackTarget(
     /** Runtime in ms from TMDB (episode runtime for shows); `0` when unknown. */
     val knownDurationMs: Long
         get() = ((episodeRuntimeMinutes ?: details.media.runtimeMinutes) ?: 0) * MILLIS_PER_MINUTE
-
-    private companion object {
-        const val MILLIS_PER_MINUTE = 60_000L
-    }
 }
 
 /** Reads and writes watch progress for [PlaybackTarget]s (`WatchProgressDao`). */

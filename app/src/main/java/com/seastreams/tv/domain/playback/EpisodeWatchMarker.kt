@@ -2,6 +2,7 @@ package com.seastreams.tv.domain.playback
 
 import com.seastreams.tv.core.database.dao.WatchProgressDao
 import com.seastreams.tv.core.database.entity.WatchProgressEntity
+import com.seastreams.tv.core.util.MILLIS_PER_MINUTE
 import com.seastreams.tv.domain.model.Episode
 import com.seastreams.tv.domain.model.EpisodeRef
 import com.seastreams.tv.domain.model.TitleDetails
@@ -23,10 +24,8 @@ object SeasonEpisodeSelection {
      * A uniformly random aired episode of [season] only (`Shuffle Season`); `null` when the season has
      * none. [lastAired] excludes episodes that haven't aired yet.
      */
-    fun shuffle(episodes: List<Episode>, season: Int, lastAired: EpisodeRef?, random: Random = Random.Default): Episode? {
-        val pool = season(episodes, season).filter { lastAired == null || it.ref <= lastAired }
-        return if (pool.isEmpty()) null else pool[random.nextInt(pool.size)]
-    }
+    fun shuffle(episodes: List<Episode>, season: Int, lastAired: EpisodeRef?, random: Random = Random.Default): Episode? =
+        season(episodes, season).filter { lastAired == null || it.ref <= lastAired }.randomOrNull(random)
 }
 
 /**
@@ -81,8 +80,6 @@ class EpisodeWatchMarker @Inject constructor(
     }
 
     private companion object {
-        const val MILLIS_PER_MINUTE = 60_000L
-
         /** Duration stored when TMDB has no runtime: any positive value makes position = duration "finished". */
         const val UNKNOWN_DURATION_MS = 1L
     }

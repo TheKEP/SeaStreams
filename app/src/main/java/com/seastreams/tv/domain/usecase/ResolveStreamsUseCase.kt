@@ -125,8 +125,7 @@ class ResolveStreamsUseCase @Inject constructor(
  * `null` when the addon doesn't serve [resource] for [type] or accepts neither id.
  */
 internal fun stremioId(manifest: StremioManifest, resource: String, type: String, query: StreamQuery): String? {
-    val declared = manifest.resources.firstOrNull { it.name == resource && type in it.types.ifEmpty { manifest.types } }
-        ?: return null
+    val declared = manifest.resourceFor(resource, type) ?: return null
     val prefixes = declared.idPrefixes.ifEmpty { manifest.idPrefixes }
     val imdb = query.imdbId
     val tmdb = "tmdb:${query.ref.tmdbId}"

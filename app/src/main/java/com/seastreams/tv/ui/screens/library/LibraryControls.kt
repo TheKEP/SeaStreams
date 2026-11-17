@@ -17,7 +17,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -30,10 +29,9 @@ import com.seastreams.tv.domain.model.Genre
 import com.seastreams.tv.domain.usecase.LibraryQuery
 import com.seastreams.tv.domain.usecase.label
 import com.seastreams.tv.ui.components.TvDropdown
-import com.seastreams.tv.ui.theme.FocusPill
-import com.seastreams.tv.ui.theme.OnFocusPill
 import com.seastreams.tv.ui.theme.OutlineDim
 import com.seastreams.tv.ui.theme.TextPrimary
+import com.seastreams.tv.ui.theme.focusPillColors
 import com.seastreams.tv.ui.theme.onDpadEdgeWrap
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
 import kotlinx.coroutines.launch
@@ -114,12 +112,7 @@ fun LetterBar(
                     ),
                 shape = ClickableSurfaceDefaults.shape(shape),
                 scale = ClickableSurfaceDefaults.scale(focusedScale = 1.15f),
-                colors = ClickableSurfaceDefaults.colors(
-                    containerColor = Color.Transparent,
-                    contentColor = if (target != null) TextPrimary else OutlineDim,
-                    focusedContainerColor = FocusPill,
-                    focusedContentColor = OnFocusPill,
-                ),
+                colors = focusPillColors(contentColor = if (target != null) TextPrimary else OutlineDim),
             ) {
                 Text(
                     letter.toString(),
