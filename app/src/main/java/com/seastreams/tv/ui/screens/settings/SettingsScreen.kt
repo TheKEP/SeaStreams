@@ -205,6 +205,8 @@ private fun keyFor(panel: SettingsPanel): String = when (panel) {
         ChoiceKind.AUDIO_LANGUAGE -> "audio-lang"
         ChoiceKind.SUBTITLE_LANGUAGE -> "subs-lang"
         ChoiceKind.CATALOG_ROW_SCROLL_SPEED -> ROW_SPEED_ROW_KEY
+        ChoiceKind.BUFFER_PROFILE -> "buffer"
+        ChoiceKind.PARALLEL_CONNECTIONS -> "parallel"
     }
     SettingsPanel.Main -> FIRST_ROW_KEY
 }

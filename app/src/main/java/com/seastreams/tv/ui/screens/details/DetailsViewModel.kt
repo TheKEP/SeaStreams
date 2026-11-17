@@ -32,7 +32,7 @@ import javax.inject.Inject
 sealed interface DetailsEvent {
     data class Message(val text: String) : DetailsEvent
 
-    data class OpenTrailer(val youtubeKey: String) : DetailsEvent
+    data class OpenTrailer(val title: String, val youtubeKey: String) : DetailsEvent
 }
 
 /**
@@ -88,10 +88,10 @@ class DetailsViewModel @Inject constructor(
     }
 
     fun requestTrailer() {
-        val ref = _state.value.media?.ref ?: return
+        val media = _state.value.media ?: return
         viewModelScope.launch {
-            val key = orNullUnlessCancelled { titles.trailerKey(ref) }
-            _events.send(if (key == null) DetailsEvent.Message("No trailer available") else DetailsEvent.OpenTrailer(key))
+            val key = orNullUnlessCancelled { titles.trailerKey(media.ref) }
+            _events.send(if (key == null) DetailsEvent.Message("No trailer available") else DetailsEvent.OpenTrailer(media.title, key))
         }
     }
 

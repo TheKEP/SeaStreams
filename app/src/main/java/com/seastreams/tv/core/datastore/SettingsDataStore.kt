@@ -88,6 +88,11 @@ class SettingsDataStore @Inject constructor(
         prefs[Keys.AUTO_PLAY_FROM_CONTINUE_WATCHING] = updated.autoPlayFromContinueWatching
         prefs[Keys.BLUR_UNWATCHED_THUMBNAILS] = updated.blurUnwatchedThumbnails
         prefs[Keys.HDR_WHITE_DIMMING] = updated.hdrWhiteDimming
+        prefs[Keys.BUFFER_PROFILE] = updated.playbackBufferProfile.name
+        prefs[Keys.PARALLEL_CONNECTIONS] = clampParallelConnections(updated.parallelStreamConnections)
+        prefs[Keys.AUTO_PLAY_TRAILERS] = updated.autoPlayTrailers
+        prefs[Keys.MUTE_AUTO_PLAY_TRAILERS] = updated.muteAutoPlayTrailers
+        prefs[Keys.TRAILER_DELAY_SECONDS] = clampTrailerDelay(updated.trailerAutoPlayDelaySeconds)
     }
 
     /** Persists the page background; anything other than a [BackgroundSwatches] colour is ignored. */
@@ -155,6 +160,15 @@ class SettingsDataStore @Inject constructor(
                 prefs[Keys.AUTO_PLAY_FROM_CONTINUE_WATCHING] ?: defaults.autoPlayFromContinueWatching,
             blurUnwatchedThumbnails = prefs[Keys.BLUR_UNWATCHED_THUMBNAILS] ?: defaults.blurUnwatchedThumbnails,
             hdrWhiteDimming = prefs[Keys.HDR_WHITE_DIMMING] ?: defaults.hdrWhiteDimming,
+            playbackBufferProfile = enumOrDefault(prefs[Keys.BUFFER_PROFILE], defaults.playbackBufferProfile),
+            parallelStreamConnections = clampParallelConnections(
+                prefs[Keys.PARALLEL_CONNECTIONS] ?: defaults.parallelStreamConnections,
+            ),
+            autoPlayTrailers = prefs[Keys.AUTO_PLAY_TRAILERS] ?: defaults.autoPlayTrailers,
+            muteAutoPlayTrailers = prefs[Keys.MUTE_AUTO_PLAY_TRAILERS] ?: defaults.muteAutoPlayTrailers,
+            trailerAutoPlayDelaySeconds = clampTrailerDelay(
+                prefs[Keys.TRAILER_DELAY_SECONDS] ?: defaults.trailerAutoPlayDelaySeconds,
+            ),
         )
     }
 
@@ -203,6 +217,11 @@ class SettingsDataStore @Inject constructor(
         val HDR_WHITE_DIMMING = booleanPreferencesKey("player_hdr_white_dimming")
         val AUTO_PLAY_NEXT_EPISODE = booleanPreferencesKey("player_autoplay_next_episode")
         val CONVERT_DV_PROFILE_7 = booleanPreferencesKey("player_convert_dv_profile7")
+        val BUFFER_PROFILE = stringPreferencesKey("player_buffer_profile")
+        val PARALLEL_CONNECTIONS = intPreferencesKey("player_parallel_connections")
+        val AUTO_PLAY_TRAILERS = booleanPreferencesKey("player_autoplay_trailers")
+        val MUTE_AUTO_PLAY_TRAILERS = booleanPreferencesKey("player_mute_autoplay_trailers")
+        val TRAILER_DELAY_SECONDS = intPreferencesKey("player_trailer_delay_s")
         val BACKGROUND_COLOR = intPreferencesKey("ui_background_color")
         val CATALOG_ROW_SCROLL_SPEED = stringPreferencesKey("ui_catalog_row_scroll_speed")
 
@@ -227,6 +246,10 @@ class SettingsDataStore @Inject constructor(
     companion object {
         fun clampFallbackTimeout(seconds: Int): Int =
             seconds.coerceIn(PlayerSettings.FALLBACK_TIMEOUT_RANGE)
+
+        fun clampParallelConnections(count: Int): Int = count.coerceIn(PlayerSettings.PARALLEL_CONNECTIONS_RANGE)
+
+        fun clampTrailerDelay(seconds: Int): Int = seconds.coerceIn(PlayerSettings.TRAILER_DELAY_RANGE)
 
         /** Snaps to the nearest 25 ms step and clamps to ±500 ms. */
         fun snapAudioDelay(delayMs: Int): Int {

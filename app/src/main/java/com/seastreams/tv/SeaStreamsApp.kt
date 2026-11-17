@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import com.seastreams.tv.core.util.ApplicationScope
 import com.seastreams.tv.data.setup.DebugProfileSeeder
+import com.seastreams.tv.data.trailer.NewPipeInitializer
 import com.seastreams.tv.data.setup.FirstLaunchSeeder
 import dagger.Lazy
 import dagger.hilt.android.HiltAndroidApp
@@ -22,6 +23,10 @@ class SeaStreamsApp : Application() {
     @Inject
     lateinit var debugProfileSeeder: Lazy<DebugProfileSeeder>
 
+    /** NewPipeExtractor (in-app trailers) on the shared OkHttp client; lazy for the same reason. */
+    @Inject
+    lateinit var newPipe: Lazy<NewPipeInitializer>
+
     /** Process-lifetime scope (off the main thread) for fire-and-forget startup work. */
     @Inject
     @ApplicationScope
@@ -30,6 +35,9 @@ class SeaStreamsApp : Application() {
     override fun onCreate() {
         super.onCreate()
         appScope.launch {
+            // NewPipe.init(OkHttpDownloader(okHttpClient)); trailer extraction also ensures it lazily.
+            runCatching { newPipe.get().ensureInitialized() }
+                .onFailure { Log.e("SeaStreamsApp", "NewPipe init failed", it) }
             runCatching { firstLaunchSeeder.get().seedIfNeeded() }
                 .onFailure { Log.e("SeaStreamsApp", "Seeding default addons failed", it) }
             if (BuildConfig.DEBUG) {

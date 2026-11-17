@@ -17,7 +17,7 @@ app/src/main/java/com/seastreams/tv/
 │   │   ├── dao/                      # ProfileDao, LibraryDao, WatchProgressDao (tracks resume position + dismissedFromContinueWatching flag), AddonDao
 │   │   └── entity/                   # Room @Entity definitions
 │   ├── datastore/
-│   │   └── SettingsDataStore.kt      # Typed Preferences DataStore (UI scroll speed, audio, subtitles, player, inline trailers, active profile)
+│   │   └── SettingsDataStore.kt      # Typed Preferences DataStore (UI scroll speed, buffer profile, parallel connections, audio, subtitles, player, inline trailers, active profile)
 │   └── webserver/
 │       ├── LocalPortalServer.kt      # Embedded Ktor CIO server on port 8765
 │       └── PortalHtmlTemplate.kt     # Mobile-responsive HTML/JS UI served to phone/PC browsers
@@ -28,7 +28,8 @@ app/src/main/java/com/seastreams/tv/
 │   │   └── SdhSubtitleCleaner.kt     # Pure Kotlin SDH cue stripper
 │   └── usecase/                      # GetHomeCatalogsUseCase, ResolveStreamsUseCase, ResolveTrailerStreamUseCase, ImportMdbListUseCase
 ├── player/
-│   ├── SeaStreamsPlayerManager.kt    # ExoPlayer wrapper + Stream Fallback Timer (1s-10s) + MergingMediaSource trailers
+│   ├── SeaStreamsPlayerManager.kt    # ExoPlayer wrapper + LoadControl buffer profiles + Stream Fallback Timer (1s-10s) + MergingMediaSource trailers
+│   ├── ParallelRangeDataSource.kt    # Multi-connection HTTP Byte-Range DataSource wrapper (1-4 concurrent chunks) + live throughput tracker
 │   ├── InlineTrailerPlayerManager.kt # Single shared lifecycle-aware ExoPlayer for 16:9 catalog row hover previews
 │   ├── audio/
 │   │   └── DialogueNightAudioProcessor.kt # Custom Media3 AudioProcessor (Center boost + DRC Night Mode)

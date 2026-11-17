@@ -245,6 +245,7 @@ private fun DiscoverRow(
             focusedIndexState = rowFocus.stateFor(row.spec.id, content.row.items.map { it.key }),
             activeCard = activeCard ?: ownActiveCard,
             scrollSpeed = scrollSpeed,
+            inlineTrailers = true,
         )
     }
 }

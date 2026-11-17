@@ -46,6 +46,18 @@ enum class DialogueBoost(val gainDb: Int) { OFF(0), PLUS_3(3), PLUS_6(6), PLUS_9
 
 enum class SubtitleMode { ALWAYS_ON, ALWAYS_OFF }
 
+/** ExoPlayer read-ahead buffer size (PRD §9 Playback Buffer Profile); `LARGE` is the default. */
+enum class PlaybackBufferProfile(val label: String) {
+    STANDARD("Standard"),
+    LARGE("Large (2 min)"),
+    MAX("Max (5 min)"),
+    ;
+
+    companion object {
+        val DEFAULT = LARGE
+    }
+}
+
 enum class SubtitleEdgeType { NONE, OUTLINE, DROP_SHADOW }
 
 data class PlayerSettings(
@@ -61,10 +73,21 @@ data class PlayerSettings(
     /** Plays Dolby Vision Profile 7 tracks as their HDR10 base layer (PRD §9: on by default). */
     val convertDvProfile7ToHdr: Boolean = true,
     val hdrWhiteDimming: Boolean = false,
+    val playbackBufferProfile: PlaybackBufferProfile = PlaybackBufferProfile.DEFAULT,
+    /** Concurrent HTTP byte-range connections per stream; `1` turns the parallel reader off. */
+    val parallelStreamConnections: Int = DEFAULT_PARALLEL_CONNECTIONS,
+    /** Inline 16:9 catalog-card trailer previews (PRD §4). */
+    val autoPlayTrailers: Boolean = true,
+    val muteAutoPlayTrailers: Boolean = true,
+    val trailerAutoPlayDelaySeconds: Int = DEFAULT_TRAILER_DELAY_SECONDS,
 ) {
     companion object {
         const val DEFAULT_FALLBACK_TIMEOUT_SECONDS = 5
         val FALLBACK_TIMEOUT_RANGE: IntRange = 1..10
+        const val DEFAULT_PARALLEL_CONNECTIONS = 3
+        val PARALLEL_CONNECTIONS_RANGE: IntRange = 1..4
+        const val DEFAULT_TRAILER_DELAY_SECONDS = 2
+        val TRAILER_DELAY_RANGE: IntRange = 1..7
     }
 }
 

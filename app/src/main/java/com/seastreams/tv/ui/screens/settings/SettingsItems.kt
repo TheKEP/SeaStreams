@@ -47,7 +47,16 @@ sealed interface SettingsPanel {
     data object SubtitleStyle : SettingsPanel
 }
 
-enum class ChoiceKind { PREFERRED_ADDON, EXTERNAL_PLAYER, DIALOGUE_BOOST, AUDIO_LANGUAGE, SUBTITLE_LANGUAGE, CATALOG_ROW_SCROLL_SPEED }
+enum class ChoiceKind {
+    PREFERRED_ADDON,
+    EXTERNAL_PLAYER,
+    DIALOGUE_BOOST,
+    AUDIO_LANGUAGE,
+    SUBTITLE_LANGUAGE,
+    CATALOG_ROW_SCROLL_SPEED,
+    BUFFER_PROFILE,
+    PARALLEL_CONNECTIONS,
+}
 
 const val BACKGROUND_ROW_KEY = "background"
 const val ROW_SPEED_ROW_KEY = "row-speed"
@@ -104,6 +113,21 @@ fun settingsItems(
                 ),
             ) { cb.updatePlayer { it.copy(fallbackTimeoutSeconds = nextFallbackTimeout(it.fallbackTimeoutSeconds)) } },
         )
+        add(entry("buffer", SeaIcons.Timer, "Playback buffer profile", p.playbackBufferProfile.label, RowTrailing.Chevron) { cb.open(SettingsPanel.Choice(ChoiceKind.BUFFER_PROFILE)) })
+        add(entry("parallel", SeaIcons.Addons, "Parallel stream connections", parallelLabel(p.parallelStreamConnections), RowTrailing.Chevron) { cb.open(SettingsPanel.Choice(ChoiceKind.PARALLEL_CONNECTIONS)) })
+        add(toggle("trailers", SeaIcons.Trailer, "Auto-play trailers", p.autoPlayTrailers) { cb.updatePlayer { it.copy(autoPlayTrailers = !it.autoPlayTrailers) } })
+        if (p.autoPlayTrailers) {
+            add(toggle("trailers-mute", SeaIcons.Volume, "Mute auto-play trailers", p.muteAutoPlayTrailers) { cb.updatePlayer { it.copy(muteAutoPlayTrailers = !it.muteAutoPlayTrailers) } })
+            add(
+                entry(
+                    "trailers-delay", SeaIcons.Timer, "Trailer auto-play delay", "${p.trailerAutoPlayDelaySeconds}s",
+                    RowTrailing.Stepper(
+                        onDecrease = { cb.updatePlayer { it.copy(trailerAutoPlayDelaySeconds = SettingsDataStore.clampTrailerDelay(it.trailerAutoPlayDelaySeconds - 1)) } },
+                        onIncrease = { cb.updatePlayer { it.copy(trailerAutoPlayDelaySeconds = SettingsDataStore.clampTrailerDelay(it.trailerAutoPlayDelaySeconds + 1)) } },
+                    ),
+                ) { cb.updatePlayer { it.copy(trailerAutoPlayDelaySeconds = nextTrailerDelay(it.trailerAutoPlayDelaySeconds)) } },
+            )
+        }
         add(entry("player", SeaIcons.Television, "External player", playerLabel(p.playerChoice, state.players), RowTrailing.Chevron) { cb.open(SettingsPanel.Choice(ChoiceKind.EXTERNAL_PLAYER)) })
         add(toggle("dv7", SeaIcons.Brightness, "Convert Dolby Vision Profile 7 to HDR", p.convertDvProfile7ToHdr) { cb.updatePlayer { it.copy(convertDvProfile7ToHdr = !it.convertDvProfile7ToHdr) } })
         add(toggle("hdr-dim", SeaIcons.Brightness, "HDR white dimming", p.hdrWhiteDimming) { cb.updatePlayer { it.copy(hdrWhiteDimming = !it.hdrWhiteDimming) } })
@@ -165,6 +189,15 @@ internal fun nextFallbackTimeout(seconds: Int): Int {
     val range = PlayerSettings.FALLBACK_TIMEOUT_RANGE
     return if (seconds >= range.last) range.first else seconds + 1
 }
+
+/** Click on the trailer delay row: next second, wrapping 7s → 1s. */
+internal fun nextTrailerDelay(seconds: Int): Int {
+    val range = PlayerSettings.TRAILER_DELAY_RANGE
+    return if (seconds >= range.last) range.first else seconds + 1
+}
+
+/** `Off (1x)`, `2x` … `4x` (PRD §10). */
+internal fun parallelLabel(connections: Int): String = if (connections <= 1) "Off (1x)" else "${connections}x"
 
 internal fun dialogueLabel(gainDb: Int): String = if (gainDb == 0) "Off" else "+$gainDb dB"
 

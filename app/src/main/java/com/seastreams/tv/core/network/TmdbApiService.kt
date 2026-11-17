@@ -59,6 +59,19 @@ class TmdbApiService @Inject constructor(
         genreId: Int? = null,
     ): TmdbPage<TmdbTvSummary> = get("discover", "tv") { discoverParameters(provider, page, genreId) }
 
+    /**
+     * Popular movies pre-filtered by TMDB for the profile gate artwork: US certification at most
+     * [maxCertification] (which also drops uncertified titles) and none of [excludedGenres]. The caller
+     * still re-checks both; this only makes it likely that the first candidates already qualify.
+     */
+    suspend fun discoverGateMovies(maxCertification: String, excludedGenres: Set<Int>): TmdbPage<TmdbMovieSummary> =
+        get("discover", "movie") {
+            parameter("certification_country", WATCH_REGION)
+            parameter("certification.lte", maxCertification)
+            parameter("without_genres", excludedGenres.joinToString(","))
+            discoverParameters(provider = null, page = 1, genreId = null)
+        }
+
     /** This week's trending movies (Search's default `Trending Movies` category). */
     suspend fun trendingMovies(page: Int = 1): TmdbPage<TmdbMovieSummary> =
         get("trending", "movie", TRENDING_WINDOW) { pageParameters(page) }

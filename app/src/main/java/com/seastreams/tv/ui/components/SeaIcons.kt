@@ -66,6 +66,21 @@ object SeaIcons {
         icon("TextSize", "M9,4v3h5v12h3V7h5V4H9zM3,12h3v7h3v-7h3V9H3v3z")
     }
 
+    val Pause by lazy {
+        icon("Pause", "M6,19h4V5H6v14zM14,5v14h4V5h-4z")
+    }
+    val SkipNext by lazy {
+        icon("SkipNext", "M6,18l8.5,-6L6,6v12zM16,6v12h2V6h-2z")
+    }
+
+    /** Same glyph as `Icons.AutoMirrored.Rounded.VolumeOff` (material-icons-extended isn't a dependency). */
+    val VolumeOff by lazy {
+        icon(
+            "VolumeOff",
+            "M3.63,3.63a0.996,0.996 0,0 0,0 1.41L7.29,8.7 7,9H4c-0.55,0 -1,0.45 -1,1v4c0,0.55 0.45,1 1,1h3l3.29,3.29c0.63,0.63 1.71,0.18 1.71,-0.71v-4.17l4.18,4.18c-0.49,0.37 -1.02,0.68 -1.6,0.91 -0.36,0.15 -0.58,0.53 -0.58,0.92 0,0.72 0.73,1.18 1.39,0.91 0.8,-0.33 1.55,-0.77 2.22,-1.31l1.34,1.34a0.996,0.996 0,1 0,1.41 -1.41L5.05,3.63c-0.39,-0.39 -1.02,-0.39 -1.42,0zM19,12c0,0.82 -0.15,1.61 -0.41,2.34l1.53,1.53c0.56,-1.17 0.88,-2.48 0.88,-3.87 0,-3.83 -2.4,-7.11 -5.78,-8.4 -0.59,-0.23 -1.22,0.23 -1.22,0.86v0.19c0,0.38 0.25,0.71 0.61,0.85C17.18,6.54 19,9.06 19,12zM10.29,5.71l-0.17,0.17L12,7.76V6.41c0,-0.89 -1.08,-1.33 -1.71,-0.7zM16.5,12c0,-1.77 -1.02,-3.29 -2.5,-4.03v1.79l2.48,2.48c0.01,-0.08 0.02,-0.16 0.02,-0.24z",
+        )
+    }
+
     private fun icon(name: String, path: String): ImageVector =
         ImageVector.Builder(name, defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f)
             .addPath(pathData = addPathNodes(path), fill = SolidColor(Color.Black))

@@ -68,6 +68,8 @@ fun ExpandingMediaCard(
     onClick: () -> Unit,
     onFocused: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Focus left this card (inline trailer previews stop). */
+    onBlurred: () -> Unit = {},
     /** Held `OK`; `null` (the default) leaves long-press unhandled. */
     onLongClick: (() -> Unit)? = null,
     /** Poster ↔ backdrop width and cross-fade time; from the Catalog row scroll speed setting. */
@@ -77,7 +79,7 @@ fun ExpandingMediaCard(
     ExpandingCardSurface(
         onClick = onClick,
         onLongClick = onLongClick,
-        onFocusChanged = { if (it) onFocused() },
+        onFocusChanged = { if (it) onFocused() else onBlurred() },
         modifier = modifier,
         wide = { expanded },
         expandDurationMs = expandDurationMs,
