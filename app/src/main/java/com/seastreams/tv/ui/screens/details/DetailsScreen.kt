@@ -1,8 +1,5 @@
 package com.seastreams.tv.ui.screens.details
 
-import android.content.ActivityNotFoundException
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,7 +22,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpSize
@@ -70,7 +66,6 @@ fun DetailsScreen(
     // Ignore a previous title's state for the frame before open() resets it.
     val state = if (latest.media?.ref == item.ref && latest.profileId == profileId) latest else DetailsUiState(profileId, item)
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
     val messages = LocalTransientMessages.current
     val firstButton = remember { FocusRequester() }
 
@@ -78,11 +73,8 @@ fun DetailsScreen(
         viewModel.events.collect { event ->
             when (event) {
                 is DetailsEvent.Message -> messages?.show(event.text)
-                is DetailsEvent.OpenTrailer -> try {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(YOUTUBE_WATCH + event.youtubeKey)))
-                } catch (e: ActivityNotFoundException) {
-                    messages?.show("No app on this TV can play trailers")
-                }
+                // Full-screen in the built-in player; YouTube only if extraction fails (PRD §6).
+                is DetailsEvent.OpenTrailer -> playback.playTrailer(event.title, event.youtubeKey)
             }
         }
     }
@@ -182,4 +174,3 @@ private fun resumeNote(state: DetailsUiState): String? {
 private val BackdropSize = DpSize(960.dp, 540.dp)
 private val LogoSize = DpSize(340.dp, 80.dp)
 private const val MAX_GENRES = 2
-private const val YOUTUBE_WATCH = "https://www.youtube.com/watch?v="

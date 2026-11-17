@@ -4,6 +4,8 @@ import com.seastreams.tv.core.database.entity.AddonEntity
 import com.seastreams.tv.core.datastore.BackgroundSwatches
 import com.seastreams.tv.core.datastore.CatalogRowScrollSpeed
 import com.seastreams.tv.core.datastore.DialogueBoost
+import com.seastreams.tv.core.datastore.PlaybackBufferProfile
+import com.seastreams.tv.core.datastore.PlayerSettings
 import com.seastreams.tv.core.datastore.PlayerChoice
 import com.seastreams.tv.core.network.InvalidManifestException
 import com.seastreams.tv.core.network.StremioManifestParser
@@ -102,6 +104,20 @@ fun choiceSpec(kind: ChoiceKind, state: SettingsUiState, vm: SettingsViewModel):
                 ChoiceOption(scrollSpeedOptionLabel(speed), speed == state.settings.appearance.catalogRowScrollSpeed) {
                     vm.setCatalogRowScrollSpeed(speed)
                 }
+            },
+        )
+        ChoiceKind.BUFFER_PROFILE -> ChoiceSpec(
+            "Playback buffer profile",
+            PlaybackBufferProfile.entries.map { profile ->
+                val label = if (profile == PlaybackBufferProfile.DEFAULT) "${profile.label} (default)" else profile.label
+                ChoiceOption(label, profile == player.playbackBufferProfile) { vm.updatePlayer { it.copy(playbackBufferProfile = profile) } }
+            },
+        )
+        ChoiceKind.PARALLEL_CONNECTIONS -> ChoiceSpec(
+            "Parallel stream connections",
+            PlayerSettings.PARALLEL_CONNECTIONS_RANGE.map { count ->
+                val label = if (count == PlayerSettings.DEFAULT_PARALLEL_CONNECTIONS) "${parallelLabel(count)} (default)" else parallelLabel(count)
+                ChoiceOption(label, count == player.parallelStreamConnections) { vm.updatePlayer { it.copy(parallelStreamConnections = count) } }
             },
         )
         ChoiceKind.SUBTITLE_LANGUAGE -> ChoiceSpec(

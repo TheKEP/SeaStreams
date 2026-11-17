@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -17,12 +18,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.seastreams.tv.domain.model.CatalogRowSpec
 import com.seastreams.tv.domain.model.CatalogSource
 import com.seastreams.tv.domain.model.MediaItem
 import com.seastreams.tv.ui.components.CoverableLayer
 import com.seastreams.tv.ui.components.FocusOriginTracker
 import com.seastreams.tv.ui.components.LocalFocusOrigins
+import com.seastreams.tv.ui.components.LocalInlineTrailers
 import com.seastreams.tv.ui.components.LocalTransientMessages
 import com.seastreams.tv.ui.components.LocalWatchedTitles
 import com.seastreams.tv.ui.components.NavTab
@@ -31,6 +36,7 @@ import com.seastreams.tv.ui.components.RowReturnTarget
 import com.seastreams.tv.ui.components.TransientMessageHost
 import com.seastreams.tv.ui.components.TransientMessages
 import com.seastreams.tv.ui.components.rowIdFor
+import com.seastreams.tv.ui.screens.catalog.InlineTrailerViewModel
 import com.seastreams.tv.ui.screens.catalog.MoviesScreen
 import com.seastreams.tv.ui.screens.catalog.TvShowsScreen
 import com.seastreams.tv.ui.screens.catalog.ViewMoreScreen
@@ -85,6 +91,7 @@ fun ProfileShell(profileId: Long, homeViewModel: HomeViewModel, onSwitchProfile:
     val watchedTitles: WatchedTitlesViewModel = activityViewModel()
     LaunchedEffect(profileId) { watchedTitles.open(profileId) }
     val watched by watchedTitles.watched.collectAsState()
+    val inlineTrailers: InlineTrailerViewModel = activityViewModel()
     val appearance: AppearanceViewModel = activityViewModel()
     val rowScrollSpeed by appearance.catalogRowScrollSpeed.collectAsState()
 
@@ -125,10 +132,19 @@ fun ProfileShell(profileId: Long, homeViewModel: HomeViewModel, onSwitchProfile:
         LocalFocusOrigins provides origins,
         LocalTransientMessages provides messages,
         LocalWatchedTitles provides watched,
+        LocalInlineTrailers provides inlineTrailers,
     ) {
+        // Previews stop the moment anything covers the rows (Details, Search, the player…) or the app pauses.
+        val rowsCovered = covers.isNotEmpty() || overlays.isNotEmpty() || playbackState.picker != null || playbackState.player != null
+        LaunchedEffect(rowsCovered) { if (rowsCovered) inlineTrailers.cancel() }
+        LaunchedEffect(tab) { inlineTrailers.cancel() }
+        ReleaseOnBackground(inlineTrailers)
         Box(Modifier.fillMaxSize()) {
             val pickerOpen = playbackState.picker != null
-            CoverableLayer(covered = covers.isNotEmpty() || pickerOpen, trapFocus = false, visible = covers.isEmpty()) {
+            // The built-in player covers everything; nothing beneath it is drawn or focusable.
+            val playerOpen = playbackState.player != null
+            val playbackOpen = pickerOpen || playerOpen
+            CoverableLayer(covered = covers.isNotEmpty() || playbackOpen, trapFocus = false, visible = covers.isEmpty() && !playerOpen) {
                 when (val top = overlays.lastOrNull()) {
                     Overlay.Search -> {
                         BackHandler(onBack = pop)
@@ -183,8 +199,8 @@ fun ProfileShell(profileId: Long, homeViewModel: HomeViewModel, onSwitchProfile:
             }
             covers.forEachIndexed { index, entry ->
                 key(entry.id) {
-                    val covered = index < covers.lastIndex || pickerOpen
-                    CoverableLayer(covered = covered, trapFocus = true, visible = index == covers.lastIndex) {
+                    val covered = index < covers.lastIndex || playbackOpen
+                    CoverableLayer(covered = covered, trapFocus = true, visible = index == covers.lastIndex && !playerOpen) {
                         BackHandler(enabled = !covered, onBack = popCover)
                         CoverContent(
                             entry = entry,
@@ -199,6 +215,22 @@ fun ProfileShell(profileId: Long, homeViewModel: HomeViewModel, onSwitchProfile:
             }
             PlaybackHost(playback, messages, origins)
             TransientMessageHost(messages)
+        }
+    }
+}
+
+/** Pausing/stopping the app stops the catalog trailer preview and frees its decoder (PRD §4). */
+@Composable
+private fun ReleaseOnBackground(trailers: InlineTrailerViewModel) {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle, trailers) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) trailers.release()
+        }
+        lifecycle.addObserver(observer)
+        onDispose {
+            lifecycle.removeObserver(observer)
+            trailers.release()
         }
     }
 }

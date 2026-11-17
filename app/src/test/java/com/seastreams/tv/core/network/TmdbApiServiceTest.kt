@@ -128,6 +128,17 @@ class TmdbApiServiceTest {
     }
 
     @Test
+    fun `profile gate discover asks TMDB for the certification ceiling without excluded genres`() = runTest {
+        service.discoverGateMovies("PG", setOf(27, 10749, 53, 80))
+
+        val request = server.requests.single()
+        assertEquals("US", request.queryParam("certification_country"))
+        assertEquals("PG", request.queryParam("certification.lte"))
+        assertEquals("27,10749,53,80", request.queryParam("without_genres"))
+        assertEquals("false", request.queryParam("include_adult"))
+    }
+
+    @Test
     fun `v4 read access tokens are sent as a Bearer header`() = runTest {
         apiKey = V4_TOKEN
         service.discoverMovies()

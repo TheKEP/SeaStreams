@@ -4,11 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.seastreams.tv.core.database.entity.ProfileEntity
 import com.seastreams.tv.core.datastore.SettingsDataStore
-import com.seastreams.tv.core.network.TmdbApiService
 import com.seastreams.tv.core.util.orNullUnlessCancelled
-import com.seastreams.tv.data.catalog.TmdbImageUrls
 import com.seastreams.tv.data.profile.ProfileRepository
 import com.seastreams.tv.domain.usecase.GetHomeCatalogsUseCase
+import com.seastreams.tv.domain.usecase.GetProfileGateBackdropUseCase
 import com.seastreams.tv.ui.screens.home.HomeImagePrewarmer
 import com.seastreams.tv.ui.screens.home.firstScreenImages
 import com.seastreams.tv.ui.navigation.WhileUiSubscribed
@@ -20,6 +19,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -36,11 +36,10 @@ data class ProfileSelectUiState(
 
 @HiltViewModel
 class ProfileSelectViewModel @Inject constructor(
-    profiles: ProfileRepository,
+    private val profiles: ProfileRepository,
     private val settings: SettingsDataStore,
     /** Lazy so the HTTP stack (and its disk cache directory) is built on IO, not during VM creation. */
-    private val tmdb: Lazy<TmdbApiService>,
-    private val imageUrls: TmdbImageUrls,
+    private val gateBackdrop: Lazy<GetProfileGateBackdropUseCase>,
     private val homeCatalogs: GetHomeCatalogsUseCase,
     private val imagePrewarmer: HomeImagePrewarmer,
 ) : ViewModel() {
@@ -82,20 +81,19 @@ class ProfileSelectViewModel @Inject constructor(
         }
     }
 
-    /** One popular title's backdrop (a single `/discover` call, HTTP-cached for 6h). */
+    /**
+     * A child-safe popular backdrop, filtered by genre and certification in
+     * [GetProfileGateBackdropUseCase] (stricter whenever a Kids profile exists).
+     */
     private fun loadBackdrop() {
         viewModelScope.launch {
+            val anyKids = profiles.observeProfiles().first().any { it.isKids }
             // Purely decorative: offline or rate-limited simply leaves the dark background.
-            val pick = orNullUnlessCancelled { withContext(Dispatchers.IO) { tmdb.get() }.discoverMovies().results }
-                ?.filter { !it.adult && it.backdropPath != null }
-                ?.take(BACKDROP_CANDIDATES)
-                ?.randomOrNull()
-            backdropUrl.value = pick?.let { imageUrls.heroBackdrop(it.backdropPath) }
+            backdropUrl.value = orNullUnlessCancelled { withContext(Dispatchers.IO) { gateBackdrop.get() }(anyKids) }
         }
     }
 
     private companion object {
-        const val BACKDROP_CANDIDATES = 10
         const val PREFETCH_SETTLE_MILLIS = 150L
     }
 }

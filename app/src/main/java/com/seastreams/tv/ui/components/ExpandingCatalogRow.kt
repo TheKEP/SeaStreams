@@ -39,6 +39,7 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -115,7 +116,10 @@ fun ExpandingCatalogRow(
     activeCard: FocusRequester = remember { FocusRequester() },
     /** Catalog row scroll speed setting: horizontal glide and card widen timing. */
     scrollSpeed: CatalogRowScrollSpeed,
+    /** Hovering an expanded card plays its trailer inside it (Home/Movies/TV rows, not Continue Watching). */
+    inlineTrailers: Boolean = false,
 ) {
+    val trailers = if (inlineTrailers) LocalInlineTrailers.current else null
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var focusedIndex by focusedIndexState
@@ -147,7 +151,16 @@ fun ExpandingCatalogRow(
     }
     KeepFocusedCardInView(listState, focusedIndex, rowFocused)
 
-    Column(modifier.onFocusChanged { rowFocused = it.hasFocus }.throttleHorizontalDpadRepeat()) {
+    Column(
+        modifier
+            .onFocusChanged { rowFocused = it.hasFocus }
+            // Held-key scrolling never starts a preview (PRD §4); the card that settles restarts the delay.
+            .onPreviewKeyEvent { event ->
+                if (trailers != null && event.nativeKeyEvent.repeatCount > 0) trailers.cancel()
+                false
+            }
+            .throttleHorizontalDpadRepeat(),
+    ) {
         RowTitle(title)
         CompositionLocalProvider(LocalBringIntoViewSpec provides ManualBringIntoViewSpec) {
             LazyRow(
@@ -181,14 +194,19 @@ fun ExpandingCatalogRow(
                         onFocused = {
                             focusedIndex = index
                             glideTo(index)
+                            trailers?.onCardFocused(item)
                         },
+                        onBlurred = { trailers?.onFocusLeft(item.key) },
                         onLongClick = onItemLongClick?.let { { it(index) } },
                         expandDurationMs = scrollSpeed.expandDurationMs,
                         modifier = Modifier
                             .then(if (index == 0) Modifier.focusRequester(firstCard) else Modifier)
                             .then(if (index == focusedIndex) Modifier.focusRequester(lastFocusedCard) else Modifier)
                             .then(if (index == lastIndex) Modifier.onDpadEdgeWrap(Key.DirectionRight, wrapToStart) else Modifier),
-                        overlay = { expanded -> cardOverlay(index, expanded) },
+                        overlay = { expanded ->
+                            cardOverlay(index, expanded)
+                            if (trailers != null && expanded) InlineTrailerOverlay(item)
+                        },
                     )
                 }
                 if (hasMore) {
