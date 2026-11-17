@@ -1,5 +1,6 @@
 package com.seastreams.tv.core.database.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -7,6 +8,10 @@ import com.seastreams.tv.domain.model.MediaType
 
 /**
  * Playback position for a movie or a single episode. Movies use season/episode `0`.
+ *
+ * [dismissedFromContinueWatching] hides the row from Continue Watching (long-press `Remove`) while
+ * keeping its progress. Every progress write builds a fresh entity, so the flag resets to `false` and
+ * playing the item again brings it back.
  */
 @Entity(
     tableName = "watch_progress",
@@ -34,4 +39,6 @@ data class WatchProgressEntity(
     val positionMs: Long,
     val durationMs: Long,
     val updatedAtMillis: Long,
+    @ColumnInfo(defaultValue = "0")
+    val dismissedFromContinueWatching: Boolean = false,
 )

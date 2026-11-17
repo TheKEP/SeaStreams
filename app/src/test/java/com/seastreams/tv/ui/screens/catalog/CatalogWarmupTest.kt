@@ -14,7 +14,6 @@ import com.seastreams.tv.domain.model.RowContent
 import com.seastreams.tv.domain.model.StreamingProvider
 import com.seastreams.tv.domain.usecase.CatalogLoader
 import com.seastreams.tv.domain.usecase.GetDiscoverCatalogsUseCase
-import com.seastreams.tv.testutil.FakeCatalogDao
 import com.seastreams.tv.testutil.testProfile
 import com.seastreams.tv.ui.screens.home.HomeImagePrewarmer
 import com.seastreams.tv.ui.screens.home.ImageTarget
@@ -27,6 +26,7 @@ import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -51,7 +51,6 @@ class CatalogWarmupTest {
     private val settings = mockk<SettingsDataStore>()
     private val profiles = mockk<ProfileRepository>()
     private val images = mockk<HomeImagePrewarmer>()
-    private val catalogDao = FakeCatalogDao()
     private val store = DiscoverSnapshotStore()
     private val adult = testProfile(1, isKids = false)
     private val kids = testProfile(2, isKids = true)
@@ -66,7 +65,7 @@ class CatalogWarmupTest {
     @AfterEach
     fun tearDown() = Dispatchers.resetMain()
 
-    private fun TestScope.useCase() = GetDiscoverCatalogsUseCase(loader, catalogDao, settings, store, LoadedCatalogStore(Clock.systemUTC()), backgroundScope, Clock.systemUTC())
+    private fun TestScope.useCase() = GetDiscoverCatalogsUseCase(loader, settings, store, LoadedCatalogStore(Clock.systemUTC()), backgroundScope, Clock.systemUTC())
 
     private fun TestScope.manager(discover: GetDiscoverCatalogsUseCase) =
         CatalogWarmupManager(discover, images, backgroundScope, StandardTestDispatcher(testScheduler), DELAY)
@@ -183,6 +182,16 @@ class CatalogWarmupTest {
         val targets = popularPosterTargets(listOf(row, null), perRow = 3)
 
         assertEquals(listOf("https://img.test/b1.jpg", "https://img.test/p2.jpg", "https://img.test/p3.jpg"), targets.map { it.url })
+    }
+
+    @Test
+    fun `movies and tv tabs never contain Stremio addon catalog rows`() = runTest {
+        val discover = useCase()
+        MediaType.entries.forEach { type ->
+            val rows = discover.observeRows(adult, type).first()
+            assertEquals(listOf("Popular", "Netflix"), rows.map { it.spec.title.substringBefore(' ') })
+            assertTrue(rows.none { it.spec.source is CatalogSource.Addon }, "$type tab must not show addon catalogs")
+        }
     }
 
     private fun rowFor(source: CatalogSource) =

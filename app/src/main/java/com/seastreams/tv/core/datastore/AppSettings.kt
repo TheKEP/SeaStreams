@@ -1,12 +1,44 @@
 package com.seastreams.tv.core.datastore
 
-/** Launch target for streams when the built-in ExoPlayer is not used (PRD §9). */
-enum class ExternalPlayer(val packageName: String?) {
-    NONE(null),
-    VLC("org.videolan.vlc"),
-    KODI("org.xbmc.kodi"),
-    MX_PLAYER("com.mxtech.videoplayer.ad"),
-    JUST_PLAYER("com.brouken.player"),
+/**
+ * Which player streams open in (PRD §9). ExoPlayer is the default; any installed video app can be
+ * targeted by package name, or Android's app chooser can be shown every time.
+ */
+sealed interface PlayerChoice {
+    /** Stable value written to DataStore. */
+    val storageValue: String
+
+    data object BuiltIn : PlayerChoice {
+        override val storageValue = "builtin"
+    }
+
+    data object SystemChooser : PlayerChoice {
+        override val storageValue = "chooser"
+    }
+
+    data class App(val packageName: String) : PlayerChoice {
+        override val storageValue: String get() = APP_PREFIX + packageName
+    }
+
+    companion object {
+        private const val APP_PREFIX = "app:"
+
+        /** Package names behind the enum values Milestone 1 stored, so older saves keep working. */
+        private val LEGACY_PACKAGES = mapOf(
+            "VLC" to "org.videolan.vlc",
+            "KODI" to "org.xbmc.kodi",
+            "MX_PLAYER" to "com.mxtech.videoplayer.ad",
+            "JUST_PLAYER" to "com.brouken.player",
+        )
+
+        /** Unknown or missing values fall back to the built-in player. */
+        fun fromStorage(value: String?): PlayerChoice = when {
+            value == null -> BuiltIn
+            value == SystemChooser.storageValue -> SystemChooser
+            value.startsWith(APP_PREFIX) && value.length > APP_PREFIX.length -> App(value.removePrefix(APP_PREFIX))
+            else -> LEGACY_PACKAGES[value]?.let(::App) ?: BuiltIn
+        }
+    }
 }
 
 /** Center-channel dialogue gain steps (PRD §9). */
@@ -17,13 +49,17 @@ enum class SubtitleMode { ALWAYS_ON, ALWAYS_OFF }
 enum class SubtitleEdgeType { NONE, OUTLINE, DROP_SHADOW }
 
 data class PlayerSettings(
-    val externalPlayer: ExternalPlayer = ExternalPlayer.NONE,
+    val playerChoice: PlayerChoice = PlayerChoice.BuiltIn,
     val autoPlayTopStream: Boolean = false,
     /** Addon whose top stream wins auto-play; `null` means the first enabled addon. */
     val preferredAutoPlayAddonUrl: String? = null,
+    /** Plays the next episode's top stream when an episode finishes (PRD §9: on by default). */
+    val autoPlayNextEpisode: Boolean = true,
     val fallbackTimeoutSeconds: Int = DEFAULT_FALLBACK_TIMEOUT_SECONDS,
     val autoPlayFromContinueWatching: Boolean = false,
     val blurUnwatchedThumbnails: Boolean = false,
+    /** Plays Dolby Vision Profile 7 tracks as their HDR10 base layer (PRD §9: on by default). */
+    val convertDvProfile7ToHdr: Boolean = true,
     val hdrWhiteDimming: Boolean = false,
 ) {
     companion object {
@@ -71,11 +107,48 @@ data class SubtitleSettings(
     val style: SubtitleStyle = SubtitleStyle(),
 )
 
+/**
+ * How fast catalog rows (Home, Movies, TV Shows) glide sideways as focus moves, and how fast the
+ * focused card widens from a 2:3 poster to a 16:9 backdrop. Slow is the default; Fast is the
+ * original snappy feel. Each card finishes widening just before its row's glide settles.
+ */
+enum class CatalogRowScrollSpeed(val label: String, val scrollDurationMs: Int, val expandDurationMs: Int) {
+    SLOW("Slow", scrollDurationMs = 480, expandDurationMs = 450),
+    MEDIUM("Medium", scrollDurationMs = 280, expandDurationMs = 260),
+    FAST("Fast", scrollDurationMs = 130, expandDurationMs = 120),
+    ;
+
+    companion object {
+        val DEFAULT = SLOW
+    }
+}
+
+/** App-wide look (PRD §1, §10). */
+data class AppearanceSettings(
+    /** Opaque ARGB page background; one of [BackgroundSwatches.ALL]. */
+    val backgroundArgb: Int = BackgroundSwatches.DEFAULT,
+    val catalogRowScrollSpeed: CatalogRowScrollSpeed = CatalogRowScrollSpeed.DEFAULT,
+)
+
+/** The selectable page backgrounds, in picker order (PRD §1). */
+object BackgroundSwatches {
+    const val DEFAULT: Int = 0xFF000000.toInt()
+    val ALL: List<Int> = listOf(
+        DEFAULT,
+        0xFF171535.toInt(),
+        0xFF351529.toInt(),
+        0xFF351515.toInt(),
+        0xFF153535.toInt(),
+        0xFF151F35.toInt(),
+    )
+}
+
 /** Snapshot of every persisted, non-profile-specific setting. */
 data class AppSettings(
     val player: PlayerSettings = PlayerSettings(),
     val audio: AudioSettings = AudioSettings(),
     val subtitles: SubtitleSettings = SubtitleSettings(),
+    val appearance: AppearanceSettings = AppearanceSettings(),
 )
 
 const val DEFAULT_LANGUAGE = "en"

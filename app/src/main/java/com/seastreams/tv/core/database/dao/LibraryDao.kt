@@ -40,6 +40,17 @@ interface LibraryDao {
     )
     fun observeContains(profileId: Long, tmdbId: Int, mediaType: MediaType): Flow<Boolean>
 
+    @Query(
+        """
+        SELECT EXISTS(
+            SELECT 1 FROM library_items
+            WHERE profileId = :profileId AND tmdbId = :tmdbId AND mediaType = :mediaType
+        )
+        """,
+    )
+    suspend fun contains(profileId: Long, tmdbId: Int, mediaType: MediaType): Boolean
+
+    /** Idempotent: returns `-1` and changes nothing when the title is already saved for the profile. */
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(item: LibraryItemEntity): Long
 
@@ -54,7 +65,7 @@ interface LibraryDao {
     @Query("SELECT * FROM library_items WHERE profileId = :profileId")
     suspend fun getAll(profileId: Long): List<LibraryItemEntity>
 
-    /** Used by "Clear Library"; callers snapshot via [getAll] first so Undo can re-insert. */
+    /** Used by "Clear Library", once its Undo window has passed. */
     @Query("DELETE FROM library_items WHERE profileId = :profileId")
     suspend fun clear(profileId: Long)
 }

@@ -1,7 +1,5 @@
 package com.seastreams.tv.domain.usecase
 
-import com.seastreams.tv.core.database.entity.CatalogPlacement
-import com.seastreams.tv.core.database.entity.CustomCatalogEntity
 import com.seastreams.tv.domain.model.CatalogSource
 import com.seastreams.tv.domain.model.Genre
 import com.seastreams.tv.domain.model.MediaType
@@ -12,29 +10,21 @@ import org.junit.jupiter.api.Test
 class CatalogSpecsTest {
 
     @Test
-    fun `movies tab is Popular then each enabled provider then custom lists`() {
-        val custom = CustomCatalogEntity(id = 4, listUrl = "https://mdblist.com/lists/a/b", title = "Mine",
-            placement = CatalogPlacement.MOVIES, sortOrder = 0, addedAtMillis = 0)
+    fun `movies tab is Popular then each enabled provider and nothing else`() {
+        val specs = DiscoverCatalogSources.rowSpecs(MediaType.MOVIE, listOf(StreamingProvider.NETFLIX, StreamingProvider.PEACOCK))
 
-        val specs = DiscoverCatalogSources.rowSpecs(
-            MediaType.MOVIE,
-            listOf(StreamingProvider.NETFLIX, StreamingProvider.PEACOCK),
-            listOf(custom),
-        )
-
-        assertEquals(listOf("Popular Movies", "Netflix", "Peacock", "Mine"), specs.map { it.title })
+        assertEquals(listOf("Popular Movies", "Netflix", "Peacock"), specs.map { it.title })
         assertEquals(CatalogSource.Discover(MediaType.MOVIE), specs[0].source)
         assertEquals(CatalogSource.Discover(MediaType.MOVIE, StreamingProvider.NETFLIX), specs[1].source)
-        assertEquals(CatalogSource.MdbList("https://mdblist.com/lists/a/b"), specs[3].source)
+        assert(specs.all { it.source is CatalogSource.Discover })
     }
 
     @Test
     fun `tv tab uses tv discover and Popular Shows`() {
-        val specs = DiscoverCatalogSources.rowSpecs(MediaType.TV, StreamingProvider.entries, emptyList())
+        val specs = DiscoverCatalogSources.rowSpecs(MediaType.TV, StreamingProvider.entries)
 
         assertEquals("Popular Shows", specs.first().title)
         assertEquals(1 + StreamingProvider.entries.size, specs.size)
-        assertEquals(CatalogPlacement.TV_SHOWS, DiscoverCatalogSources.placementFor(MediaType.TV))
         assert(specs.all { (it.source as CatalogSource.Discover).mediaType == MediaType.TV })
     }
 

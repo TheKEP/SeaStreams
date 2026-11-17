@@ -11,7 +11,7 @@ import kotlin.time.Duration.Companion.hours
  *
  * PRD §5 requires TMDB/MDBList responses to be cached for 6–12 hours regardless of the
  * origin's own headers (TMDB sends `max-age=300`, MDBList `max-age=86400`):
- * - TMDB `/external_ids` and title details (`/movie/{id}`, `/tv/{id}/…`) → [stableMetadataTtl]
+ * - TMDB `/external_ids`, `/find/{imdb_id}` and title details (`/movie/{id}`, `/tv/{id}/…`) → [stableMetadataTtl]
  * - All other TMDB reads (`/discover`, `/search`, …) → [catalogTtl]
  * - TMDB `/configuration` → not cached (it is the API-key validation call)
  * - MDBList `…/json` list exports → [catalogTtl]
@@ -43,7 +43,8 @@ class HttpCachePolicy(
     private fun tmdbTtl(segments: List<String>): Duration? {
         val root = segments.firstOrNull() ?: return null
         if (root == "configuration") return null
-        val isTitleScoped = (root == "movie" || root == "tv") && segments.getOrNull(1)?.toIntOrNull() != null
+        val isTitleScoped = root == "find" ||
+            (root == "movie" || root == "tv") && segments.getOrNull(1)?.toIntOrNull() != null
         return if (isTitleScoped) stableMetadataTtl else catalogTtl
     }
 

@@ -2,6 +2,7 @@ package com.seastreams.tv.core.datastore
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import app.cash.turbine.test
 import kotlinx.coroutines.CoroutineScope
@@ -12,6 +13,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -45,7 +48,7 @@ class SettingsDataStoreTest {
 
         assertEquals(AppSettings(), defaults)
         assertEquals(5, defaults.player.fallbackTimeoutSeconds)
-        assertEquals(ExternalPlayer.NONE, defaults.player.externalPlayer)
+        assertEquals(PlayerChoice.BuiltIn, defaults.player.playerChoice)
         assertEquals(DialogueBoost.OFF, defaults.audio.dialogueBoost)
         assertEquals(0, defaults.audio.audioDelayMs)
         assertNull(settings.tmdbApiKey.first())
@@ -102,9 +105,9 @@ class SettingsDataStoreTest {
             assertEquals(DialogueBoost.PLUS_9, audio.dialogueBoost)
             assertEquals(true, audio.nightMode)
 
-            settings.updatePlayer { it.copy(externalPlayer = ExternalPlayer.VLC, preferredAutoPlayAddonUrl = "https://a/manifest.json") }
+            settings.updatePlayer { it.copy(playerChoice = PlayerChoice.App("org.videolan.vlc"), preferredAutoPlayAddonUrl = "https://a/manifest.json") }
             val player = awaitItem().player
-            assertEquals(ExternalPlayer.VLC, player.externalPlayer)
+            assertEquals(PlayerChoice.App("org.videolan.vlc"), player.playerChoice)
             assertEquals("https://a/manifest.json", player.preferredAutoPlayAddonUrl)
 
             settings.updatePlayer { it.copy(preferredAutoPlayAddonUrl = null) }
@@ -139,6 +142,109 @@ class SettingsDataStoreTest {
 
         val loaded = settings.settings.first()
         assertEquals(DialogueBoost.OFF, loaded.audio.dialogueBoost)
-        assertEquals(ExternalPlayer.NONE, loaded.player.externalPlayer)
+        assertEquals(PlayerChoice.BuiltIn, loaded.player.playerChoice)
+    }
+
+    @Test
+    fun `Convert Dolby Vision Profile 7 and Auto-Play Next Episode default to true`() = runTest {
+        val player = settings.settings.first().player
+
+        assertTrue(player.convertDvProfile7ToHdr)
+        assertTrue(player.autoPlayNextEpisode)
+        assertTrue(PlayerSettings().convertDvProfile7ToHdr)
+        assertTrue(PlayerSettings().autoPlayNextEpisode)
+    }
+
+    @Test
+    fun `Dolby Vision and auto-next toggles persist when switched off and back on`() = runTest {
+        settings.updatePlayer { it.copy(convertDvProfile7ToHdr = false, autoPlayNextEpisode = false) }
+        val off = SettingsDataStore(rawStore).settings.first().player
+        assertFalse(off.convertDvProfile7ToHdr)
+        assertFalse(off.autoPlayNextEpisode)
+
+        settings.updatePlayer { it.copy(convertDvProfile7ToHdr = true, autoPlayNextEpisode = true) }
+        val on = settings.settings.first().player
+        assertTrue(on.convertDvProfile7ToHdr)
+        assertTrue(on.autoPlayNextEpisode)
+    }
+
+    @Test
+    fun `background defaults to pure black`() = runTest {
+        assertEquals(0xFF000000.toInt(), settings.settings.first().appearance.backgroundArgb)
+        assertEquals(BackgroundSwatches.DEFAULT, BackgroundSwatches.ALL.first())
+    }
+
+    @Test
+    fun `chosen background colour persists across store instances`() = runTest {
+        settings.setBackgroundColor(0xFF351529.toInt())
+
+        assertEquals(0xFF351529.toInt(), SettingsDataStore(rawStore).settings.first().appearance.backgroundArgb)
+    }
+
+    @Test
+    fun `every swatch can be saved, anything else is ignored`() = runTest {
+        BackgroundSwatches.ALL.forEach { swatch ->
+            settings.setBackgroundColor(swatch)
+            assertEquals(swatch, settings.settings.first().appearance.backgroundArgb)
+        }
+        settings.setBackgroundColor(0xFF123456.toInt())
+        assertEquals(BackgroundSwatches.ALL.last(), settings.settings.first().appearance.backgroundArgb)
+    }
+
+    @Test
+    fun `a stored colour that is no longer a swatch falls back to black`() = runTest {
+        rawStore.edit { it[intPreferencesKey("ui_background_color")] = 0xFF00FF00.toInt() }
+
+        assertEquals(BackgroundSwatches.DEFAULT, settings.settings.first().appearance.backgroundArgb)
+    }
+
+    @Test
+    fun `external player choices round-trip, including the system chooser`() = runTest {
+        listOf(PlayerChoice.SystemChooser, PlayerChoice.App("com.brouken.player"), PlayerChoice.BuiltIn).forEach { choice ->
+            settings.updatePlayer { it.copy(playerChoice = choice) }
+            assertEquals(choice, settings.settings.first().player.playerChoice)
+        }
+    }
+
+    @Test
+    fun `Milestone 1 external player values map to their packages`() = runTest {
+        rawStore.edit { it[stringPreferencesKey("player_external")] = "MX_PLAYER" }
+        assertEquals(PlayerChoice.App("com.mxtech.videoplayer.ad"), settings.settings.first().player.playerChoice)
+
+        rawStore.edit { it[stringPreferencesKey("player_external")] = "NONE" }
+        assertEquals(PlayerChoice.BuiltIn, settings.settings.first().player.playerChoice)
+    }
+
+    @Test
+    fun `catalog row scroll speed defaults to slow`() = runTest {
+        assertEquals(CatalogRowScrollSpeed.SLOW, settings.settings.first().appearance.catalogRowScrollSpeed)
+    }
+
+    @Test
+    fun `medium and fast catalog row scroll speeds persist`() = runTest {
+        settings.setCatalogRowScrollSpeed(CatalogRowScrollSpeed.MEDIUM)
+        assertEquals(CatalogRowScrollSpeed.MEDIUM, settings.settings.first().appearance.catalogRowScrollSpeed)
+
+        settings.setCatalogRowScrollSpeed(CatalogRowScrollSpeed.FAST)
+        assertEquals(CatalogRowScrollSpeed.FAST, settings.settings.first().appearance.catalogRowScrollSpeed)
+
+        // A fresh facade over the same file reads the saved value back.
+        assertEquals(CatalogRowScrollSpeed.FAST, SettingsDataStore(rawStore).settings.first().appearance.catalogRowScrollSpeed)
+    }
+
+    @Test
+    fun `an unknown stored catalog row scroll speed falls back to slow`() = runTest {
+        rawStore.edit { it[stringPreferencesKey("ui_catalog_row_scroll_speed")] = "LUDICROUS" }
+        assertEquals(CatalogRowScrollSpeed.SLOW, settings.settings.first().appearance.catalogRowScrollSpeed)
+    }
+
+    @Test
+    fun `changing the scroll speed leaves the background untouched`() = runTest {
+        val color = BackgroundSwatches.ALL.last()
+        settings.setBackgroundColor(color)
+        settings.setCatalogRowScrollSpeed(CatalogRowScrollSpeed.MEDIUM)
+        val appearance = settings.settings.first().appearance
+        assertEquals(color, appearance.backgroundArgb)
+        assertEquals(CatalogRowScrollSpeed.MEDIUM, appearance.catalogRowScrollSpeed)
     }
 }

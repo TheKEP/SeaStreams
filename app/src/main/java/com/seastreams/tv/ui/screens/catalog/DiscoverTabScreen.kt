@@ -27,6 +27,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.unit.dp
 import com.seastreams.tv.domain.model.CatalogRowState
+import com.seastreams.tv.core.datastore.CatalogRowScrollSpeed
 import com.seastreams.tv.domain.model.CatalogRowSpec
 import com.seastreams.tv.domain.model.MediaItem
 import com.seastreams.tv.domain.model.MediaType
@@ -53,9 +54,8 @@ import com.seastreams.tv.ui.theme.tryRequestFocus
 import kotlinx.coroutines.launch
 
 /**
- * Body shared by [MoviesScreen] and [TvShowsScreen] (PRD §5): the nav bar, then `Popular`, one row
- * per enabled service and the tab's custom MDBLists (each an [ExpandingCatalogRow] with `View More`
- * past 20 titles), and finally the `Streaming services` toggles at the bottom of the page.
+ * Body shared by [MoviesScreen] and [TvShowsScreen] (PRD §5): the nav bar, then `Popular` and one
+ * row per enabled service (each an [ExpandingCatalogRow] with `View More` past 20 titles), and finally the `Streaming services` toggles at the bottom of the page.
  *
  * D-pad: entering the tab keeps focus on the tab's nav pill with the page at its top;
  * `Down` from the nav bar lands on `Popular` item #1; the focused row snaps to the top; `Down` into
@@ -75,6 +75,7 @@ fun DiscoverTabScreen(
     onOpenDetails: (MediaItem) -> Unit,
     onViewMore: (CatalogRowSpec) -> Unit,
     returnFocus: ReturnRowFocus = ReturnRowFocus.None,
+    scrollSpeed: CatalogRowScrollSpeed = CatalogRowScrollSpeed.DEFAULT,
 ) {
     LaunchedEffect(profileId, mediaType) { viewModel.show(profileId, mediaType) }
     val latest by viewModel.uiState.collectAsState()
@@ -87,7 +88,7 @@ fun DiscoverTabScreen(
     LaunchedEffect(state.profile?.isKids) { if (state.profile?.isKids == true) onTabSelected(NavTab.HOME) }
 
     TabScaffold(state.profile, tab, onTabSelected, onSwitchProfile) { chrome ->
-        DiscoverContent(state, chrome, viewModel::toggleProvider, onOpenDetails, onViewMore, returnFocus)
+        DiscoverContent(state, chrome, viewModel::toggleProvider, onOpenDetails, onViewMore, returnFocus, scrollSpeed)
     }
 }
 
@@ -100,6 +101,7 @@ private fun DiscoverContent(
     onOpenDetails: (MediaItem) -> Unit,
     onViewMore: (CatalogRowSpec) -> Unit,
     returnFocus: ReturnRowFocus,
+    scrollSpeed: CatalogRowScrollSpeed,
 ) {
     // Not saveable on purpose: the tab host would restore the last scroll position (often the bottom
     // bar) on re-entry, and a return from View More scrolls to its row itself.
@@ -193,6 +195,7 @@ private fun DiscoverContent(
                         onOpenDetails = onOpenDetails,
                         onViewMore = onViewMore,
                         returnFocus = returnFocus,
+                        scrollSpeed = scrollSpeed,
                     )
                 }
             }
@@ -223,6 +226,7 @@ private fun DiscoverRow(
     onOpenDetails: (MediaItem) -> Unit,
     onViewMore: (CatalogRowSpec) -> Unit,
     returnFocus: ReturnRowFocus,
+    scrollSpeed: CatalogRowScrollSpeed,
 ) {
     val ownFirstCard = remember { FocusRequester() }
     val ownActiveCard = remember { FocusRequester() }
@@ -240,6 +244,7 @@ private fun DiscoverRow(
             onFocusReturned = returnFocus.consume,
             focusedIndexState = rowFocus.stateFor(row.spec.id, content.row.items.map { it.key }),
             activeCard = activeCard ?: ownActiveCard,
+            scrollSpeed = scrollSpeed,
         )
     }
 }

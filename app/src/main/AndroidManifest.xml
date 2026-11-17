@@ -24,6 +24,20 @@
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>
+        <!-- External video players for Settings > External player (PRD §9). -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="video/*" android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="video/*" android:scheme="http" />
+        </intent>
+        <!-- Trailer button: the YouTube app (or a browser) handles youtube.com links. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" android:host="www.youtube.com" />
+        </intent>
     </queries>
 
     <application

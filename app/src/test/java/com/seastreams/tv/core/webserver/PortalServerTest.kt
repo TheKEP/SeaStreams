@@ -4,17 +4,14 @@ import com.seastreams.tv.data.catalog.DiscoverSnapshotStore
 import com.seastreams.tv.data.catalog.LoadedCatalogStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import app.cash.turbine.test
-import com.seastreams.tv.core.database.entity.CatalogPlacement
 import com.seastreams.tv.core.datastore.SettingsDataStore
 import com.seastreams.tv.core.network.ApiEndpoints
 import com.seastreams.tv.core.network.HttpCachePolicy
-import com.seastreams.tv.core.network.MdbListApiService
 import com.seastreams.tv.core.network.NetworkModule
 import com.seastreams.tv.core.network.RateLimitRetryInterceptor
 import com.seastreams.tv.core.network.StremioAddonClient
 import com.seastreams.tv.data.addon.AddonRepository
 import com.seastreams.tv.data.addon.BuiltInAddons
-import com.seastreams.tv.data.catalog.CatalogRepository
 import com.seastreams.tv.data.profile.ProfileRepository
 import com.seastreams.tv.data.setup.TmdbKeyRepository
 import com.seastreams.tv.domain.model.MovieCertification
@@ -23,7 +20,6 @@ import com.seastreams.tv.domain.usecase.ImportMdbListUseCase
 import com.seastreams.tv.domain.usecase.LibraryImportResult
 import com.seastreams.tv.domain.usecase.LibraryTarget
 import com.seastreams.tv.testutil.FakeAddonDao
-import com.seastreams.tv.testutil.FakeCatalogDao
 import com.seastreams.tv.testutil.FakeProfileDao
 import com.seastreams.tv.testutil.TestHttpServer
 import io.ktor.client.HttpClient
@@ -47,6 +43,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import okhttp3.Cache
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -77,7 +74,6 @@ class PortalServerTest {
     private lateinit var tmdbKeys: TmdbKeyRepository
     private lateinit var profileDao: FakeProfileDao
     private lateinit var addonDao: FakeAddonDao
-    private lateinit var catalogDao: FakeCatalogDao
     private val importUseCase = mockk<ImportMdbListUseCase>()
     private lateinit var portal: LocalPortalServer
     private lateinit var base: String
@@ -91,9 +87,6 @@ class PortalServerTest {
             get("/addon/manifest.json") {
                 call.respondText("""{"id":"com.example.torrent","version":"1.0.0","name":"Streams","resources":["stream"]}""")
             }
-            get("/mdb/lists/owner/best-sci-fi/json") {
-                call.respondText("""[{"id":603,"title":"The Matrix","mediatype":"movie"}]""", ContentType.Application.Json)
-            }
         }
         val endpoints = ApiEndpoints(tmdbBaseUrl = upstream.url("/3"), mdbListBaseUrl = upstream.url("/mdb"))
         val okHttp = NetworkModule.buildOkHttpClient(
@@ -106,12 +99,10 @@ class PortalServerTest {
         tmdbKeys = TmdbKeyRepository(settings) { key -> key == VALID_KEY }
         profileDao = FakeProfileDao()
         addonDao = FakeAddonDao()
-        catalogDao = FakeCatalogDao()
         val controller = PortalController(
             tmdbKeys = tmdbKeys,
             profiles = ProfileRepository(profileDao, settings, settings, clock, DiscoverSnapshotStore(), LoadedCatalogStore(Clock.systemUTC())),
             addons = AddonRepository(addonDao, StremioAddonClient(appHttp), clock),
-            catalogs = CatalogRepository(catalogDao, MdbListApiService(appHttp, endpoints, NetworkModule.provideJson()), clock),
             importMdbList = importUseCase,
         )
         portal = LocalPortalServer(controller)
@@ -229,23 +220,17 @@ class PortalServerTest {
     }
 
     @Test
-    fun `catalog form validates the list and assigns it to a tab`() = runTest {
-        val added = postJson("/api/catalogs", """{"url":"mdblist.com/lists/owner/best-sci-fi?x=1","placement":"MOVIES"}""")
-        assertEquals(200, added.status.value, added.bodyAsText())
+    fun `portal no longer offers custom MDBList catalog rows`() = runTest {
+        val page = browser.get("$base/").bodyAsText()
+        assertFalse(page.contains("catalog-form"), "custom catalog form must be gone")
+        assertTrue(page.contains("import-form"), "one-time Library import form must remain")
 
-        val row = catalogDao.rows.value.single()
-        assertEquals("https://mdblist.com/lists/owner/best-sci-fi", row.listUrl)
-        assertEquals("Best Sci Fi", row.title)
-        assertEquals(CatalogPlacement.MOVIES, row.placement)
+        val stateJson = browser.get("$base/api/state").bodyAsText()
+        assertFalse(json.parseToJsonElement(stateJson).jsonObject.containsKey("catalogs"))
 
-        val duplicate = postJson("/api/catalogs", """{"url":"https://mdblist.com/lists/owner/best-sci-fi","placement":"MOVIES"}""")
-        assertEquals("That list is already on this tab", message(duplicate).message)
-        assertEquals(400, postJson("/api/catalogs", """{"url":"https://example.com/x","placement":"HOME"}""").status.value)
-        assertEquals(400, postJson("/api/catalogs", """{"url":"mdblist.com/lists/owner/missing","placement":"HOME"}""").status.value)
-        assertEquals(400, postJson("/api/catalogs", """{"url":"mdblist.com/lists/owner/best-sci-fi","placement":"SIDEBAR"}""").status.value)
-
-        browser.post("$base/api/catalogs/${row.id}/delete") { contentType(ContentType.Application.Json) }
-        assertTrue(catalogDao.rows.value.isEmpty())
+        val add = postJson("/api/catalogs", """{"url":"https://mdblist.com/lists/owner/x","placement":"HOME"}""")
+        assertEquals(404, add.status.value)
+        assertEquals(404, postJson("/api/catalogs/1/delete", "{}").status.value)
     }
 
     @Test
