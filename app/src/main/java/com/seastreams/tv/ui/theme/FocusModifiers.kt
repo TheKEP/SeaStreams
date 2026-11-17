@@ -27,15 +27,7 @@ val FocusBorderWidth = 3.dp
 fun Modifier.focusRing(visible: Boolean, shape: Shape): Modifier =
     if (visible) border(BorderStroke(FocusBorderWidth, FocusPill), shape) else this
 
-/**
- * TV row scrolling: keeps the focused child's leading edge [pivotPx] from the viewport's leading
- * edge, so focus stays in a fixed spot while the content slides underneath it.
- */
-class PivotBringIntoViewSpec(private val pivotPx: Float) : BringIntoViewSpec {
-    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = offset - pivotPx
-}
-
-/** Disables automatic focus scrolling for a container that scrolls itself (e.g. per-row snapping). */
+/** Disables automatic focus scrolling for a container that scrolls itself (page snapping, row glides). */
 object ManualBringIntoViewSpec : BringIntoViewSpec {
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = 0f
 }

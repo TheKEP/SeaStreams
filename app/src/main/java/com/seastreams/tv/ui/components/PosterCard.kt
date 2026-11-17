@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.DpSize
@@ -48,9 +49,15 @@ fun PosterCard(
     modifier: Modifier = Modifier,
     onFocused: () -> Unit = {},
 ) {
+    // Marked on click so `Back` from Details lands on this exact poster.
+    val origin = rememberFocusOrigin()
     Surface(
-        onClick = onClick,
+        onClick = {
+            origin.mark()
+            onClick()
+        },
         modifier = modifier
+            .focusRequester(origin.requester)
             .aspectRatio(POSTER_ASPECT_RATIO)
             .onFocusChanged { if (it.isFocused) onFocused() },
         shape = ClickableSurfaceDefaults.shape(PosterShape),
@@ -70,6 +77,7 @@ fun PosterCard(
                     modifier = Modifier.align(Alignment.Center).padding(8.dp),
                 )
             }
+            WatchedBadgeIfWatched(item)
         }
     }
 }

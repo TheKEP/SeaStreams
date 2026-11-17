@@ -91,6 +91,23 @@ class TmdbApiService @Inject constructor(
         parameter("include_image_language", IMAGE_LANGUAGES)
     }
 
+    /** Episodes of one season of a show (titles, air dates, runtimes, stills). */
+    suspend fun getSeason(tvId: Int, seasonNumber: Int): TmdbSeasonDetails =
+        get("tv", tvId.toString(), "season", seasonNumber.toString()) { parameter("language", LANGUAGE) }
+
+    /** Trailers/teasers for one title; fetched only when the user presses `Trailer`. */
+    suspend fun getVideos(mediaType: MediaType, tmdbId: Int): TmdbVideos =
+        get(mediaType.tmdbPath, tmdbId.toString(), "videos") { parameter("language", LANGUAGE) }
+
+    /**
+     * The TMDB title(s) for an IMDb id (`tt…`), used to map Stremio addon catalog entries onto TMDB.
+     * Not `/external_ids`; HTTP-cached like other per-title metadata.
+     */
+    suspend fun findByImdbId(imdbId: String): TmdbFindResult = get("find", imdbId) {
+        parameter("external_source", "imdb_id")
+        parameter("language", LANGUAGE)
+    }
+
     /** Single-title IMDb/TVDB id lookup. One call → exactly one `/external_ids` request. */
     suspend fun getExternalIds(mediaType: MediaType, tmdbId: Int): TmdbExternalIds =
         get(mediaType.tmdbPath, tmdbId.toString(), "external_ids")

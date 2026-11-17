@@ -1,5 +1,6 @@
 package com.seastreams.tv.ui.components
 
+import androidx.tv.material3.MaterialTheme
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
@@ -13,7 +14,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import com.seastreams.tv.core.database.entity.ProfileEntity
-import com.seastreams.tv.ui.theme.Obsidian
 
 /** What a tab body needs from [TabScaffold] to drive focus between itself and the nav bar. */
 class TabChrome(
@@ -44,7 +44,7 @@ fun TabScaffold(
     BackHandler {
         if (pillFocused) onTabSelected(NavTab.HOME) else runCatching { tabPill.requestFocus() }
     }
-    Column(Modifier.fillMaxSize().background(Obsidian)) {
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         TopNavBar(
             profile = profile,
             selectedTab = tab,

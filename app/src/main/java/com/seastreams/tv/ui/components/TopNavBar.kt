@@ -126,9 +126,14 @@ fun TopNavBar(
 
 @Composable
 private fun NavPill(tab: NavTab, selected: Boolean, onClick: () -> Unit, modifier: Modifier) {
+    // Settings opens over the tab and hands focus back to this pill when closed.
+    val origin = rememberFocusOrigin()
     Surface(
-        onClick = onClick,
-        modifier = modifier.height(36.dp),
+        onClick = {
+            origin.mark()
+            onClick()
+        },
+        modifier = modifier.focusRequester(origin.requester).height(36.dp),
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(50)),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
         colors = ClickableSurfaceDefaults.colors(

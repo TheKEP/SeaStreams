@@ -78,14 +78,26 @@ class SettingsDataStore @Inject constructor(
 
     suspend fun updatePlayer(transform: (PlayerSettings) -> PlayerSettings) = edit { prefs ->
         val updated = transform(readPlayer(prefs))
-        prefs[Keys.EXTERNAL_PLAYER] = updated.externalPlayer.name
+        prefs[Keys.EXTERNAL_PLAYER] = updated.playerChoice.storageValue
         prefs[Keys.AUTO_PLAY_TOP_STREAM] = updated.autoPlayTopStream
+        prefs[Keys.AUTO_PLAY_NEXT_EPISODE] = updated.autoPlayNextEpisode
+        prefs[Keys.CONVERT_DV_PROFILE_7] = updated.convertDvProfile7ToHdr
         val addonUrl = updated.preferredAutoPlayAddonUrl
         if (addonUrl == null) prefs.remove(Keys.PREFERRED_AUTOPLAY_ADDON) else prefs[Keys.PREFERRED_AUTOPLAY_ADDON] = addonUrl
         prefs[Keys.FALLBACK_TIMEOUT_SECONDS] = clampFallbackTimeout(updated.fallbackTimeoutSeconds)
         prefs[Keys.AUTO_PLAY_FROM_CONTINUE_WATCHING] = updated.autoPlayFromContinueWatching
         prefs[Keys.BLUR_UNWATCHED_THUMBNAILS] = updated.blurUnwatchedThumbnails
         prefs[Keys.HDR_WHITE_DIMMING] = updated.hdrWhiteDimming
+    }
+
+    /** Persists the page background; anything other than a [BackgroundSwatches] colour is ignored. */
+    suspend fun setBackgroundColor(argb: Int) {
+        if (argb !in BackgroundSwatches.ALL) return
+        edit { prefs -> prefs[Keys.BACKGROUND_COLOR] = argb }
+    }
+
+    suspend fun setCatalogRowScrollSpeed(speed: CatalogRowScrollSpeed) = edit { prefs ->
+        prefs[Keys.CATALOG_ROW_SCROLL_SPEED] = speed.name
     }
 
     suspend fun updateAudio(transform: (AudioSettings) -> AudioSettings) = edit { prefs ->
@@ -121,13 +133,20 @@ class SettingsDataStore @Inject constructor(
         player = readPlayer(prefs),
         audio = readAudio(prefs),
         subtitles = readSubtitles(prefs),
+        appearance = AppearanceSettings(
+            backgroundArgb = prefs[Keys.BACKGROUND_COLOR]?.takeIf { it in BackgroundSwatches.ALL }
+                ?: BackgroundSwatches.DEFAULT,
+            catalogRowScrollSpeed = enumOrDefault(prefs[Keys.CATALOG_ROW_SCROLL_SPEED], CatalogRowScrollSpeed.DEFAULT),
+        ),
     )
 
     private fun readPlayer(prefs: Preferences): PlayerSettings {
         val defaults = PlayerSettings()
         return PlayerSettings(
-            externalPlayer = enumOrDefault(prefs[Keys.EXTERNAL_PLAYER], defaults.externalPlayer),
+            playerChoice = PlayerChoice.fromStorage(prefs[Keys.EXTERNAL_PLAYER]),
             autoPlayTopStream = prefs[Keys.AUTO_PLAY_TOP_STREAM] ?: defaults.autoPlayTopStream,
+            autoPlayNextEpisode = prefs[Keys.AUTO_PLAY_NEXT_EPISODE] ?: defaults.autoPlayNextEpisode,
+            convertDvProfile7ToHdr = prefs[Keys.CONVERT_DV_PROFILE_7] ?: defaults.convertDvProfile7ToHdr,
             preferredAutoPlayAddonUrl = prefs[Keys.PREFERRED_AUTOPLAY_ADDON],
             fallbackTimeoutSeconds = clampFallbackTimeout(
                 prefs[Keys.FALLBACK_TIMEOUT_SECONDS] ?: defaults.fallbackTimeoutSeconds,
@@ -182,6 +201,10 @@ class SettingsDataStore @Inject constructor(
         val AUTO_PLAY_FROM_CONTINUE_WATCHING = booleanPreferencesKey("player_autoplay_continue_watching")
         val BLUR_UNWATCHED_THUMBNAILS = booleanPreferencesKey("player_blur_unwatched")
         val HDR_WHITE_DIMMING = booleanPreferencesKey("player_hdr_white_dimming")
+        val AUTO_PLAY_NEXT_EPISODE = booleanPreferencesKey("player_autoplay_next_episode")
+        val CONVERT_DV_PROFILE_7 = booleanPreferencesKey("player_convert_dv_profile7")
+        val BACKGROUND_COLOR = intPreferencesKey("ui_background_color")
+        val CATALOG_ROW_SCROLL_SPEED = stringPreferencesKey("ui_catalog_row_scroll_speed")
 
         val PASSTHROUGH_ENABLED = booleanPreferencesKey("audio_passthrough")
         val DIALOGUE_BOOST = stringPreferencesKey("audio_dialogue_boost")

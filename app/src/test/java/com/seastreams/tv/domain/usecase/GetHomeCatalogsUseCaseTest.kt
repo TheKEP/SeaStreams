@@ -1,8 +1,6 @@
 package com.seastreams.tv.domain.usecase
 
 import app.cash.turbine.test
-import com.seastreams.tv.core.database.entity.CatalogPlacement
-import com.seastreams.tv.core.database.entity.CustomCatalogEntity
 import com.seastreams.tv.core.network.MdbListItem
 import com.seastreams.tv.domain.model.MediaRef
 import com.seastreams.tv.domain.model.MediaType
@@ -96,28 +94,18 @@ class GetHomeCatalogsUseCaseTest : HomeCatalogsTestBase() {
     }
 
     @Test
-    fun `row specs are the fixed rows for the profile type plus custom Home lists`() {
-        val custom = listOf(CustomCatalogEntity(7, "https://mdblist.com/lists/a/b", "My List", CatalogPlacement.HOME, 0, 0))
-
-        val adultTitles = HomeCatalogSources.rowSpecs(isKids = false, custom).map { it.title }
-        val kidsTitles = HomeCatalogSources.rowSpecs(isKids = true, custom).map { it.title }
-
-        assertEquals(listOf("Most Watched Movies", "Most Watched Shows", "My List"), adultTitles)
-        assertEquals(
-            listOf("Trending Kids Movies", "Trending Kids Shows", "Latest Family Movies", "Latest Family Shows", "My List"),
-            kidsTitles,
-        )
-    }
-
-    @Test
     fun `observeRows emits loading rows then each row's result`() = runTest {
-        catalogDao.insert(CustomCatalogEntity(0, "https://mdblist.com/lists/a/custom", "Custom", CatalogPlacement.HOME, 0, 0))
+        addonDao.upsert(addonEntity("offline.example", 0, """[{"type":"movie","id":"top","name":"Top"}]"""))
         HomeCatalogSources.ADULT_ROWS.forEach { givenMovieList(it.listUrl, 3) }
-        coEvery { mdbList.fetchList("https://mdblist.com/lists/a/custom") } throws IOException("offline")
+        coEvery { tmdb.genres(any()) } returns emptyList()
+        coEvery { addonClient.fetchCatalog(any(), any(), any(), any()) } throws IOException("offline")
 
         useCase.observeRows(adult).test {
             val first = awaitItem()
-            assertEquals(listOf("most-watched-movies", "most-watched-shows", "custom-1"), first.map { it.spec.id })
+            assertEquals(
+                listOf("most-watched-movies", "most-watched-shows", "addon:https://offline.example/manifest.json:movie:top"),
+                first.map { it.spec.id },
+            )
             assertTrue(first.all { it.content == RowContent.Loading })
             var latest = first
             while (latest.any { it.content == RowContent.Loading }) latest = awaitItem()

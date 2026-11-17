@@ -1,14 +1,12 @@
 package com.seastreams.tv.core.webserver
 
 import com.seastreams.tv.core.database.entity.AddonEntity
-import com.seastreams.tv.core.database.entity.CatalogPlacement
 import com.seastreams.tv.core.network.InvalidManifestException
 import com.seastreams.tv.core.network.StremioManifestParser
 import com.seastreams.tv.core.util.enumByNameOrNull
 import com.seastreams.tv.data.UserFacingException
 import com.seastreams.tv.data.addon.AddonRepository
 import com.seastreams.tv.data.addon.BuiltInAddons
-import com.seastreams.tv.data.catalog.CatalogRepository
 import com.seastreams.tv.data.profile.KidsCeilings
 import com.seastreams.tv.data.profile.ProfileDraft
 import com.seastreams.tv.data.profile.ProfileRepository
@@ -30,7 +28,6 @@ class PortalController @Inject constructor(
     private val tmdbKeys: TmdbKeyRepository,
     private val profiles: ProfileRepository,
     private val addons: AddonRepository,
-    private val catalogs: CatalogRepository,
     private val importMdbList: ImportMdbListUseCase,
 ) {
 
@@ -45,7 +42,6 @@ class PortalController @Inject constructor(
             ProfileDto(it.id, it.name, it.avatarIndex, it.isKids, it.movieCeiling?.label, it.tvCeiling?.label, it.allowUnrated)
         },
         addons = addons.observeAddons().first().map(::toDto),
-        catalogs = catalogs.observeCatalogs().first().map { CatalogDto(it.id, it.title, it.listUrl, it.placement.name) },
     )
 
     suspend fun saveTmdbKey(request: TmdbKeyRequest): String {
@@ -96,17 +92,6 @@ class PortalController @Inject constructor(
     suspend fun reorderAddons(request: AddonReorderRequest): String {
         addons.reorder(request.manifestUrls)
         return "Order updated"
-    }
-
-    suspend fun addCatalog(request: CatalogRequest): String {
-        val placement = enumByName<CatalogPlacement>(request.placement, "tab")
-        val added = catalogs.add(request.url, placement, request.title)
-        return "Added “${added.title}”"
-    }
-
-    suspend fun removeCatalog(catalogId: Long): String {
-        catalogs.remove(catalogId)
-        return "Catalog removed"
     }
 
     suspend fun importToLibrary(request: LibraryImportRequest): String {

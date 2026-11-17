@@ -4,18 +4,20 @@ import com.seastreams.tv.core.database.dao.LibraryDao
 import com.seastreams.tv.core.database.dao.ProfileDao
 import com.seastreams.tv.core.database.entity.LibraryItemEntity
 import com.seastreams.tv.core.network.MdbListApiService
+import com.seastreams.tv.core.network.MdbListItem
 import com.seastreams.tv.core.network.MdbListUrl
 import com.seastreams.tv.core.network.TmdbApiKeyMissingException
 import com.seastreams.tv.data.UserFacingException
-import com.seastreams.tv.data.catalog.CatalogRepository
 import com.seastreams.tv.data.catalog.MediaHydrator
-import com.seastreams.tv.data.catalog.fetchOrExplain
 import com.seastreams.tv.domain.filter.AgeRestrictionEngine
 import com.seastreams.tv.domain.model.MediaType
+import io.ktor.client.plugins.ResponseException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.serialization.SerializationException
+import java.io.IOException
 import java.time.Clock
 import javax.inject.Inject
 
@@ -34,7 +36,11 @@ data class LibraryImportResult(
 )
 
 /**
- * Imports an MDBList list into a profile's Movies or TV Shows Library.
+ * Imports an MDBList list into a profile's Movies or TV Shows Library, once (PRD §8).
+ *
+ * This is a strictly one-time batch copy: the list is fetched once, its titles are inserted into
+ * [LibraryDao] (duplicates ignored) and nothing about the list itself — URL, title, contents — is
+ * stored anywhere, so SeaStreams never tracks or re-syncs it afterwards.
  *
  * MDBList exports carry no posters or certifications, so each entry's TMDB details are loaded
  * (under [MediaHydrator]'s app-wide concurrency gate, HTTP-cached for 12h). Age restrictions are
@@ -52,7 +58,7 @@ class ImportMdbListUseCase @Inject constructor(
     suspend operator fun invoke(profileId: Long, rawUrl: String, target: LibraryTarget): LibraryImportResult {
         val profile = profileDao.getById(profileId) ?: throw UserFacingException("Profile not found")
         val path = MdbListUrl.listPath(rawUrl) ?: throw UserFacingException("Enter an mdblist.com list URL")
-        val entries = fetchOrExplain(mdbListApi, CatalogRepository.CANONICAL_BASE + path)
+        val entries = fetchOnce(MdbListUrl.CANONICAL_BASE + path)
 
         val matching = entries.filter { it.mediaType == target.mediaType }
         val tmdbIds = matching.mapNotNull { it.tmdbId }.distinct().take(MAX_IMPORT_ITEMS)
@@ -86,6 +92,18 @@ class ImportMdbListUseCase @Inject constructor(
             blockedByAgeRestriction = resolved.size - allowed.size,
             failed = lookups.size - resolved.size,
         )
+    }
+
+    /** Fetches the list, translating transport/parse failures into user-facing messages. */
+    private suspend fun fetchOnce(listUrl: String): List<MdbListItem> = try {
+        mdbListApi.fetchList(listUrl)
+    } catch (e: ResponseException) {
+        val status = e.response.status.value
+        throw UserFacingException(if (status == HTTP_NOT_FOUND) "MDBList couldn't find that list" else "MDBList answered HTTP $status")
+    } catch (e: SerializationException) {
+        throw UserFacingException("MDBList returned something that isn't a list")
+    } catch (e: IOException) {
+        throw UserFacingException("Couldn't reach mdblist.com")
     }
 
     /** Runs through [MediaHydrator.withTmdb], sharing the app-wide TMDB concurrency gate. */
@@ -124,5 +142,6 @@ class ImportMdbListUseCase @Inject constructor(
 
     companion object {
         const val MAX_IMPORT_ITEMS = 250
+        private const val HTTP_NOT_FOUND = 404
     }
 }

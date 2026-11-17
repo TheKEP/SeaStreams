@@ -32,10 +32,6 @@ data class AddonMoveRequest(val manifestUrl: String, val offset: Int)
 @Serializable
 data class AddonReorderRequest(val manifestUrls: List<String>)
 
-/** [placement] is `HOME`, `MOVIES` or `TV_SHOWS`. */
-@Serializable
-data class CatalogRequest(val url: String, val placement: String, val title: String? = null)
-
 /** [target] is `MOVIES` or `TV_SHOWS`. */
 @Serializable
 data class LibraryImportRequest(val url: String, val profileId: Long, val target: String)
@@ -68,9 +64,6 @@ data class AddonDto(
     val builtIn: Boolean,
 )
 
-@Serializable
-data class CatalogDto(val id: Long, val title: String, val url: String, val placement: String)
-
 /** Everything the portal page renders, fetched in one call after every mutation. */
 @Serializable
 data class PortalState(
@@ -82,5 +75,4 @@ data class PortalState(
     val kidsTvCeilings: List<String>,
     val profiles: List<ProfileDto>,
     val addons: List<AddonDto>,
-    val catalogs: List<CatalogDto>,
 )

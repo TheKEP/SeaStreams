@@ -3,6 +3,10 @@ package com.seastreams.tv.ui.theme
 import androidx.compose.ui.graphics.Color
 
 // PRD §1 palette.
+/** Default page background (PRD §1: `#000000`); the live one is `MaterialTheme.colorScheme.background`. */
+val DefaultBackground = Color(0xFF000000)
+
+/** Dark ink for scrims over artwork and for text on light focus pills. */
 val Obsidian = Color(0xFF0B0D12)
 val SurfaceCard = Color(0xFF161A23)
 val SurfaceRaised = Color(0xFF1F2430)

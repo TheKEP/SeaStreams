@@ -1,5 +1,6 @@
 package com.seastreams.tv.ui.screens.home
 
+import androidx.tv.material3.MaterialTheme
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -29,7 +30,10 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.unit.dp
+import com.seastreams.tv.core.datastore.CatalogRowScrollSpeed
 import com.seastreams.tv.domain.model.RowContent
+import com.seastreams.tv.ui.components.ActionMenu
+import com.seastreams.tv.ui.components.ActionMenuRequest
 import com.seastreams.tv.ui.components.ExpandingCatalogRow
 import com.seastreams.tv.ui.components.FailedRow
 import com.seastreams.tv.ui.components.HeroAutoCycleEffect
@@ -48,7 +52,6 @@ import com.seastreams.tv.ui.components.rememberHeroCarouselState
 import com.seastreams.tv.ui.components.rememberRowFocusMemory
 import com.seastreams.tv.ui.components.snapItemToTop
 import com.seastreams.tv.ui.theme.ManualBringIntoViewSpec
-import com.seastreams.tv.ui.theme.Obsidian
 import com.seastreams.tv.ui.theme.onDpadEdgeWrap
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
 import com.seastreams.tv.ui.theme.throttleVerticalDpadRepeat
@@ -65,6 +68,8 @@ import kotlinx.coroutines.launch
  * - Edge-stop-then-wrap: holding `Down` stops on the bottom-most row; a fresh `Down` press while
  *   already there wraps to the top of the page (the hero, else the `Home` pill).
  * - The focused section snaps to the top of the viewport.
+ * - Long-press on a Continue Watching card opens its `Remove` / `Clear progress` menu; afterwards focus
+ *   moves to the card that took its place ([ContinueWatchingRemovalFocusEffect]).
  */
 @Composable
 fun HomeScreen(
@@ -74,6 +79,7 @@ fun HomeScreen(
     onTabSelected: (NavTab) -> Unit,
     onSwitchProfile: () -> Unit,
     returnFocus: ReturnRowFocus = ReturnRowFocus.None,
+    scrollSpeed: CatalogRowScrollSpeed = CatalogRowScrollSpeed.DEFAULT,
 ) {
     LaunchedEffect(profileId) { viewModel.showProfile(profileId) }
     val latest by viewModel.uiState.collectAsState()
@@ -107,6 +113,49 @@ fun HomeScreen(
     // Back from a row's View More lands on that row's first card instead (RestoreRowFocusEffect below).
     LaunchedEffect(Unit) { if (returnFocus.rowId == null) focusEntry() }
     val sections = buildHomeSections(state)
+    val rowFocus = rememberRowFocusMemory()
+    val cards = remember { SectionCardRequesters() }
+    var menu by remember { mutableStateOf<ActionMenuRequest?>(null) }
+    var removal by remember { mutableStateOf<ContinueWatchingRemoval?>(null) }
+    val continueWatchingCard = cards.of(HomeSection.ContinueWatching.KEY)
+    val onContinueWatchingLongPress: (Int) -> Unit = { index ->
+        state.continueWatching.getOrNull(index)?.let { item ->
+            val removing = ContinueWatchingRemoval(item.continueWatchingKey, index)
+            menu = continueWatchingMenu(
+                item = item,
+                returnFocus = continueWatchingCard,
+                onRemove = {
+                    removal = removing
+                    viewModel.removeFromContinueWatching(profileId, item)
+                },
+                onClearProgress = {
+                    removal = removing
+                    viewModel.clearContinueWatchingProgress(profileId, item)
+                },
+            )
+        }
+    }
+    val focusTopOfPage: suspend () -> Unit = {
+        listState.scrollToItem(0)
+        if (!(heroLoaded && heroButton.requestFocusAfterFrame())) homePill.requestFocusAfterFrame()
+    }
+    ContinueWatchingRemovalFocusEffect(
+        removal = removal,
+        sections = sections,
+        moveFocus = { target ->
+            val moved = when (target) {
+                is RemovalFocus.Card -> {
+                    val keys = state.continueWatching.map { it.media.key }
+                    rowFocus.stateFor(HomeSection.ContinueWatching.KEY, keys).intValue = target.index
+                    continueWatchingCard.requestFocusAfterFrame()
+                }
+                is RemovalFocus.RowBelow -> cards.of(target.sectionKey).requestFocusAfterFrame()
+                RemovalFocus.Top -> false
+            }
+            if (!moved) focusTopOfPage()
+        },
+        onDone = { removal = null },
+    )
     val restoreStep = returnFocus.rowId?.let { rowId ->
         if (state.profile == null) RowRestoreStep.Wait else homeRowRestore(sections, rowId)
     }
@@ -122,25 +171,33 @@ fun HomeScreen(
         if (homePillFocused) onSwitchProfile() else scope.focusTop(listState, homePill)
     }
 
-    val wrapToTop: () -> Unit = {
-        scope.launch {
-            listState.scrollToItem(0)
-            if (!(heroLoaded && heroButton.requestFocusAfterFrame())) homePill.requestFocusAfterFrame()
-        }
-    }
+    val wrapToTop: () -> Unit = { scope.launch { focusTopOfPage() } }
 
-    Column(Modifier.fillMaxSize().background(Obsidian)) {
-        TopNavBar(
-            profile = state.profile,
-            selectedTab = NavTab.HOME,
-            selectedTabFocusRequester = homePill,
-            onTabSelected = onTabSelected,
-            onAvatarClick = onSwitchProfile,
-            onSelectedTabFocusChanged = { homePillFocused = it },
-        )
-        HomeContent(state, sections, listState, heroCarousel, heroButton, wrapToTop, onNavigate, returnFocus)
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Column(Modifier.fillMaxSize()) {
+            TopNavBar(
+                profile = state.profile,
+                selectedTab = NavTab.HOME,
+                selectedTabFocusRequester = homePill,
+                onTabSelected = onTabSelected,
+                onAvatarClick = onSwitchProfile,
+                onSelectedTabFocusChanged = { homePillFocused = it },
+            )
+            HomeContent(
+                state, sections, listState, heroCarousel, heroButton, wrapToTop, onNavigate, returnFocus,
+                RowFocus(rowFocus, cards, onContinueWatchingLongPress), scrollSpeed,
+            )
+        }
+        menu?.let { request -> ActionMenu(request, onClose = { menu = null }) }
     }
 }
+
+/** Home's per-row focus state, plus the Continue Watching long-press handler. */
+private class RowFocus(
+    val memory: RowFocusMemory,
+    val cards: SectionCardRequesters,
+    val onContinueWatchingLongPress: (index: Int) -> Unit,
+)
 
 @OptIn(ExperimentalFoundationApi::class) // LocalBringIntoViewSpec
 @Composable
@@ -153,10 +210,11 @@ private fun HomeContent(
     wrapToTop: () -> Unit,
     onNavigate: (HomeDestination) -> Unit,
     returnFocus: ReturnRowFocus,
+    rowFocus: RowFocus,
+    scrollSpeed: CatalogRowScrollSpeed,
 ) {
     val scope = rememberCoroutineScope()
     val lastFocusable = sections.indexOfLast { it.focusable }
-    val rowFocus = rememberRowFocusMemory()
 
     // Sections snap to the top themselves (below), so the default "scroll just enough" is disabled.
     CompositionLocalProvider(LocalBringIntoViewSpec provides ManualBringIntoViewSpec) {
@@ -172,7 +230,7 @@ private fun HomeContent(
                         .onFocusChanged { if (it.hasFocus) scope.launch { listState.snapItemToTop(index) } }
                         .then(if (index == lastFocusable) Modifier.onDpadEdgeWrap(Key.DirectionDown, wrapToTop) else Modifier),
                 ) {
-                    HomeSectionContent(section, state, heroCarousel, heroButton, rowFocus, onNavigate, returnFocus)
+                    HomeSectionContent(section, state, heroCarousel, heroButton, rowFocus, onNavigate, returnFocus, scrollSpeed)
                 }
             }
         }
@@ -185,9 +243,10 @@ private fun HomeSectionContent(
     state: HomeUiState,
     heroCarousel: HeroCarouselState,
     heroButton: FocusRequester,
-    rowFocus: RowFocusMemory,
+    rowFocus: RowFocus,
     onNavigate: (HomeDestination) -> Unit,
     returnFocus: ReturnRowFocus,
+    scrollSpeed: CatalogRowScrollSpeed,
 ) {
     when (section) {
         // Extra gap under the hero so, while it is focused, only the first row's title and the top
@@ -213,7 +272,10 @@ private fun HomeSectionContent(
             },
             onViewMore = {},
             cardOverlay = { index, _ -> ContinueWatchingOverlay(section.items[index]) },
-            focusedIndexState = rowFocus.stateFor(section.key, section.items.map { it.media.key }),
+            onItemLongClick = rowFocus.onContinueWatchingLongPress,
+            focusedIndexState = rowFocus.memory.stateFor(section.key, section.items.map { it.media.key }),
+            activeCard = rowFocus.cards.of(section.key),
+            scrollSpeed = scrollSpeed,
         )
         is HomeSection.Catalog -> when (val content = section.content) {
             RowContent.Loading -> LoadingRow(section.spec.title)
@@ -226,7 +288,9 @@ private fun HomeSectionContent(
                 onViewMore = { onNavigate(HomeDestination.ViewMore(section.spec)) },
                 returnFocusToStart = section.spec.id == returnFocus.rowId,
                 onFocusReturned = returnFocus.consume,
-                focusedIndexState = rowFocus.stateFor(section.key, content.row.items.map { it.key }),
+                focusedIndexState = rowFocus.memory.stateFor(section.key, content.row.items.map { it.key }),
+                activeCard = rowFocus.cards.of(section.key),
+                scrollSpeed = scrollSpeed,
             )
         }
     }

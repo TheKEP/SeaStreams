@@ -1,20 +1,17 @@
 package com.seastreams.tv.domain.usecase
 
-import com.seastreams.tv.core.network.ApiEndpoints
+import com.seastreams.tv.core.database.entity.AddonEntity
 import com.seastreams.tv.core.network.MdbListApiService
 import com.seastreams.tv.core.network.MdbListItem
+import com.seastreams.tv.core.network.StremioAddonClient
 import com.seastreams.tv.core.network.TmdbApiService
-import com.seastreams.tv.data.catalog.GenreRepository
 import com.seastreams.tv.data.catalog.LoadedCatalogStore
-import com.seastreams.tv.data.catalog.MediaHydrator
-import com.seastreams.tv.data.catalog.TmdbImageUrls
-import com.seastreams.tv.domain.filter.AgeRestrictionEngine
 import com.seastreams.tv.domain.model.CatalogRowSpec
 import com.seastreams.tv.domain.model.CatalogSource
-import com.seastreams.tv.testutil.FakeCatalogDao
+import com.seastreams.tv.testutil.FakeAddonDao
 import com.seastreams.tv.testutil.movieDetails
+import com.seastreams.tv.testutil.testCatalogLoader
 import com.seastreams.tv.testutil.testProfile
-import dagger.Lazy
 import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineScope
@@ -27,18 +24,12 @@ abstract class HomeCatalogsTestBase {
 
     protected val mdbList = mockk<MdbListApiService>()
     protected val tmdb = mockk<TmdbApiService>()
-    protected val catalogDao = FakeCatalogDao()
-    private val hydrator = MediaHydrator(Lazy { tmdb }, TmdbImageUrls(ApiEndpoints()))
-    protected val loader = CatalogLoader(
-        Lazy { mdbList },
-        hydrator,
-        TmdbImageUrls(ApiEndpoints()),
-        GenreRepository(hydrator),
-        AgeRestrictionEngine(),
-    )
+    protected val addonClient = mockk<StremioAddonClient>()
+    protected val addonDao = FakeAddonDao()
+    protected val loader = testCatalogLoader(mdbList, tmdb, addonClient)
     protected val useCase = GetHomeCatalogsUseCase(
         loader,
-        catalogDao,
+        addonDao,
         LoadedCatalogStore(Clock.systemUTC()),
         CoroutineScope(SupervisorJob() + Dispatchers.Default),
         Clock.systemUTC(),
@@ -46,6 +37,19 @@ abstract class HomeCatalogsTestBase {
     protected val adult = testProfile(1, isKids = false)
     protected val kids = testProfile(2, isKids = true)
     protected val spec = CatalogRowSpec("test", "Test", "https://mdblist.com/lists/owner/test")
+
+    /** An enabled HTTP addon at `https://{host}/manifest.json` declaring [catalogsJson] (a JSON array). */
+    protected fun addonEntity(host: String, sortOrder: Int, catalogsJson: String, enabled: Boolean = true) = AddonEntity(
+        manifestUrl = "https://$host/manifest.json",
+        manifestId = "com.example.$host",
+        name = host,
+        customName = null,
+        enabled = enabled,
+        sortOrder = sortOrder,
+        manifestJson = """{"id":"com.example.$host","version":"1.0.0","name":"$host",""" +
+            """"resources":["catalog"],"types":["movie","series"],"catalogs":$catalogsJson}""",
+        installedAtMillis = 0,
+    )
 
     /** Movies 1..[count]; ids divisible by 3 are rated R, the rest G. */
     protected fun givenMovieList(url: String, count: Int) {

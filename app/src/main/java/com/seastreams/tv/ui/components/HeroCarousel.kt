@@ -101,14 +101,16 @@ fun rememberHeroCarouselState(items: List<MediaItem>): HeroCarouselState = remem
 
 /**
  * Advances [state] every [HERO_AUTO_ADVANCE_MILLIS] while the host is RESUMED, wherever focus is.
- * Pauses on ON_PAUSE/ON_STOP (a fresh countdown starts on resume) and stops when the calling screen
- * leaves composition. Call it from the screen, not from inside a lazy list item.
+ * Pauses on ON_PAUSE/ON_STOP or while another screen covers Home (a fresh countdown starts after),
+ * and stops when the calling screen leaves composition. Call it from the screen, not from inside a lazy list item.
  */
 @Composable
 fun HeroAutoCycleEffect(state: HeroCarouselState) {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    LaunchedEffect(state, lifecycle) {
-        if (state.itemCount < 2) return@LaunchedEffect
+    // Home stays composed under Details/Settings; the hero must not cycle behind them.
+    val covered = LocalLayerCovered.current
+    LaunchedEffect(state, lifecycle, covered) {
+        if (state.itemCount < 2 || covered) return@LaunchedEffect
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             runHeroAutoCycle(snapshotFlow { state.interactions }, HERO_AUTO_ADVANCE_MILLIS, state::advance)
         }
@@ -144,6 +146,7 @@ fun HeroCarousel(
     val index = state.index.coerceIn(items.indices)
     val current = items[index]
     var focused by remember { mutableStateOf(false) }
+    val origin = rememberFocusOrigin()
     val step: (Int) -> Boolean = { delta ->
         state.userStep(delta)
         true
@@ -184,10 +187,12 @@ fun HeroCarousel(
             Button(
                 onClick = {
                     state.userInteracted()
+                    origin.mark()
                     onViewDetails(current)
                 },
                 modifier = Modifier
                     .focusRequester(buttonFocusRequester)
+                    .focusRequester(origin.requester)
                     .onDpadKeyDown(Key.DirectionLeft) { step(-1) }
                     .onDpadKeyDown(Key.DirectionRight) { step(1) },
                 colors = ButtonDefaults.colors(

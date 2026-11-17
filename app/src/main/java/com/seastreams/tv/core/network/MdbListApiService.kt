@@ -40,6 +40,9 @@ data class MdbListItem(
 /** Parses user-supplied MDBList links (from the Web Portal) into canonical list paths. */
 object MdbListUrl {
 
+    /** Base that canonical list URLs are built on (`CANONICAL_BASE + listPath(input)`). */
+    const val CANONICAL_BASE = "https://mdblist.com"
+
     private val ALLOWED_HOSTS = setOf("mdblist.com", "www.mdblist.com")
     private const val JSON_SUFFIX = "json"
     private const val MIN_SEGMENTS = 3 // "lists", owner, slug (official lists add a category segment)
@@ -65,7 +68,7 @@ object MdbListUrl {
     }
 
     /** The public JSON export URL for [input] (its list path with `/json` appended). */
-    fun toJsonUrl(input: String, baseUrl: String = "https://mdblist.com"): String? =
+    fun toJsonUrl(input: String, baseUrl: String = CANONICAL_BASE): String? =
         listPath(input)?.let { baseUrl.trimEnd('/') + it + "/" + JSON_SUFFIX }
 }
 

@@ -72,7 +72,7 @@ fun ProfileSelectScreen(
         if (state.profiles.isNotEmpty()) runCatching { initialFocus.requestFocus() }
     }
 
-    Box(Modifier.fillMaxSize().background(Obsidian)) {
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Backdrop(state.backdropUrl, Modifier.align(Alignment.CenterEnd))
         Column(
             Modifier.fillMaxHeight().padding(start = 40.dp, top = 40.dp),
@@ -115,7 +115,7 @@ private fun Backdrop(url: String?, modifier: Modifier) {
         // Left vignette blending the artwork into the profile column.
         Box(
             Modifier.fillMaxHeight().width(360.dp)
-                .background(Brush.horizontalGradient(listOf(Obsidian, Obsidian.copy(alpha = 0.6f), Color.Transparent))),
+                .background(Brush.horizontalGradient(listOf(MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.background.copy(alpha = 0.6f), Color.Transparent))),
         )
     }
 }

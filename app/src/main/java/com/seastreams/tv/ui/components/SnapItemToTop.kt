@@ -1,6 +1,8 @@
 package com.seastreams.tv.ui.components
 
+import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.withFrameNanos
@@ -16,7 +18,7 @@ internal const val SNAP_TO_TOP_MILLIS = 250
 /** Furthest (in items) an off-screen target may be for the estimated glide; further jumps animate by index. */
 private const val MAX_ESTIMATED_ITEMS = 2
 
-/** Extra frames allowed after [SNAP_TO_TOP_MILLIS] to absorb late layout changes before giving up. */
+/** Extra frames allowed after the glide's duration to absorb late layout changes before giving up. */
 private const val SNAP_SETTLE_MILLIS = 400
 
 /** Sub-pixel distances count as "at the top". */
@@ -38,7 +40,16 @@ private const val SNAP_EPSILON_PX = 0.5f
  * offset, so it gets the same bounded [SNAP_TO_TOP_MILLIS] glide instead of an open-ended spring.
  * Far jumps fall back to `animateScrollToItem`.
  */
-suspend fun LazyListState.snapItemToTop(index: Int) {
+suspend fun LazyListState.snapItemToTop(index: Int) = glideItemToStart(index, SNAP_TO_TOP_MILLIS, FastOutSlowInEasing)
+
+/**
+ * The glide behind [snapItemToTop], for any lazy list orientation: moves item [index] to the start
+ * of the content area over [durationMs], following [easing] while re-measuring the target each
+ * frame (so it tracks items that resize mid-glide, e.g. a catalog card widening to 16:9). Running
+ * inside [LazyListState.scroll], a new glide cancels one in flight and continues from where it was.
+ * A target that cannot reach the start (the list is at its scroll limit) stops when time runs out.
+ */
+suspend fun LazyListState.glideItemToStart(index: Int, durationMs: Int, easing: Easing) {
     if (targetOffset(index) == null) {
         animateScrollToItem(index)
         return
@@ -55,11 +66,11 @@ suspend fun LazyListState.snapItemToTop(index: Int) {
                 break
             }
             val elapsedMs = (now - start) / 1_000_000f
-            val next = glideEasing(elapsedMs / SNAP_TO_TOP_MILLIS)
+            val next = glideProgress(elapsedMs / durationMs, easing)
             val consumed = if (abs(remaining) < SNAP_EPSILON_PX) 0f else scrollBy(remaining * glideStepFraction(eased, next))
             eased = next
             val finished = next >= 1f && (abs(remaining) < SNAP_EPSILON_PX || abs(consumed) < SNAP_EPSILON_PX)
-            if (finished || elapsedMs > SNAP_TO_TOP_MILLIS + SNAP_SETTLE_MILLIS) break
+            if (finished || elapsedMs > durationMs + SNAP_SETTLE_MILLIS) break
         }
     }
     // Scrolled out of the laid-out window mid-glide (should not happen): land on it directly.
@@ -111,5 +122,13 @@ internal fun glideStepFraction(eased: Float, next: Float): Float {
     return ((next - eased) / (1f - eased)).coerceIn(0f, 1f)
 }
 
-/** The glide's progress curve: [FastOutSlowInEasing] on `t` (clamped to `0..1`). */
-internal fun glideEasing(t: Float): Float = FastOutSlowInEasing.transform(t.coerceIn(0f, 1f))
+/** A glide's eased progress: [easing] on `t` (clamped to `0..1`). */
+internal fun glideProgress(t: Float, easing: Easing = FastOutSlowInEasing): Float = easing.transform(t.coerceIn(0f, 1f))
+
+/**
+ * Easing for a catalog row's horizontal glide. A fresh move eases in and out. A move that interrupts
+ * a glide still running (rapid taps, a held key) uses [LinearOutSlowInEasing], which starts at full
+ * speed, so the row keeps its momentum instead of stalling and re-accelerating at every step.
+ */
+fun rowGlideEasing(interruptsGlide: Boolean): Easing =
+    if (interruptsGlide) LinearOutSlowInEasing else FastOutSlowInEasing

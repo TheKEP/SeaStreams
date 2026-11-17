@@ -121,7 +121,7 @@ ul.list li.disabled .title { color: var(--muted); text-decoration: line-through;
 
   <section id="addons">
     <h2>Stremio addons</h2>
-    <p class="hint">Paste an addon's manifest URL (https://…/manifest.json or stremio://…). Order sets stream priority.</p>
+    <p class="hint">Paste an addon's manifest URL (https://…/manifest.json or stremio://…). Order sets stream priority and the order of addon catalog rows on Home.</p>
     <form id="addon-form" autocomplete="off">
       <div class="row">
         <input class="grow" type="url" id="addon-url" placeholder="https://example.com/manifest.json" inputmode="url" required>
@@ -131,25 +131,9 @@ ul.list li.disabled .title { color: var(--muted); text-decoration: line-through;
     <ul class="list" id="addon-list"></ul>
   </section>
 
-  <section id="catalogs">
-    <h2>MDBList catalogs</h2>
-    <p class="hint">Add an mdblist.com list as a row on a tab.</p>
-    <form id="catalog-form" autocomplete="off">
-      <input type="url" id="catalog-url" placeholder="https://mdblist.com/lists/owner/list-name" inputmode="url" required>
-      <div class="row">
-        <select class="grow" id="catalog-placement" aria-label="Tab">
-          <option value="HOME">Home</option><option value="MOVIES">Movies</option><option value="TV_SHOWS">TV Shows</option>
-        </select>
-        <input class="grow" type="text" id="catalog-title" placeholder="Row title (optional)" maxlength="60">
-        <button class="primary" type="submit">Add row</button>
-      </div>
-    </form>
-    <ul class="list" id="catalog-list"></ul>
-  </section>
-
   <section id="import">
     <h2>Import a list into a Library</h2>
-    <p class="hint">Copies every movie or show from an mdblist.com list into a profile's Library. Kids profiles only receive titles within their rating limits.</p>
+    <p class="hint">One-time copy of every movie or show in an mdblist.com list into a profile's Library. Titles already there are skipped, Kids profiles only receive titles within their rating limits, and later changes to the list are not synced.</p>
     <form id="import-form" autocomplete="off">
       <input type="url" id="import-url" placeholder="https://mdblist.com/lists/owner/list-name" inputmode="url" required>
       <div class="row">

@@ -1,6 +1,5 @@
 package com.seastreams.tv.domain.usecase
 
-import com.seastreams.tv.core.database.entity.CustomCatalogEntity
 import com.seastreams.tv.domain.model.CatalogRowSpec
 
 /** The fixed MDBLists behind the Home hero and rows (PRD §3). */
@@ -23,8 +22,11 @@ object HomeCatalogSources {
         CatalogRowSpec("latest-family-shows", "Latest Family Shows", "https://mdblist.com/lists/kep084/latest-family-shows"),
     )
 
-    /** Fixed rows for the profile type followed by the user's Home MDBLists, in portal order. */
-    fun rowSpecs(isKids: Boolean, custom: List<CustomCatalogEntity>): List<CatalogRowSpec> =
-        (if (isKids) KIDS_ROWS else ADULT_ROWS) +
-            custom.map { CatalogRowSpec(id = "custom-${it.id}", title = it.title, listUrl = it.listUrl) }
+    /**
+     * The built-in rows for the profile type (ending with `Most Watched Shows` for Adults and
+     * `Latest Family Shows` for Kids), followed directly by [addonRows] — the enabled Stremio addons'
+     * catalogs from [AddonCatalogSources.rowSpecs], in installed addon order.
+     */
+    fun rowSpecs(isKids: Boolean, addonRows: List<CatalogRowSpec>): List<CatalogRowSpec> =
+        (if (isKids) KIDS_ROWS else ADULT_ROWS) + addonRows
 }

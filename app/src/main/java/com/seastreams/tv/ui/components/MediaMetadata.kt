@@ -37,6 +37,8 @@ fun MediaMetadataLine(
     showCertification: Boolean,
     modifier: Modifier = Modifier,
     style: TextStyle = MaterialTheme.typography.titleSmall,
+    /** Details shows up to two genres (PRD §6); rows and the hero show one. */
+    maxGenres: Int = 1,
 ) {
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
         item.ratingPercent?.let { percent ->
@@ -46,7 +48,7 @@ fun MediaMetadataLine(
             }
         }
         item.year?.let { Text(it.toString(), style = style, fontWeight = FontWeight.SemiBold) }
-        item.genres.firstOrNull()?.let { Text(it, style = style, fontWeight = FontWeight.SemiBold) }
+        item.genres.take(maxGenres).forEach { Text(it, style = style, fontWeight = FontWeight.SemiBold) }
         if (showCertification) item.certification?.takeIf { it.isNotBlank() }?.let { CertificationBadge(it) }
         MetadataFormat.runtime(item.runtimeMinutes)?.let { Text(it, style = style, fontWeight = FontWeight.SemiBold) }
     }

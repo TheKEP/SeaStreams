@@ -37,6 +37,13 @@ data class TmdbTvSummary(
     val adult: Boolean = false,
 )
 
+/** `/find/{imdb_id}?external_source=imdb_id`: the TMDB titles carrying that IMDb id. */
+@Serializable
+data class TmdbFindResult(
+    @SerialName("movie_results") val movieResults: List<TmdbMovieSummary> = emptyList(),
+    @SerialName("tv_results") val tvResults: List<TmdbTvSummary> = emptyList(),
+)
+
 @Serializable
 data class TmdbGenre(val id: Int, val name: String = "")
 
@@ -135,6 +142,7 @@ data class TmdbTvDetails(
     @SerialName("content_ratings") val contentRatings: TmdbContentRatings? = null,
     val credits: TmdbCredits? = null,
     val images: TmdbImages? = null,
+    @SerialName("last_episode_to_air") val lastEpisodeToAir: TmdbEpisodeRef? = null,
 ) {
     /** US TV Parental Guidelines rating, if TMDB has one. */
     fun usCertification(): String? =
@@ -170,6 +178,54 @@ data class TmdbExternalIds(
     @SerialName("imdb_id") val imdbId: String? = null,
     @SerialName("tvdb_id") val tvdbId: Int? = null,
 )
+
+/** Season/episode numbers of one episode, e.g. a show's `last_episode_to_air`. */
+@Serializable
+data class TmdbEpisodeRef(
+    @SerialName("season_number") val seasonNumber: Int = 0,
+    @SerialName("episode_number") val episodeNumber: Int = 0,
+)
+
+/** One episode from `/tv/{id}/season/{n}`. */
+@Serializable
+data class TmdbEpisode(
+    @SerialName("episode_number") val episodeNumber: Int,
+    @SerialName("season_number") val seasonNumber: Int = 0,
+    val name: String = "",
+    val overview: String = "",
+    @SerialName("air_date") val airDate: String? = null,
+    val runtime: Int? = null,
+    @SerialName("still_path") val stillPath: String? = null,
+)
+
+@Serializable
+data class TmdbSeasonDetails(
+    @SerialName("season_number") val seasonNumber: Int = 0,
+    val name: String = "",
+    val episodes: List<TmdbEpisode> = emptyList(),
+)
+
+/** One entry of `/movie/{id}/videos` or `/tv/{id}/videos`. */
+@Serializable
+data class TmdbVideo(
+    val key: String = "",
+    val site: String = "",
+    val type: String = "",
+    val official: Boolean = false,
+)
+
+@Serializable
+data class TmdbVideos(val results: List<TmdbVideo> = emptyList()) {
+    /** Best YouTube trailer key: official trailers first, then any trailer, then a teaser. */
+    fun youtubeTrailerKey(): String? {
+        val youtube = results.filter { it.site.equals("YouTube", ignoreCase = true) && it.key.isNotBlank() }
+        return (
+            youtube.firstOrNull { it.type == "Trailer" && it.official }
+                ?: youtube.firstOrNull { it.type == "Trailer" }
+                ?: youtube.firstOrNull { it.type == "Teaser" }
+            )?.key
+    }
+}
 
 private const val US = "US"
 

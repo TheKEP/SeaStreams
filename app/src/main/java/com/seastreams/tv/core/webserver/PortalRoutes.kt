@@ -66,11 +66,6 @@ fun Application.portalModule(controller: PortalController) {
             post("/addons/enabled") { call.mutate<AddonEnabledRequest>(controller::setAddonEnabled) }
             post("/addons/move") { call.mutate<AddonMoveRequest>(controller::moveAddon) }
             post("/addons/reorder") { call.mutate<AddonReorderRequest>(controller::reorderAddons) }
-            post("/catalogs") { call.mutate<CatalogRequest>(controller::addCatalog) }
-            post("/catalogs/{id}/delete") {
-                val id = call.parameters["id"]?.toLongOrNull()
-                call.mutateWithoutBody { controller.removeCatalog(requireId(id)) }
-            }
             post("/library/import") { call.mutate<LibraryImportRequest>(controller::importToLibrary) }
         }
     }

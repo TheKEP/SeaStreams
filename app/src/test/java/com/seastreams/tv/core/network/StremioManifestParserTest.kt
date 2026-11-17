@@ -100,4 +100,41 @@ class StremioManifestParserTest {
             StremioAddonUrl.transportBase("https://addon.example.com/cfg=abc/manifest.json"),
         )
     }
+
+    @Test
+    fun `catalogs that need an extra parameter are flagged`() {
+        val manifest = StremioManifestParser.parse(
+            """{"id":"a","version":"1","name":"A","resources":["catalog"],"catalogs":[
+                {"type":"movie","id":"top","name":"Top","extra":[{"name":"skip"},{"name":"genre","isRequired":false}]},
+                {"type":"movie","id":"search","extra":[{"name":"search","isRequired":true}]},
+                {"type":"series","id":"legacy","extraRequired":["genre"]}
+            ]}""",
+        )
+
+        assertEquals(listOf(false, true, true), manifest.catalogs.map { it.requiresExtra })
+    }
+
+    @Test
+    fun `parses catalog metas leniently`() {
+        val metas = StremioResourceParser.parseMetas(
+            """{"metas":[{"id":"tt0133093","type":"movie","name":"The Matrix"},{"type":"movie"},42,{"id":"tmdb:603"}]}""",
+        )
+
+        assertEquals(listOf(StremioMetaPreview("tt0133093", "movie"), StremioMetaPreview("tmdb:603", "")), metas)
+        assertTrue(StremioResourceParser.parseMetas("not json").isEmpty())
+    }
+
+    @Test
+    fun `catalog URLs page with the skip extra and keep the addon configuration`() {
+        val manifestUrl = "https://addon.example.com/cfg=abc/manifest.json?token=1"
+
+        assertEquals(
+            "https://addon.example.com/cfg=abc/catalog/movie/top.json?token=1",
+            StremioAddonClient.catalogUrl(manifestUrl, "movie", "top", skip = 0),
+        )
+        assertEquals(
+            "https://addon.example.com/cfg=abc/catalog/series/top%20rated/skip=100.json?token=1",
+            StremioAddonClient.catalogUrl(manifestUrl, "series", "top rated", skip = 100),
+        )
+    }
 }

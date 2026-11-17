@@ -8,26 +8,28 @@ app/src/main/java/com/seastreams/tv/
 ├── core/
 │   ├── network/
 │   │   ├── NetworkModule.kt          # OkHttp (100MB disk cache) + Ktor HttpClient + 429 Retry Interceptor
+│   │   ├── OkHttpDownloader.kt       # NewPipeExtractor Downloader backed by shared OkHttpClient
 │   │   ├── TmdbApiService.kt         # /discover, /search, /movie/{id}, /tv/{id}, /external_ids
-│   │   ├── MdbListApiService.kt      # Fetches MDBList JSON endpoints from list URLs
-│   │   └── StremioAddonClient.kt     # Fetches manifest.json, /stream, /subtitles
+│   │   ├── MdbListApiService.kt      # Fetches built-in Home chart JSONs & one-time Library import lists
+│   │   └── StremioAddonClient.kt     # Fetches manifest.json, /catalog (Home only), /stream, /subtitles
 │   ├── database/
 │   │   ├── SeaStreamsDatabase.kt     # Room DB (v1)
-│   │   ├── dao/                      # ProfileDao, LibraryDao, WatchProgressDao, CacheDao, AddonDao
+│   │   ├── dao/                      # ProfileDao, LibraryDao, WatchProgressDao (tracks resume position + dismissedFromContinueWatching flag), CacheDao, AddonDao
 │   │   └── entity/                   # Room @Entity definitions
 │   ├── datastore/
-│   │   └── SettingsDataStore.kt      # Typed Preferences DataStore (audio, subtitles, player, active profile)
+│   │   └── SettingsDataStore.kt      # Typed Preferences DataStore (UI scroll speed, audio, subtitles, player, inline trailers, active profile)
 │   └── webserver/
 │       ├── LocalPortalServer.kt      # Embedded Ktor CIO server on port 8765
 │       └── PortalHtmlTemplate.kt     # Mobile-responsive HTML/JS UI served to phone/PC browsers
 ├── domain/
-│   ├── model/                        # MediaItem, Episode, StreamSource, SubtitleTrack, UserProfile, AddonConfig
+│   ├── model/                        # MediaItem, Episode, StreamSource, SubtitleTrack, UserProfile, AddonConfig, PlaybackRequest
 │   ├── filter/
-│   │   ├── AgeRestrictionEngine.kt   # Pure Kotlin certification evaluator (Adult vs Kids + Unrated toggle)
+│   │   ├── AgeRestrictionEngine.kt   # Pure Kotlin certification + genre safety evaluator (Kids profiles & Profile Gate artwork)
 │   │   └── SdhSubtitleCleaner.kt     # Pure Kotlin SDH cue stripper
-│   └── usecase/                      # GetHomeCatalogsUseCase, ResolveStreamsUseCase, ImportMdbListUseCase
+│   └── usecase/                      # GetHomeCatalogsUseCase, ResolveStreamsUseCase, ResolveTrailerStreamUseCase, ImportMdbListUseCase
 ├── player/
-│   ├── SeaStreamsPlayerManager.kt    # ExoPlayer wrapper + Stream Fallback Timer (1s-10s)
+│   ├── SeaStreamsPlayerManager.kt    # ExoPlayer wrapper + Stream Fallback Timer (1s-10s) + MergingMediaSource trailers
+│   ├── InlineTrailerPlayerManager.kt # Single shared lifecycle-aware ExoPlayer for 16:9 catalog row hover previews
 │   ├── audio/
 │   │   └── DialogueNightAudioProcessor.kt # Custom Media3 AudioProcessor (Center boost + DRC Night Mode)
 │   └── subtitle/
@@ -38,7 +40,8 @@ app/src/main/java/com/seastreams/tv/
     ├── components/
     │   ├── TopNavBar.kt              # Avatar, Clock, Search, Home, Movies, TV Shows, Library, Settings
     │   ├── HeroCarousel.kt           # Full-width hero card with horizontal D-pad cycling
-    │   ├── ExpandingCatalogRow.kt    # TvLazyRow with 2:3 -> 16:9 focused card transition + View More + wrap loop
+    │   ├── ExpandingCatalogRow.kt    # TvLazyRow with configurable scroll/expansion speed + 2:3 -> 16:9 transition + View More + wrap loop
+    │   ├── InlineTrailerOverlay.kt   # 16:9 card PlayerView surface + top-right white muted speaker badge
     │   └── PosterGrid.kt             # 5-column TvLazyVerticalGrid
     └── screens/
         ├── profiles/                 # ProfileSelectScreen.kt, ProfileCreateScreen.kt (with QR code)

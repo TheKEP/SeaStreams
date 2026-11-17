@@ -9,7 +9,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -17,11 +16,12 @@ import com.seastreams.tv.domain.model.CatalogRowSpec
 import com.seastreams.tv.domain.model.CatalogRowState
 import com.seastreams.tv.domain.model.ContinueWatchingItem
 import com.seastreams.tv.domain.model.RowContent
+import com.seastreams.tv.ui.components.ArtworkProgressIndicator
 import com.seastreams.tv.ui.components.CardHeight
 import com.seastreams.tv.ui.components.MetadataFormat
 import com.seastreams.tv.ui.components.RowRestoreStep
+import com.seastreams.tv.ui.components.artworkProgress
 import com.seastreams.tv.ui.components.resolveRowRestore
-import com.seastreams.tv.ui.theme.FocusPill
 import com.seastreams.tv.ui.theme.Obsidian
 
 /** One vertical slot of the Home page, top to bottom. */
@@ -37,8 +37,12 @@ sealed interface HomeSection {
     }
 
     data class ContinueWatching(val items: List<ContinueWatchingItem>) : HomeSection {
-        override val key = "continue-watching"
+        override val key = KEY
         override val focusable = true
+
+        companion object {
+            const val KEY = "continue-watching"
+        }
     }
 
     data class Catalog(val spec: CatalogRowSpec, val content: RowContent) : HomeSection {
@@ -68,10 +72,14 @@ fun homeRowRestore(sections: List<HomeSection>, rowId: String): RowRestoreStep {
     return resolveRowRestore(index, (sections.getOrNull(index) as? HomeSection.Catalog)?.content)
 }
 
-/** Progress bar plus `S7:E10` badge drawn on a Continue Watching card. */
+/**
+ * `S7:E10` badge plus the shared watch indicator on a Continue Watching card: the bottom bar while
+ * in progress (every row here is `< 90%` by query), never a full-width "finished" line.
+ */
 @Composable
 fun ContinueWatchingOverlay(item: ContinueWatchingItem) {
     Box(Modifier.fillMaxWidth().height(CardHeight)) {
+        ArtworkProgressIndicator(artworkProgress(item.progress))
         MetadataFormat.episodeBadge(item.seasonNumber, item.episodeNumber)?.let { badge ->
             Text(
                 badge,
@@ -82,9 +90,6 @@ fun ContinueWatchingOverlay(item: ContinueWatchingItem) {
                     .background(Obsidian.copy(alpha = 0.7f), RoundedCornerShape(4.dp))
                     .padding(horizontal = 6.dp, vertical = 2.dp),
             )
-        }
-        Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color.White.copy(alpha = 0.25f))) {
-            Box(Modifier.fillMaxWidth(item.progress).height(4.dp).background(FocusPill))
         }
     }
 }
