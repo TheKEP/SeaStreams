@@ -35,8 +35,7 @@ object StremioResourceParser {
 
     fun parseStreams(raw: String): List<StremioStream> = array(raw, "streams").mapNotNull { element ->
         val obj = element as? JsonObject ?: return@mapNotNull null
-        val url = obj.string("url")?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
-            ?: return@mapNotNull null
+        val url = obj.httpUrl() ?: return@mapNotNull null
         StremioStream(
             url = url,
             name = obj.string("name").orEmpty(),
@@ -47,8 +46,7 @@ object StremioResourceParser {
 
     fun parseSubtitles(raw: String): List<StremioSubtitle> = array(raw, "subtitles").mapNotNull { element ->
         val obj = element as? JsonObject ?: return@mapNotNull null
-        val url = obj.string("url")?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
-            ?: return@mapNotNull null
+        val url = obj.httpUrl() ?: return@mapNotNull null
         StremioSubtitle(id = obj.string("id") ?: url, url = url, language = obj.string("lang").orEmpty())
     }
 
@@ -72,6 +70,9 @@ object StremioResourceParser {
             (value as? JsonPrimitive)?.takeIf { it.isString }?.content?.let { name to it }
         }.toMap()
     }
+
+    /** The entry's `url` when it is a plain http(s) link a video player can open. */
+    private fun JsonObject.httpUrl(): String? = string("url")?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
 
     private fun JsonObject.string(key: String): String? =
         (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.content?.trim()?.takeIf { it.isNotEmpty() }

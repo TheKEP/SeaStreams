@@ -34,10 +34,9 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.seastreams.tv.ui.theme.FocusPill
-import com.seastreams.tv.ui.theme.OnFocusPill
 import com.seastreams.tv.ui.theme.SuccessGreen
-import com.seastreams.tv.ui.theme.TextPrimary
 import com.seastreams.tv.ui.theme.TextSecondary
+import com.seastreams.tv.ui.theme.focusPillColors
 import com.seastreams.tv.ui.theme.onDpadKeyDown
 
 /** What sits at the right end of a settings row (`settings-example.jpg`). */
@@ -114,12 +113,7 @@ fun SettingsRow(
 }
 
 @Composable
-fun settingsRowColors() = ClickableSurfaceDefaults.colors(
-    containerColor = Color.White.copy(alpha = 0.10f),
-    contentColor = TextPrimary,
-    focusedContainerColor = FocusPill,
-    focusedContentColor = OnFocusPill,
-)
+fun settingsRowColors() = focusPillColors(containerColor = Color.White.copy(alpha = 0.10f))
 
 /** Non-interactive switch drawn inside a row; the whole row toggles it. */
 @Composable

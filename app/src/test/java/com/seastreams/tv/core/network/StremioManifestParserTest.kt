@@ -1,7 +1,7 @@
 package com.seastreams.tv.core.network
 
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -28,8 +28,8 @@ class StremioManifestParserTest {
         assertEquals(listOf("movie", "series"), manifest.types)
         assertEquals(listOf("tt"), manifest.idPrefixes)
         assertEquals(listOf(StremioResource("subtitles", emptyList(), emptyList())), manifest.resources)
-        assertTrue(manifest.supports("subtitles", "series"))
-        assertFalse(manifest.supports("stream", "movie"))
+        assertNotNull(manifest.resourceFor("subtitles", "series"))
+        assertNull(manifest.resourceFor("stream", "movie"))
         assertNull(manifest.logo)
     }
 
@@ -51,9 +51,9 @@ class StremioManifestParserTest {
             ),
             manifest.resources,
         )
-        assertTrue(manifest.supports("stream", "movie"))
-        assertFalse(manifest.supports("stream", "series"), "object resource narrows types")
-        assertTrue(manifest.supports("catalog", "channel"), "string resource inherits manifest types")
+        assertNotNull(manifest.resourceFor("stream", "movie"))
+        assertNull(manifest.resourceFor("stream", "series"), "object resource narrows types")
+        assertNotNull(manifest.resourceFor("catalog", "channel"), "string resource inherits manifest types")
         assertEquals(listOf(StremioCatalog("movie", "top", "Top"), StremioCatalog("series", "new", "new")), manifest.catalogs)
         assertEquals("https://x/logo.png", manifest.logo)
     }

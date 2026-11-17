@@ -134,11 +134,6 @@ interface WatchProgressDao {
         episodeNumber: Int,
     )
 
-    @Query(
-        "DELETE FROM watch_progress WHERE profileId = :profileId AND tmdbId = :tmdbId AND mediaType = :mediaType",
-    )
-    suspend fun clearForTitle(profileId: Long, tmdbId: Int, mediaType: MediaType)
-
     companion object {
         /** PRD §9: `>= 90%` watched counts as finished. */
         const val COMPLETION_RATIO = 0.90

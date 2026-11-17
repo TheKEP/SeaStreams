@@ -59,15 +59,15 @@ class DetailsViewModel @Inject constructor(
     fun open(profileId: Long, item: MediaItem) {
         val current = _state.value
         if (current.profileId == profileId && current.media?.ref == item.ref && current.content != DetailsContent.Failed) return
-        loadJob?.cancel()
-        _state.value = DetailsUiState(profileId = profileId, media = item)
-        loadJob = viewModelScope.launch { load(profileId, item) }
+        restart(profileId, item)
     }
 
     fun retry() {
         val current = _state.value
-        val profileId = current.profileId ?: return
-        val item = current.media ?: return
+        restart(current.profileId ?: return, current.media ?: return)
+    }
+
+    private fun restart(profileId: Long, item: MediaItem) {
         loadJob?.cancel()
         _state.value = DetailsUiState(profileId = profileId, media = item)
         loadJob = viewModelScope.launch { load(profileId, item) }

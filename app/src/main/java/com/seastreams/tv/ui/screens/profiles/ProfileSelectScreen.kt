@@ -48,8 +48,8 @@ import coil3.compose.AsyncImage
 import com.seastreams.tv.core.database.entity.ProfileEntity
 import com.seastreams.tv.ui.components.AvatarTile
 import com.seastreams.tv.ui.theme.FocusPill
-import com.seastreams.tv.ui.theme.Obsidian
 import com.seastreams.tv.ui.theme.TextSecondary
+import com.seastreams.tv.ui.theme.focusPillColors
 
 private val TileSize = 76.dp
 private val FocusedTileSize = 108.dp
@@ -142,12 +142,7 @@ private fun ProfileRow(
             onClick = onEdit,
             modifier = Modifier.size(40.dp).alpha(if (rowHasFocus) 1f else 0f),
             shape = ClickableSurfaceDefaults.shape(CircleShape),
-            colors = ClickableSurfaceDefaults.colors(
-                containerColor = Color.Transparent,
-                contentColor = TextSecondary,
-                focusedContainerColor = FocusPill,
-                focusedContentColor = Obsidian,
-            ),
+            colors = focusPillColors(contentColor = TextSecondary),
         ) {
             Icon(Icons.Filled.Edit, contentDescription = "Edit ${profile.name}", modifier = Modifier.padding(10.dp))
         }

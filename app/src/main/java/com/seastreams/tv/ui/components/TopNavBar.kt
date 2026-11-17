@@ -35,14 +35,15 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.seastreams.tv.core.database.entity.ProfileEntity
+import com.seastreams.tv.core.util.MILLIS_PER_SECOND
 import com.seastreams.tv.ui.theme.FocusPill
-import com.seastreams.tv.ui.theme.OnFocusPill
 import com.seastreams.tv.ui.theme.TextPrimary
 import com.seastreams.tv.ui.theme.TextSecondary
-import kotlinx.coroutines.delay
+import com.seastreams.tv.ui.theme.focusPillColors
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.delay
 
 /** Top navigation pills (PRD §1). Search and Settings render as icons. */
 enum class NavTab(val label: String, val icon: ImageVector? = null) {
@@ -136,11 +137,9 @@ private fun NavPill(tab: NavTab, selected: Boolean, onClick: () -> Unit, modifie
         modifier = modifier.focusRequester(origin.requester).height(36.dp),
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(50)),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
-        colors = ClickableSurfaceDefaults.colors(
+        colors = focusPillColors(
             containerColor = if (selected) Color.White.copy(alpha = 0.22f) else Color.Transparent,
             contentColor = if (selected) TextPrimary else TextSecondary,
-            focusedContainerColor = FocusPill,
-            focusedContentColor = OnFocusPill,
         ),
     ) {
         val icon = tab.icon
@@ -175,5 +174,4 @@ internal fun formatClockTime(time: LocalTime): String = time.format(ClockFormat)
 
 private val ClockFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.US)
 private const val SECONDS_PER_MINUTE = 60L
-private const val MILLIS_PER_SECOND = 1_000L
 private const val NANOS_PER_MILLI = 1_000_000L

@@ -20,7 +20,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.text.font.FontWeight
@@ -33,9 +32,7 @@ import androidx.tv.material3.Text
 import com.seastreams.tv.ui.components.FocusOrigin
 import com.seastreams.tv.ui.components.SeaIcons
 import com.seastreams.tv.ui.components.rememberFocusOrigin
-import com.seastreams.tv.ui.theme.FocusPill
-import com.seastreams.tv.ui.theme.OnFocusPill
-import com.seastreams.tv.ui.theme.TextPrimary
+import com.seastreams.tv.ui.theme.focusPillColors
 import com.seastreams.tv.ui.theme.onDpadEdgeWrap
 import kotlinx.coroutines.launch
 
@@ -129,12 +126,7 @@ private fun DetailsActionButton(action: DetailsAction, origin: FocusOrigin, modi
         modifier = modifier.focusRequester(origin.requester).fillMaxWidth().height(ButtonHeight),
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(10.dp)),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color.Transparent,
-            contentColor = TextPrimary,
-            focusedContainerColor = FocusPill,
-            focusedContentColor = OnFocusPill,
-        ),
+        colors = focusPillColors(),
     ) {
         Row(
             Modifier.padding(horizontal = 18.dp).height(ButtonHeight),

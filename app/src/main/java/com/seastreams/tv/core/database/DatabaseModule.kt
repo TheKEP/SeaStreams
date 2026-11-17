@@ -3,7 +3,6 @@ package com.seastreams.tv.core.database
 import android.content.Context
 import androidx.room.Room
 import com.seastreams.tv.core.database.dao.AddonDao
-import com.seastreams.tv.core.database.dao.CacheDao
 import com.seastreams.tv.core.database.dao.LibraryDao
 import com.seastreams.tv.core.database.dao.ProfileDao
 import com.seastreams.tv.core.database.dao.WatchProgressDao
@@ -34,7 +33,4 @@ object DatabaseModule {
 
     @Provides
     fun provideAddonDao(db: SeaStreamsDatabase): AddonDao = db.addonDao()
-
-    @Provides
-    fun provideCacheDao(db: SeaStreamsDatabase): CacheDao = db.cacheDao()
 }

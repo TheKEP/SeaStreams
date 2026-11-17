@@ -14,7 +14,7 @@ app/src/main/java/com/seastreams/tv/
 │   │   └── StremioAddonClient.kt     # Fetches manifest.json, /catalog (Home only), /stream, /subtitles
 │   ├── database/
 │   │   ├── SeaStreamsDatabase.kt     # Room DB (v1)
-│   │   ├── dao/                      # ProfileDao, LibraryDao, WatchProgressDao (tracks resume position + dismissedFromContinueWatching flag), CacheDao, AddonDao
+│   │   ├── dao/                      # ProfileDao, LibraryDao, WatchProgressDao (tracks resume position + dismissedFromContinueWatching flag), AddonDao
 │   │   └── entity/                   # Room @Entity definitions
 │   ├── datastore/
 │   │   └── SettingsDataStore.kt      # Typed Preferences DataStore (UI scroll speed, audio, subtitles, player, inline trailers, active profile)
