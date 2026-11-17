@@ -19,3 +19,6 @@ local.properties
 .env
 .claude/
 .kotlin/
+
+# Local scratch: extracted androidx classes
+/fnd/
