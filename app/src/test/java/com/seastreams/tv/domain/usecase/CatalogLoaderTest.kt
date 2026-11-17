@@ -1,23 +1,18 @@
 package com.seastreams.tv.domain.usecase
 
-import com.seastreams.tv.core.network.ApiEndpoints
 import com.seastreams.tv.core.network.MdbListApiService
 import com.seastreams.tv.core.network.TmdbApiService
 import com.seastreams.tv.core.network.TmdbGenre
 import com.seastreams.tv.core.network.TmdbMovieSummary
 import com.seastreams.tv.core.network.TmdbPage
 import com.seastreams.tv.core.network.TmdbTvSummary
-import com.seastreams.tv.data.catalog.GenreRepository
-import com.seastreams.tv.data.catalog.MediaHydrator
-import com.seastreams.tv.data.catalog.TmdbImageUrls
-import com.seastreams.tv.domain.filter.AgeRestrictionEngine
 import com.seastreams.tv.domain.model.CatalogSource
 import com.seastreams.tv.domain.model.MediaType
 import com.seastreams.tv.domain.model.StreamingProvider
 import com.seastreams.tv.domain.usecase.GetHomeCatalogsUseCase.Companion.ROW_CAP
 import com.seastreams.tv.testutil.movieDetails
+import com.seastreams.tv.testutil.testCatalogLoader
 import com.seastreams.tv.testutil.testProfile
-import dagger.Lazy
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -33,14 +28,7 @@ class CatalogLoaderTest {
 
     private val mdbList = mockk<MdbListApiService>()
     private val tmdb = mockk<TmdbApiService>()
-    private val hydrator = MediaHydrator(Lazy { tmdb }, TmdbImageUrls(ApiEndpoints()))
-    private val loader = CatalogLoader(
-        Lazy { mdbList },
-        hydrator,
-        TmdbImageUrls(ApiEndpoints()),
-        GenreRepository(hydrator),
-        AgeRestrictionEngine(),
-    )
+    private val loader = testCatalogLoader(mdbList, tmdb)
     private val kids = testProfile(2, isKids = true).toAgeRestriction()
 
     @BeforeEach

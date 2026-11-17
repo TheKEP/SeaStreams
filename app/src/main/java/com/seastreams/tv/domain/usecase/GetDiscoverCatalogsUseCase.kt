@@ -1,6 +1,5 @@
 package com.seastreams.tv.domain.usecase
 
-import com.seastreams.tv.core.database.dao.CatalogDao
 import com.seastreams.tv.core.database.entity.ProfileEntity
 import com.seastreams.tv.core.datastore.SettingsDataStore
 import com.seastreams.tv.core.util.ApplicationScope
@@ -16,10 +15,10 @@ import com.seastreams.tv.domain.model.StreamingProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import java.time.Clock
 import javax.inject.Inject
@@ -34,8 +33,8 @@ data class DiscoverSnapshot(
 
 /**
  * Rows of the Movies and TV Shows tabs (PRD §5): `Popular`, each enabled streaming service via TMDB
- * `/discover` (HTTP-cached 6h, 429s retried), and user MDBLists assigned to the tab. Titles are
- * age-filtered by [CatalogLoader] before they leave this class (CLAUDE.md rule 6).
+ * `/discover` (HTTP-cached 6h, 429s retried). Stremio addon catalogs are Home-only and never appear
+ * here. Titles are age-filtered by [CatalogLoader] before they leave this class (CLAUDE.md rule 6).
  *
  * Loaded rows are kept in memory for [ROW_TTL_MILLIS], so switching tabs or toggling a service back
  * on shows them instantly; [warm] fills that memory ahead of the first visit, and [snapshot] lets a
@@ -44,7 +43,6 @@ data class DiscoverSnapshot(
 @Singleton
 class GetDiscoverCatalogsUseCase @Inject constructor(
     private val loader: CatalogLoader,
-    private val catalogDao: CatalogDao,
     private val settings: SettingsDataStore,
     private val snapshots: DiscoverSnapshotStore,
     loadedCatalogs: LoadedCatalogStore,
@@ -58,10 +56,8 @@ class GetDiscoverCatalogsUseCase @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     fun observeRows(profile: ProfileEntity, mediaType: MediaType): Flow<List<CatalogRowState>> {
         val restriction = profile.toAgeRestriction()
-        return combine(
-            settings.enabledProviders,
-            catalogDao.observeByPlacement(DiscoverCatalogSources.placementFor(mediaType)),
-        ) { providers, custom -> DiscoverInputs(profile, providers, DiscoverCatalogSources.rowSpecs(mediaType, providers, custom)) }
+        return settings.enabledProviders
+            .map { providers -> DiscoverInputs(profile, providers, DiscoverCatalogSources.rowSpecs(mediaType, providers)) }
             .distinctUntilChanged()
             .onEach { snapshots.record(mediaType, it) }
             .flatMapLatest { inputs -> rowCache.observe(profile.id, inputs.specs, restriction) }
@@ -91,8 +87,7 @@ class GetDiscoverCatalogsUseCase @Inject constructor(
         if (profile.isKids) return null
         val restriction = profile.toAgeRestriction()
         val providers = settings.enabledProviders.first()
-        val custom = catalogDao.observeByPlacement(DiscoverCatalogSources.placementFor(mediaType)).first()
-        val specs = DiscoverCatalogSources.rowSpecs(mediaType, providers, custom)
+        val specs = DiscoverCatalogSources.rowSpecs(mediaType, providers)
         snapshots.record(mediaType, DiscoverInputs(profile, providers, specs))
         val loads = specs.map { spec -> rowCache.start(spec, restriction) }
         val rows = loads.map { orNullUnlessCancelled { it.await() } }

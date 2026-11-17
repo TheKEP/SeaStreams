@@ -22,7 +22,7 @@ class DiscoverRowFocusTest {
     private val memory = RowFocusMemory()
 
     private fun rowIds(mediaType: MediaType): List<String> = DiscoverCatalogSources
-        .rowSpecs(mediaType, listOf(StreamingProvider.entries[0], StreamingProvider.entries[1]), emptyList())
+        .rowSpecs(mediaType, listOf(StreamingProvider.entries[0], StreamingProvider.entries[1]))
         .map { it.id }
 
     /** The user moves focus to card [index] of row [rowId] (the card's `onFocused`). */

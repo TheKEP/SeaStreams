@@ -2,6 +2,7 @@ package com.seastreams.tv.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -11,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -25,10 +27,9 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
-import com.seastreams.tv.ui.theme.FocusPill
-import com.seastreams.tv.ui.theme.OnFocusPill
 import com.seastreams.tv.ui.theme.TextPrimary
 import com.seastreams.tv.ui.theme.TextSecondary
+import com.seastreams.tv.ui.theme.focusPillColors
 import com.seastreams.tv.ui.theme.onDpadEdgeWrap
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
 import kotlinx.coroutines.launch
@@ -40,6 +41,7 @@ import kotlinx.coroutines.launch
  * - The selected entry keeps a translucent pill while focus is elsewhere; the focused one is white.
  * - Entering the list from the side restores focus to the selected entry ([selectedFocusRequester]).
  * - Edge-stop-then-wrap: holding `Down` stops on the last entry; a fresh `Down` there wraps to the first.
+ * - [onLongClick] (optional) runs when `OK` is held on an entry, with that entry's focus requester.
  */
 @Composable
 fun <T> HoverSidebar(
@@ -50,6 +52,9 @@ fun <T> HoverSidebar(
     modifier: Modifier = Modifier,
     selectedFocusRequester: FocusRequester = remember { FocusRequester() },
     firstEntry: FocusRequester = remember { FocusRequester() },
+    /** Optional right-aligned detail per entry, e.g. `10 episodes` on a season pill. */
+    trailing: (T) -> String? = { null },
+    onLongClick: ((entry: T, requester: FocusRequester) -> Unit)? = null,
 ) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -67,11 +72,15 @@ fun <T> HoverSidebar(
     ) {
         itemsIndexed(entries, key = { _, entry -> label(entry) }) { index, entry ->
             val isSelected = entry == selected
+            val requester = remember { FocusRequester() }
             SidebarEntry(
                 text = label(entry),
+                trailing = trailing(entry),
                 selected = isSelected,
                 onFocused = { if (!isSelected) onSelect(entry) },
+                onLongClick = onLongClick?.let { { it(entry, requester) } },
                 modifier = Modifier
+                    .focusRequester(requester)
                     .then(if (isSelected) Modifier.focusRequester(selectedFocusRequester) else Modifier)
                     .then(if (index == 0) Modifier.focusRequester(firstEntry) else Modifier)
                     .then(if (index == entries.lastIndex) Modifier.onDpadEdgeWrap(Key.DirectionDown, wrapToFirst) else Modifier),
@@ -81,27 +90,36 @@ fun <T> HoverSidebar(
 }
 
 @Composable
-private fun SidebarEntry(text: String, selected: Boolean, onFocused: () -> Unit, modifier: Modifier) {
+private fun SidebarEntry(
+    text: String,
+    trailing: String?,
+    selected: Boolean,
+    onFocused: () -> Unit,
+    onLongClick: (() -> Unit)?,
+    modifier: Modifier,
+) {
     val shape = RoundedCornerShape(50)
     Surface(
         onClick = onFocused,
+        onLongClick = onLongClick,
         modifier = modifier.fillMaxWidth().onFocusChanged { if (it.isFocused) onFocused() },
         shape = ClickableSurfaceDefaults.shape(shape),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
-        colors = ClickableSurfaceDefaults.colors(
+        colors = focusPillColors(
             containerColor = if (selected) Color.White.copy(alpha = 0.18f) else Color.Transparent,
             contentColor = if (selected) TextPrimary else TextSecondary,
-            focusedContainerColor = FocusPill,
-            focusedContentColor = OnFocusPill,
         ),
     ) {
-        Text(
-            text,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp),
-        )
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            if (trailing != null) Text(trailing, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+        }
     }
 }

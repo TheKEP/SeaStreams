@@ -80,7 +80,6 @@ function render() {
   status.className = 'badge ' + (st.tmdbKeySaved ? 'ok' : 'err');
   renderProfiles(st);
   renderAddons(st);
-  renderCatalogs(st);
   renderImportProfiles(st);
 }
 
@@ -194,21 +193,6 @@ async function removeAddon(a, button) {
   if (confirm('Remove addon "' + a.name + '"?')) await api('/addons/remove', { manifestUrl: a.manifestUrl }, button);
 }
 
-const PLACEMENT_LABELS = { HOME: 'Home', MOVIES: 'Movies', TV_SHOWS: 'TV Shows' };
-
-function renderCatalogs(st) {
-  const list = byId('catalog-list');
-  if (!st.catalogs.length) { list.replaceChildren(h('li', { class: 'empty' }, 'No custom rows yet.')); return; }
-  list.replaceChildren(...st.catalogs.map((c) => h('li', null,
-    h('div', { class: 'row' },
-      h('div', { class: 'grow' },
-        h('div', { class: 'title' }, c.title, ' ', h('span', { class: 'badge' }, PLACEMENT_LABELS[c.placement] || c.placement)),
-        h('div', { class: 'sub' }, c.url)),
-      h('button', { type: 'button', class: 'icon danger',
-        onclick: (e) => { if (confirm('Remove "' + c.title + '"?')) api('/catalogs/' + c.id + '/delete', {}, e.currentTarget); } },
-        'Remove')))));
-}
-
 function renderImportProfiles(st) {
   const select = byId('import-profile');
   const previous = select.value;
@@ -229,11 +213,6 @@ function bindForms() {
   byId('addon-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     if (await api('/addons', { manifestUrl: byId('addon-url').value }, submitButton(e))) byId('addon-url').value = '';
-  });
-  byId('catalog-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const body = { url: byId('catalog-url').value, placement: byId('catalog-placement').value, title: byId('catalog-title').value };
-    if (await api('/catalogs', body, submitButton(e))) { byId('catalog-url').value = ''; byId('catalog-title').value = ''; }
   });
   byId('import-form').addEventListener('submit', async (e) => {
     e.preventDefault();

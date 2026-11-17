@@ -27,7 +27,6 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.seastreams.tv.core.database.entity.ProfileEntity
 import com.seastreams.tv.ui.components.AvatarTile
-import com.seastreams.tv.ui.theme.Obsidian
 import com.seastreams.tv.ui.theme.TextSecondary
 
 /**
@@ -52,7 +51,7 @@ fun HomeRevealGate(
     Crossfade(
         targetState = revealed,
         animationSpec = tween(REVEAL_CROSSFADE_MILLIS),
-        modifier = Modifier.fillMaxSize().background(Obsidian),
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
         label = "homeReveal",
     ) { shown ->
         if (shown) {
@@ -74,7 +73,7 @@ private fun ProfileLoadingBadge(profile: ProfileEntity?) {
         animationSpec = infiniteRepeatable(tween(PULSE_MILLIS), RepeatMode.Reverse),
         label = "profileBadgeAlpha",
     )
-    Box(Modifier.fillMaxSize().background(Obsidian), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
         if (profile != null) {
             Column(
                 Modifier.graphicsLayer { alpha = pulse },

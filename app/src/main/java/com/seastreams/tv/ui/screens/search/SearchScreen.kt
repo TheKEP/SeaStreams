@@ -1,5 +1,6 @@
 package com.seastreams.tv.ui.screens.search
 
+import androidx.tv.material3.MaterialTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,7 +26,6 @@ import com.seastreams.tv.ui.components.HoverSidebar
 import com.seastreams.tv.ui.components.PosterGrid
 import com.seastreams.tv.ui.components.PosterGridPlaceholder
 import com.seastreams.tv.ui.components.RowGutter
-import com.seastreams.tv.ui.theme.Obsidian
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
 import kotlinx.coroutines.launch
 
@@ -65,7 +65,7 @@ fun SearchScreen(
     // One router per result set, so every new search opens scrolled to the top.
     val resultsFocus = remember(loaded) { SearchResultsFocus(loaded?.let(::resultSections).orEmpty()) }
 
-    Column(Modifier.fillMaxSize().background(Obsidian).padding(top = 28.dp)) {
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(top = 28.dp)) {
         SearchTopBar(
             query = query,
             onQueryChange = viewModel::onQueryChange,

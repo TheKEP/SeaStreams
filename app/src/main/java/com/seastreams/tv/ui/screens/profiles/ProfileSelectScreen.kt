@@ -48,8 +48,8 @@ import coil3.compose.AsyncImage
 import com.seastreams.tv.core.database.entity.ProfileEntity
 import com.seastreams.tv.ui.components.AvatarTile
 import com.seastreams.tv.ui.theme.FocusPill
-import com.seastreams.tv.ui.theme.Obsidian
 import com.seastreams.tv.ui.theme.TextSecondary
+import com.seastreams.tv.ui.theme.focusPillColors
 
 private val TileSize = 76.dp
 private val FocusedTileSize = 108.dp
@@ -72,7 +72,7 @@ fun ProfileSelectScreen(
         if (state.profiles.isNotEmpty()) runCatching { initialFocus.requestFocus() }
     }
 
-    Box(Modifier.fillMaxSize().background(Obsidian)) {
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Backdrop(state.backdropUrl, Modifier.align(Alignment.CenterEnd))
         Column(
             Modifier.fillMaxHeight().padding(start = 40.dp, top = 40.dp),
@@ -115,7 +115,7 @@ private fun Backdrop(url: String?, modifier: Modifier) {
         // Left vignette blending the artwork into the profile column.
         Box(
             Modifier.fillMaxHeight().width(360.dp)
-                .background(Brush.horizontalGradient(listOf(Obsidian, Obsidian.copy(alpha = 0.6f), Color.Transparent))),
+                .background(Brush.horizontalGradient(listOf(MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.background.copy(alpha = 0.6f), Color.Transparent))),
         )
     }
 }
@@ -142,12 +142,7 @@ private fun ProfileRow(
             onClick = onEdit,
             modifier = Modifier.size(40.dp).alpha(if (rowHasFocus) 1f else 0f),
             shape = ClickableSurfaceDefaults.shape(CircleShape),
-            colors = ClickableSurfaceDefaults.colors(
-                containerColor = Color.Transparent,
-                contentColor = TextSecondary,
-                focusedContainerColor = FocusPill,
-                focusedContentColor = Obsidian,
-            ),
+            colors = focusPillColors(contentColor = TextSecondary),
         ) {
             Icon(Icons.Filled.Edit, contentDescription = "Edit ${profile.name}", modifier = Modifier.padding(10.dp))
         }

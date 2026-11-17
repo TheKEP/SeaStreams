@@ -29,6 +29,7 @@ import javax.inject.Singleton
  *   US certification) and filtered as it is collected.
  * - TMDB lists (`/discover`, `/trending`) already carry posters. Adult profiles get them as-is (no
  *   per-title calls); Kids profiles have each title hydrated to learn its certification first.
+ * - Stremio addon catalogs are delegated to [AddonCatalogLoader], filtered through [allowed].
  *
  * Every response is HTTP-cached for 6–12h and no `/external_ids` call is ever made here (rule 5).
  */
@@ -40,11 +41,13 @@ class CatalogLoader @Inject constructor(
     private val imageUrls: TmdbImageUrls,
     private val genres: GenreRepository,
     private val ageEngine: AgeRestrictionEngine,
+    private val addonCatalogs: AddonCatalogLoader,
 ) {
     /** Up to [cap] allowed titles of [source], in source order. */
     suspend fun load(source: CatalogSource, restriction: AgeRestriction?, cap: Int): CatalogRow = when (source) {
         is CatalogSource.MdbList -> collectAllowed(fetchRefs(source.listUrl), restriction, cap)
         is CatalogSource.Discover, is CatalogSource.Trending -> loadTmdbList(source, restriction, cap)
+        is CatalogSource.Addon -> addonCatalogs.load(source, cap) { allowed(it, restriction) }
     }
 
     /**
@@ -93,6 +96,7 @@ class CatalogLoader @Inject constructor(
         return when (source) {
             is CatalogSource.MdbList -> expandMdbList(source, restriction, cap, seed)
             is CatalogSource.Discover, is CatalogSource.Trending -> expandTmdbList(source, restriction, cap, seed, seedPages)
+            is CatalogSource.Addon -> addonCatalogs.expand(source, cap, seed) { allowed(it, restriction) }
         }
     }
 
@@ -160,7 +164,7 @@ class CatalogLoader @Inject constructor(
                     TitlePage(result.results.map { it.toMediaItem(imageUrls, names) }, result.totalPages)
                 }
             }
-            is CatalogSource.MdbList -> error("MDBList sources are not paged through TMDB")
+            is CatalogSource.MdbList, is CatalogSource.Addon -> error("Only TMDB list sources are paged through TMDB")
         }
 
     private fun isAllowed(item: MediaItem, restriction: AgeRestriction?): Boolean =
@@ -178,6 +182,7 @@ class CatalogLoader @Inject constructor(
         private fun CatalogSource.mediaType(): MediaType = when (this) {
             is CatalogSource.Discover -> mediaType
             is CatalogSource.Trending -> mediaType
+            is CatalogSource.Addon -> mediaType
             is CatalogSource.MdbList -> MediaType.MOVIE
         }
     }

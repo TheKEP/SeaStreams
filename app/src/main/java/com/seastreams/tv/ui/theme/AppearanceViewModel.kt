@@ -1,0 +1,57 @@
+package com.seastreams.tv.ui.theme
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.seastreams.tv.core.datastore.BackgroundSwatches
+import com.seastreams.tv.core.datastore.CatalogRowScrollSpeed
+import com.seastreams.tv.core.datastore.SettingsDataStore
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+/**
+ * The app-wide page background (PRD §10 Visual Background Color Picker). [background] is the saved
+ * colour, or the swatch being previewed while the picker has focus on it.
+ */
+@HiltViewModel
+class AppearanceViewModel @Inject constructor(private val settings: SettingsDataStore) : ViewModel() {
+
+    val saved: StateFlow<Int> = settings.settings
+        .map { it.appearance.backgroundArgb }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, BackgroundSwatches.DEFAULT)
+
+    /** Catalog row glide / card widen timing for Home, Movies and TV Shows. */
+    val catalogRowScrollSpeed: StateFlow<CatalogRowScrollSpeed> = settings.settings
+        .map { it.appearance.catalogRowScrollSpeed }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, CatalogRowScrollSpeed.DEFAULT)
+
+    private val preview = MutableStateFlow<Int?>(null)
+
+    val background: StateFlow<Int> = combine(saved, preview) { savedColor, previewColor -> previewColor ?: savedColor }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, BackgroundSwatches.DEFAULT)
+
+    /** Focus moved onto a swatch: show it at once without saving. */
+    fun preview(argb: Int) {
+        preview.value = argb
+    }
+
+    /** `Back` (or leaving the swatches): drop the preview and show the saved colour again. */
+    fun cancelPreview() {
+        preview.value = null
+    }
+
+    /** `Enter` on a swatch: persist it. The preview is held until the saved value has caught up. */
+    fun confirm(argb: Int) {
+        preview.value = argb
+        viewModelScope.launch {
+            settings.setBackgroundColor(argb)
+            preview.compareAndSet(argb, null)
+        }
+    }
+}

@@ -8,10 +8,10 @@ class SnapItemToTopTest {
 
     @Test
     fun `easing is clamped and ends at one`() {
-        assertEquals(0f, glideEasing(-1f))
-        assertEquals(0f, glideEasing(0f))
-        assertEquals(1f, glideEasing(1f))
-        assertEquals(1f, glideEasing(2f))
+        assertEquals(0f, glideProgress(-1f))
+        assertEquals(0f, glideProgress(0f))
+        assertEquals(1f, glideProgress(1f))
+        assertEquals(1f, glideProgress(2f))
     }
 
     @Test
@@ -23,7 +23,7 @@ class SnapItemToTopTest {
     fun `easing is monotonic`() {
         var previous = 0f
         for (frame in 1..100) {
-            val value = glideEasing(frame / 100f)
+            val value = glideProgress(frame / 100f)
             assertTrue(value >= previous, "frame $frame: $value < $previous")
             previous = value
         }
@@ -51,7 +51,7 @@ class SnapItemToTopTest {
     fun `a step never passes the target`() {
         var eased = 0f
         for (frame in 1..20) {
-            val next = glideEasing(frame / 20f)
+            val next = glideProgress(frame / 20f)
             val fraction = glideStepFraction(eased, next)
             assertTrue(fraction in 0f..1f, "frame $frame fraction $fraction")
             eased = next
@@ -74,7 +74,7 @@ class SnapItemToTopTest {
             var offset = start
             var eased = 0f
             for (frame in 1..15) {
-                val next = glideEasing(frame / 15f)
+                val next = glideProgress(frame / 15f)
                 // The glide reads the previous frame's layout; this frame's scroll and collapse land together.
                 val step = offset * glideStepFraction(eased, next)
                 eased = next

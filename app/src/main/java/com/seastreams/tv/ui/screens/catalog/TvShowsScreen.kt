@@ -1,6 +1,7 @@
 package com.seastreams.tv.ui.screens.catalog
 
 import androidx.compose.runtime.Composable
+import com.seastreams.tv.core.datastore.CatalogRowScrollSpeed
 import com.seastreams.tv.domain.model.CatalogRowSpec
 import com.seastreams.tv.domain.model.MediaItem
 import com.seastreams.tv.domain.model.MediaType
@@ -17,6 +18,7 @@ fun TvShowsScreen(
     onOpenDetails: (MediaItem) -> Unit,
     onViewMore: (CatalogRowSpec) -> Unit,
     returnFocus: ReturnRowFocus,
+    scrollSpeed: CatalogRowScrollSpeed,
 ) {
     DiscoverTabScreen(
         profileId = profileId,
@@ -28,5 +30,6 @@ fun TvShowsScreen(
         onOpenDetails = onOpenDetails,
         onViewMore = onViewMore,
         returnFocus = returnFocus,
+        scrollSpeed = scrollSpeed,
     )
 }

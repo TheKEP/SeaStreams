@@ -19,8 +19,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Border
@@ -38,6 +38,7 @@ import com.seastreams.tv.ui.theme.OnFocusPill
 import com.seastreams.tv.ui.theme.OutlineDim
 import com.seastreams.tv.ui.theme.TextPrimary
 import com.seastreams.tv.ui.theme.TextSecondary
+import com.seastreams.tv.ui.theme.focusPillColors
 import com.seastreams.tv.ui.theme.onDpadKeyDown
 
 /**
@@ -110,12 +111,7 @@ private fun RecentSearchChips(recent: List<String>, onClick: (String) -> Unit, o
                 shape = ClickableSurfaceDefaults.shape(shape),
                 scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
                 border = ClickableSurfaceDefaults.border(border = Border(BorderStroke(1.dp, TextSecondary), shape = shape)),
-                colors = ClickableSurfaceDefaults.colors(
-                    containerColor = Color.Transparent,
-                    contentColor = TextPrimary,
-                    focusedContainerColor = FocusPill,
-                    focusedContentColor = OnFocusPill,
-                ),
+                colors = focusPillColors(),
             ) {
                 Text(text, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
             }

@@ -7,6 +7,8 @@ import com.seastreams.tv.core.datastore.SettingsDataStore
 import com.seastreams.tv.core.util.orNullUnlessCancelled
 import com.seastreams.tv.data.profile.ProfileRepository
 import com.seastreams.tv.data.profile.contentForProfile
+import com.seastreams.tv.domain.model.ContinueWatchingItem
+import com.seastreams.tv.domain.usecase.ContinueWatchingActions
 import com.seastreams.tv.domain.usecase.GetContinueWatchingUseCase
 import com.seastreams.tv.domain.usecase.GetHomeCatalogsUseCase
 import com.seastreams.tv.ui.screens.catalog.CatalogWarmupManager
@@ -24,6 +26,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
@@ -41,6 +44,7 @@ class HomeViewModel @Inject constructor(
     private val continueWatching: GetContinueWatchingUseCase,
     private val imagePrewarmer: HomeImagePrewarmer,
     private val catalogWarmup: CatalogWarmupManager,
+    private val continueWatchingActions: ContinueWatchingActions,
 ) : ViewModel() {
 
     private val profileId = MutableStateFlow<Long?>(null)
@@ -73,6 +77,16 @@ class HomeViewModel @Inject constructor(
      */
     fun onFirstLoadFinished(profile: ProfileEntity) {
         catalogWarmup.schedule(profile)
+    }
+
+    /** Continue Watching `Remove`: hides [item] but keeps its progress (the row updates from the database). */
+    fun removeFromContinueWatching(profileId: Long, item: ContinueWatchingItem) {
+        viewModelScope.launch { continueWatchingActions.remove(profileId, item) }
+    }
+
+    /** Continue Watching `Clear progress`: forgets [item]'s progress (that movie or single episode only). */
+    fun clearContinueWatchingProgress(profileId: Long, item: ContinueWatchingItem) {
+        viewModelScope.launch { continueWatchingActions.clearProgress(profileId, item) }
     }
 
     private fun contentFor(profile: ProfileEntity): Flow<HomeUiState> = combine(

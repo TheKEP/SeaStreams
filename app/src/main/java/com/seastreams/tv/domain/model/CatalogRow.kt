@@ -5,7 +5,7 @@ data class CatalogRow(val items: List<MediaItem>, val hasMore: Boolean)
 
 /** Where a row's (or a View More grid's) titles come from. */
 sealed interface CatalogSource {
-    /** A public mdblist.com list (Home rows and user-added catalogs). */
+    /** A public mdblist.com list (the built-in Home hero and rows). */
     data class MdbList(val listUrl: String) : CatalogSource
 
     /** TMDB `/discover`, most popular first, optionally limited to one streaming service or genre (PRD §5). */
@@ -17,6 +17,12 @@ sealed interface CatalogSource {
 
     /** TMDB `/trending/{type}/week`. */
     data class Trending(val mediaType: MediaType) : CatalogSource
+
+    /**
+     * A catalog declared in an enabled Stremio addon's manifest (`/catalog/{type}/{id}.json`).
+     * Shown on Home only, beneath the built-in rows (PRD §3).
+     */
+    data class Addon(val manifestUrl: String, val catalogId: String, val mediaType: MediaType) : CatalogSource
 }
 
 /** One catalog row: a stable id, its on-screen title and where its titles come from. */

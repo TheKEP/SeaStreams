@@ -26,6 +26,7 @@ class HttpCachePolicyTest {
         "https://api.themoviedb.org/3/tv/1399/external_ids, 12",
         "https://api.themoviedb.org/3/movie/550?append_to_response=credits, 12",
         "https://api.themoviedb.org/3/tv/1399/season/1, 12",
+        "https://api.themoviedb.org/3/find/tt0133093?external_source=imdb_id, 12",
         "https://mdblist.com/lists/official/movies/most-watched-week/json, 6",
     )
     fun `assigns the PRD TTL per endpoint`(url: String, expectedHours: Int) {

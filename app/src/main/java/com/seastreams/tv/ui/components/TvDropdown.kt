@@ -4,10 +4,10 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -42,12 +42,11 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
-import com.seastreams.tv.ui.theme.FocusPill
-import com.seastreams.tv.ui.theme.OnFocusPill
 import com.seastreams.tv.ui.theme.OutlineDim
 import com.seastreams.tv.ui.theme.SurfaceRaised
 import com.seastreams.tv.ui.theme.TextPrimary
 import com.seastreams.tv.ui.theme.TextSecondary
+import com.seastreams.tv.ui.theme.focusPillColors
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
 
 /**
@@ -86,12 +85,7 @@ fun <T> TvDropdown(
             shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(50)),
             scale = ClickableSurfaceDefaults.scale(focusedScale = 1.03f),
             border = ClickableSurfaceDefaults.border(border = Border(BorderStroke(1.dp, OutlineDim), shape = RoundedCornerShape(50))),
-            colors = ClickableSurfaceDefaults.colors(
-                containerColor = Color.White.copy(alpha = 0.08f),
-                contentColor = TextPrimary,
-                focusedContainerColor = FocusPill,
-                focusedContentColor = OnFocusPill,
-            ),
+            colors = focusPillColors(containerColor = Color.White.copy(alpha = 0.08f)),
         ) {
             Row(Modifier.fillMaxHeight().padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("$label: ", style = MaterialTheme.typography.labelLarge)
@@ -137,12 +131,7 @@ private fun <T> DropdownOptions(options: List<T>, selected: T, optionLabel: (T) 
                 modifier = if (isSelected) Modifier.focusRequester(selectedOption) else Modifier,
                 shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(10.dp)),
                 scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
-                colors = ClickableSurfaceDefaults.colors(
-                    containerColor = Color.Transparent,
-                    contentColor = if (isSelected) TextPrimary else TextSecondary,
-                    focusedContainerColor = FocusPill,
-                    focusedContentColor = OnFocusPill,
-                ),
+                colors = focusPillColors(contentColor = if (isSelected) TextPrimary else TextSecondary),
             ) {
                 Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(optionLabel(option), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
