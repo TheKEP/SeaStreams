@@ -29,6 +29,7 @@ import com.seastreams.tv.core.datastore.AudioSettings
 import com.seastreams.tv.core.datastore.DialogueBoost
 import com.seastreams.tv.core.datastore.SettingsDataStore
 import com.seastreams.tv.ui.components.SeaIcons
+import com.seastreams.tv.ui.screens.playback.StreamListPanel
 import com.seastreams.tv.ui.screens.settings.RowTrailing
 import com.seastreams.tv.ui.screens.settings.SUBTITLE_COLORS
 import com.seastreams.tv.ui.screens.settings.SettingsRow
@@ -49,7 +50,19 @@ fun PlayerPanels(panel: PlayerPanel, state: PlayerUiState, viewModel: PlayerView
     when (panel) {
         PlayerPanel.SUBTITLES -> PanelScaffold("Subtitles", modifier) { first -> subtitleItems(state, viewModel, first) }
         PlayerPanel.AUDIO -> PanelScaffold("Audio", modifier) { first -> audioItems(state, viewModel, first) }
-        PlayerPanel.STREAMS -> PanelScaffold("Streams", modifier) { first -> streamItems(state, viewModel, first) }
+        // Same container as the Details stream modal; Back is handled by the player (focus → Streams button).
+        PlayerPanel.STREAMS -> StreamListPanel(
+            title = state.title,
+            subtitle = if (state.isTrailer) "Trailer" else state.subtitle,
+            loading = false,
+            streams = state.streams,
+            emptyText = "No other streams",
+            onEmptyClick = {},
+            onChoose = { index, _ -> viewModel.selectStream(index) },
+            modifier = modifier,
+            selectedIndex = state.streamIndex,
+            showRank = true,
+        )
         PlayerPanel.EPISODES -> EpisodesPanel(state, viewModel, modifier)
         PlayerPanel.INFO -> InfoPanel(viewModel, modifier)
     }

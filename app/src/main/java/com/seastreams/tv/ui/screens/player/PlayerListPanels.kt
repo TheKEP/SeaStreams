@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,32 +31,10 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.seastreams.tv.ui.components.MetadataFormat
-import com.seastreams.tv.ui.screens.playback.StreamResultCard
 import com.seastreams.tv.ui.theme.SurfaceCard
 import com.seastreams.tv.ui.theme.TextSecondary
 import com.seastreams.tv.ui.theme.focusPillColors
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
-
-/**
- * Streams overlay: the resolved stream list as full, uncapped [StreamResultCard]s (rank + a check on
- * the playing stream); picking one hot-swaps it at the current position.
- */
-internal fun LazyListScope.streamItems(state: PlayerUiState, viewModel: PlayerViewModel, first: FocusRequester) {
-    if (state.streams.isEmpty()) {
-        item(key = "none") { OptionRow("No other streams", null, selected = false, onClick = {}, modifier = Modifier.focusRequester(first)) }
-    }
-    state.streams.forEachIndexed { index, stream ->
-        item(key = "stream-$index-${stream.url}") {
-            StreamResultCard(
-                stream = stream,
-                onClick = { viewModel.selectStream(index) },
-                modifier = if (index == 0) Modifier.focusRequester(first) else Modifier,
-                rank = index + 1,
-                selected = index == state.streamIndex,
-            )
-        }
-    }
-}
 
 /**
  * Episodes overlay: season pills across the top, the season's aired episodes below. Focus starts on
