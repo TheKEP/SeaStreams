@@ -45,6 +45,8 @@ import com.seastreams.tv.ui.theme.Obsidian
 import com.seastreams.tv.ui.theme.SurfaceCard
 import com.seastreams.tv.ui.theme.TextPrimary
 import com.seastreams.tv.ui.theme.focusRing
+import com.seastreams.tv.ui.theme.rememberSelectLongPress
+import com.seastreams.tv.ui.theme.selectLongPress
 
 /** Row artwork height: 2:3 posters are 145 × 218dp, the expanded 16:9 card 388 × 218dp. */
 val CardHeight = 218.dp
@@ -184,14 +186,18 @@ private fun ExpandingCardSurface(
         animationSpec = tween(expandDurationMs, easing = FastOutSlowInEasing),
         label = "cardWidth",
     )
+    // Long-press state must reset when the menu it opens takes focus (not the Surface's onLongClick).
+    val longPress = rememberSelectLongPress()
     Surface(
         onClick = {
-            origin.mark()
-            onClick()
+            if (!longPress.consumeClick()) {
+                origin.mark()
+                onClick()
+            }
         },
-        onLongClick = onLongClick,
         modifier = modifier
             .focusRequester(origin.requester)
+            .selectLongPress(longPress, onLongClick)
             .width(width)
             .height(CardHeight)
             .onFocusChanged {
