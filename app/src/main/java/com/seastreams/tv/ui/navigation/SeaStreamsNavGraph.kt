@@ -18,6 +18,8 @@ import com.seastreams.tv.ui.screens.home.HomeViewModel
 import com.seastreams.tv.ui.screens.profiles.ProfileCreateScreen
 import com.seastreams.tv.ui.screens.profiles.ProfileEditorMode
 import com.seastreams.tv.ui.screens.profiles.ProfileSelectScreen
+import com.seastreams.tv.ui.screens.profiles.ProfileSelectViewModel
+import com.seastreams.tv.ui.screens.splash.SeaStreamsSplashScreen
 
 /** Editor overlay state: closed, creating a new profile, or editing the profile with that id. */
 private const val EDITOR_CLOSED = -1L
@@ -27,6 +29,20 @@ private const val EDITOR_NEW = 0L
 fun SeaStreamsNavGraph() {
     val gateViewModel: AppGateViewModel = activityViewModel()
     val gate by gateViewModel.gate.collectAsState()
+    // Saveable so the splash shows once per process, not again after activity recreation.
+    var splashDone by rememberSaveable { mutableStateOf(false) }
+
+    if (!splashDone) {
+        // Creating the (activity-scoped) gate VM now starts its backdrop fetch + decode behind the
+        // splash. Only once profiles exist: the Kids-aware artwork filter (rule 6) reads the
+        // profile list when the fetch starts.
+        if (gate == AppGate.Ready) activityViewModel<ProfileSelectViewModel>()
+        SeaStreamsSplashScreen(
+            isStartupReady = gate != AppGate.Loading,
+            onSplashFinished = { splashDone = true },
+        )
+        return
+    }
 
     when (gate) {
         AppGate.Loading -> Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
