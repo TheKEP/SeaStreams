@@ -5,10 +5,8 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -22,12 +20,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -53,8 +51,8 @@ import kotlinx.coroutines.launch
 
 /**
  * Item Details (`movie-page.jpg`, `show-page.jpg`): full-bleed backdrop with a left vignette, title
- * logo, `👍 81%  2026  Comedy  Adventure  [PG]  1h 49m`, a 3-line synopsis, cast, and the action
- * stack. Focus starts on `Play`; `Back` is handled by the shell, which returns focus to the card
+ * logo, `👍 81%  2026  Comedy  Adventure  [PG]  1h 49m`, a 5-line synopsis and the action stack on the
+ * left, and the non-focusable Director + Cast card ([DetailsCastGrid]) vertically centred on the right. Focus starts on `Play`; `Back` is handled by the shell, which returns focus to the card
  * that opened this screen.
  *
  * `Play` auto-plays the top stream when *Auto-play top stream* is on; a long-press always opens the
@@ -135,17 +133,19 @@ fun DetailsScreen(
             ),
         )
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.6f to Color.Transparent, 1f to background.copy(alpha = 0.7f))))
+        // Top-aligned left column. Scrolls only when a short screen can't fit the stack, so a focused
+        // button is never off screen.
         Column(
-            // Scrolls only when a short screen can't fit the stack, so a focused button is never off screen.
-            Modifier.fillMaxHeight().verticalScroll(rememberScrollState()).padding(start = 64.dp, top = 32.dp, bottom = 24.dp).width(560.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            Modifier.fillMaxHeight().verticalScroll(rememberScrollState()).padding(start = 64.dp, top = 24.dp, bottom = 24.dp).width(LeftColumnWidth),
+            verticalArrangement = Arrangement.spacedBy(ColumnSpacing),
         ) {
             TitleArt(media, logoSize = LogoSize, textStyle = MaterialTheme.typography.displaySmall)
             MediaMetadataLine(media, showCertification = true, maxGenres = MAX_GENRES)
             DetailsBody(state, media)
-            Spacer(Modifier.height(4.dp))
             DetailsActionStack(actions, firstButton)
         }
+        // Centred on the full screen height, outside the scroll, so it never moves with the left column.
+        DetailsCastGrid(state.details?.credits.orEmpty(), Modifier.align(Alignment.CenterEnd).padding(end = 48.dp))
     }
 }
 
@@ -162,18 +162,7 @@ private fun DetailsBody(state: DetailsUiState, media: MediaItem) {
         )
         else -> {
             if (media.overview.isNotBlank()) {
-                Text(media.overview, style = MaterialTheme.typography.bodyLarge, maxLines = 3, overflow = TextOverflow.Ellipsis)
-            }
-            val cast = state.details?.cast.orEmpty()
-            if (cast.isNotEmpty()) {
-                Text(
-                    "Cast: ${cast.joinToString()}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Text(media.overview, style = MaterialTheme.typography.bodyLarge, maxLines = SYNOPSIS_LINES, overflow = TextOverflow.Ellipsis)
             }
             val progressNote = resumeNote(state)
             if (progressNote != null) Text(progressNote, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
@@ -192,3 +181,6 @@ private fun resumeNote(state: DetailsUiState): String? {
 private val BackdropSize = DpSize(960.dp, 540.dp)
 private val LogoSize = DpSize(340.dp, 80.dp)
 private const val MAX_GENRES = 2
+private const val SYNOPSIS_LINES = 5
+private val LeftColumnWidth = 560.dp
+private val ColumnSpacing = 8.dp

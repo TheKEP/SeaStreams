@@ -17,8 +17,8 @@ data class SeasonInfo(val number: Int, val name: String, val episodeCount: Int)
  */
 data class TitleDetails(
     val media: MediaItem,
-    /** Up to [MAX_CAST] top-billed cast names. */
-    val cast: List<String>,
+    /** Director (or a show's creator) first, then up to [MAX_CAST] top-billed cast; at most [MAX_CREDITS] distinct people. */
+    val credits: List<CreditPerson>,
     val genreIds: List<Int>,
     /** TMDB relative image paths, stored with watch progress and library rows. */
     val posterPath: String?,
@@ -31,9 +31,22 @@ data class TitleDetails(
     val ref: MediaRef get() = media.ref
 
     companion object {
-        const val MAX_CAST = 4
+        const val MAX_CAST = 9
+        const val MAX_CREDITS = MAX_CAST + 1
     }
 }
+
+/**
+ * One person in the Details cast grid. [role] is `Director`/`Creator` when [isDirector], otherwise the
+ * character name (`null` when TMDB has none). [profileUrl] is `null` when TMDB has no headshot.
+ */
+data class CreditPerson(
+    val id: Int,
+    val name: String,
+    val role: String?,
+    val profileUrl: String?,
+    val isDirector: Boolean,
+)
 
 /** One episode as listed on the Episodes screen. */
 data class Episode(
