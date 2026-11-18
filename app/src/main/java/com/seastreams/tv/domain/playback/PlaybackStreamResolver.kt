@@ -10,6 +10,7 @@ import com.seastreams.tv.domain.usecase.StreamQuery
 import com.seastreams.tv.domain.usecase.StreamResolution
 import com.seastreams.tv.domain.usecase.topStream
 import javax.inject.Inject
+import kotlin.random.Random
 
 /** A target with its streams resolved; [topIndex] is the auto-play stream's index, `-1` when there are none. */
 data class ResolvedPlayback(val target: PlaybackTarget, val resolution: StreamResolution, val topIndex: Int) {
@@ -40,12 +41,16 @@ class PlaybackStreamResolver @Inject constructor(
         return ResolvedPlayback(withInfo, resolution, top?.let(resolution.streams::indexOf) ?: -1)
     }
 
-    /** The episode after [finished] (resolved and ready to auto-play), or [NextEpisode.CaughtUp]. */
-    suspend fun next(finished: PlaybackTarget, preferredAddonUrl: String?): NextEpisode {
+    /**
+     * The episode after [finished] (resolved and ready to auto-play), or [NextEpisode.CaughtUp]. Follows
+     * [finished]'s shuffle session (sequential, show-wide or single-season) and carries it forward.
+     */
+    suspend fun next(finished: PlaybackTarget, preferredAddonUrl: String?, random: Random = Random.Default): NextEpisode {
         val episode = finished.episode ?: return NextEpisode.CaughtUp
         val details = finished.details
-        val next = EpisodeNavigator.next(episode, details.seasons, details.lastAired) ?: return NextEpisode.CaughtUp
-        val target = PlaybackTarget(finished.profileId, details, finished.imdbId, next)
+        val pick = EpisodeNavigator.next(episode, details.seasons, details.lastAired, finished.shuffle, random)
+            ?: return NextEpisode.CaughtUp
+        val target = PlaybackTarget(finished.profileId, details, finished.imdbId, pick.episode, shuffle = pick.session)
         return NextEpisode.Found(resolve(target, preferredAddonUrl))
     }
 

@@ -14,6 +14,8 @@ import com.seastreams.tv.domain.playback.PlaybackProgressRecorder
 import com.seastreams.tv.domain.playback.PlaybackTarget
 import com.seastreams.tv.domain.playback.ProgressPoint
 import com.seastreams.tv.domain.playback.SeasonEpisodeSelection
+import com.seastreams.tv.domain.playback.ShuffleMode
+import com.seastreams.tv.domain.playback.ShuffleSession
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -141,11 +143,15 @@ class EpisodesViewModel @Inject constructor(
         viewModelScope.launch { apply(profileId, details, listOf(episode), watched) }
     }
 
-    /** `Shuffle Season`: a random aired episode of [season] only, ready to play; `null` if it has none. */
+    /**
+     * `Shuffle Season`: a random aired episode of [season] only, ready to play, starting a
+     * season-scoped shuffle that Next Episode / Auto-Play Next Episode follow; `null` if it has none.
+     */
     suspend fun shuffleTarget(season: Int): PlaybackTarget? {
         val details = _state.value.details ?: return null
         val episodes = episodesOf(details, season) ?: return null
-        return SeasonEpisodeSelection.shuffle(episodes, season, details.lastAired)?.let(::target)
+        val episode = SeasonEpisodeSelection.shuffle(episodes, season, details.lastAired) ?: return null
+        return target(episode)?.copy(shuffle = ShuffleSession.start(ShuffleMode.Season(season), episode.ref))
     }
 
     private fun mark(season: Int, watched: Boolean, pick: (List<Episode>) -> List<Episode>) {
