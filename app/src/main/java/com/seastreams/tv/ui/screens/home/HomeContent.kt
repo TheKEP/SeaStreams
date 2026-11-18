@@ -135,7 +135,7 @@ private fun HomeSectionContent(
                 focusedIndexState = rowFocus.memory.stateFor(section.key, content.row.items.map { it.key }),
                 activeCard = rowFocus.cards.of(section.key),
                 scrollSpeed = scrollSpeed,
-                inlineTrailers = true,
+                trailerRowKey = "home/${section.key}",
             )
         }
     }

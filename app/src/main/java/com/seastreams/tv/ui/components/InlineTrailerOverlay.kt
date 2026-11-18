@@ -24,7 +24,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.tv.material3.Icon
 import com.seastreams.tv.domain.model.MediaItem
+import com.seastreams.tv.player.InlineTrailerSlot
 import com.seastreams.tv.player.InlineTrailerState
+import com.seastreams.tv.player.playsIn
 import com.seastreams.tv.ui.screens.catalog.InlineTrailerViewModel
 
 /** The profile shell's trailer preview host; `null` where previews aren't offered. */
@@ -34,14 +36,18 @@ val LocalInlineTrailers = staticCompositionLocalOf<InlineTrailerViewModel?> { nu
  * Draws [item]'s trailer inside its expanded 16:9 card while it plays (PRD §4): the video fills the
  * artwork frame (the card's focus ring and the metadata below are untouched), with a small white
  * muted-speaker badge in the top-right corner when muted, moved left of the watched checkmark when
- * there is one. Draws nothing, so the backdrop stays, whenever no preview is playing for [item].
+ * there is one.
+ *
+ * Single-Card Binding: the surface is attached only when this card's [slot] owns the preview *and*
+ * the card holds D-pad focus ([playsIn]). The same title left wide on another, unfocused row draws
+ * nothing here, so it keeps its static backdrop and never takes the shared player's surface.
  */
 @Composable
-fun BoxScope.InlineTrailerOverlay(item: MediaItem) {
+fun BoxScope.InlineTrailerOverlay(item: MediaItem, slot: InlineTrailerSlot, cardFocused: Boolean) {
     val trailers = LocalInlineTrailers.current ?: return
     val state by trailers.state.collectAsState()
+    if (!state.playsIn(slot, cardFocused)) return
     val playing = state as? InlineTrailerState.Playing ?: return
-    if (playing.itemKey != item.key) return
     val player by trailers.player.collectAsState()
     val current = player ?: return
     Box(Modifier.fillMaxSize().background(Color.Black)) {
