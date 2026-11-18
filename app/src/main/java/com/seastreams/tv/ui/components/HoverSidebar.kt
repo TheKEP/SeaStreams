@@ -31,6 +31,8 @@ import com.seastreams.tv.ui.theme.TextPrimary
 import com.seastreams.tv.ui.theme.TextSecondary
 import com.seastreams.tv.ui.theme.focusPillColors
 import com.seastreams.tv.ui.theme.onDpadEdgeWrap
+import com.seastreams.tv.ui.theme.rememberSelectLongPress
+import com.seastreams.tv.ui.theme.selectLongPress
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
 import kotlinx.coroutines.launch
 
@@ -99,10 +101,14 @@ private fun SidebarEntry(
     modifier: Modifier,
 ) {
     val shape = RoundedCornerShape(50)
+    // Long-press state must reset when the menu it opens takes focus (not the Surface's onLongClick).
+    val longPress = rememberSelectLongPress()
     Surface(
-        onClick = onFocused,
-        onLongClick = onLongClick,
-        modifier = modifier.fillMaxWidth().onFocusChanged { if (it.isFocused) onFocused() },
+        onClick = { if (!longPress.consumeClick()) onFocused() },
+        modifier = modifier
+            .selectLongPress(longPress, onLongClick)
+            .fillMaxWidth()
+            .onFocusChanged { if (it.isFocused) onFocused() },
         shape = ClickableSurfaceDefaults.shape(shape),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
         colors = focusPillColors(
