@@ -47,6 +47,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.seastreams.tv.core.datastore.CatalogRowScrollSpeed
 import com.seastreams.tv.domain.model.MediaItem
+import com.seastreams.tv.player.InlineTrailerSlot
 import com.seastreams.tv.ui.theme.ManualBringIntoViewSpec
 import com.seastreams.tv.ui.theme.TextSecondary
 import com.seastreams.tv.ui.theme.onDpadEdgeWrap
@@ -116,10 +117,13 @@ fun ExpandingCatalogRow(
     activeCard: FocusRequester = remember { FocusRequester() },
     /** Catalog row scroll speed setting: horizontal glide and card widen timing. */
     scrollSpeed: CatalogRowScrollSpeed,
-    /** Hovering an expanded card plays its trailer inside it (Home/Movies/TV rows, not Continue Watching). */
-    inlineTrailers: Boolean = false,
+    /**
+     * This row instance's unique id (across tabs) when hovering a card plays its trailer inside it
+     * (Home/Movies/TV rows); `null` (Continue Watching) means no previews.
+     */
+    trailerRowKey: String? = null,
 ) {
-    val trailers = if (inlineTrailers) LocalInlineTrailers.current else null
+    val trailers = if (trailerRowKey != null) LocalInlineTrailers.current else null
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var focusedIndex by focusedIndexState
@@ -187,16 +191,23 @@ fun ExpandingCatalogRow(
                 horizontalArrangement = Arrangement.spacedBy(CardSpacing),
             ) {
                 itemsIndexed(items, key = { _, item -> item.key }) { index, item ->
+                    val slot = InlineTrailerSlot(trailerRowKey.orEmpty(), index, item.key)
+                    // Only the card holding D-pad focus may show the preview (PRD §4 Single-Card Binding).
+                    var cardFocused by remember(slot) { mutableStateOf(false) }
                     ExpandingMediaCard(
                         item = item,
                         expanded = index == expandedIndex,
                         onClick = { onItemClick(index) },
                         onFocused = {
+                            cardFocused = true
                             focusedIndex = index
                             glideTo(index)
-                            trailers?.onCardFocused(item)
+                            trailers?.onCardFocused(slot, item)
                         },
-                        onBlurred = { trailers?.onFocusLeft(item.key) },
+                        onBlurred = {
+                            cardFocused = false
+                            trailers?.onFocusLeft(slot)
+                        },
                         onLongClick = onItemLongClick?.let { { it(index) } },
                         expandDurationMs = scrollSpeed.expandDurationMs,
                         modifier = Modifier
@@ -205,7 +216,7 @@ fun ExpandingCatalogRow(
                             .then(if (index == lastIndex) Modifier.onDpadEdgeWrap(Key.DirectionRight, wrapToStart) else Modifier),
                         overlay = { expanded ->
                             cardOverlay(index, expanded)
-                            if (trailers != null && expanded) InlineTrailerOverlay(item)
+                            if (trailers != null && expanded) InlineTrailerOverlay(item, slot, cardFocused)
                         },
                     )
                 }

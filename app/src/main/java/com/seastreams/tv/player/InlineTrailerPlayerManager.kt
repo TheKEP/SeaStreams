@@ -25,6 +25,10 @@ import javax.inject.Singleton
  * The one ExoPlayer shared by every catalog row's 16:9 trailer preview (PRD §4). Created on first use,
  * [release]d when the app goes to the background, so only one preview decoder ever exists. Muted
  * previews don't take audio focus. Main thread only (apart from [start]'s IO hop).
+ *
+ * The manager knows nothing about cards: which card owns the preview is the controller's
+ * [InlineTrailerSlot] (row + index + title), and a card attaches its surface to [player] only when
+ * [playsIn] holds for its slot *and* it has D-pad focus, so at most one surface is ever bound.
  */
 @Singleton
 class InlineTrailerPlayerManager @Inject constructor(

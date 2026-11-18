@@ -31,7 +31,8 @@ app/src/main/java/com/seastreams/tv/
 ├── player/
 │   ├── SeaStreamsPlayerManager.kt    # ExoPlayer wrapper + LoadControl buffer profiles + Stream Fallback Timer (1s-10s) + MergingMediaSource trailers
 │   ├── ParallelRangeDataSource.kt    # Multi-connection HTTP Byte-Range DataSource wrapper (1-4 concurrent chunks) + live throughput tracker
-│   ├── InlineTrailerPlayerManager.kt # Single shared lifecycle-aware ExoPlayer for 16:9 catalog row hover previews
+│   ├── InlineTrailerController.kt    # Hover delay/cancellation + preview state, keyed by InlineTrailerSlot(rowKey, index, itemKey) — never by title alone; playsIn(slot, cardFocused) gates surface attachment
+│   ├── InlineTrailerPlayerManager.kt # Single shared lifecycle-aware ExoPlayer for 16:9 catalog row hover previews (card-agnostic; ownership lives in InlineTrailerController's slot)
 │   ├── audio/
 │   │   └── DialogueNightAudioProcessor.kt # Custom Media3 AudioProcessor (Center boost + DRC Night Mode)
 │   └── subtitle/
@@ -43,7 +44,7 @@ app/src/main/java/com/seastreams/tv/
     │   ├── TopNavBar.kt              # Avatar, Clock, Search, Home, Movies, TV Shows, Library, Settings
     │   ├── HeroCarousel.kt           # Full-width hero card with horizontal D-pad cycling
     │   ├── ExpandingCatalogRow.kt    # TvLazyRow with configurable scroll/expansion speed + 2:3 -> 16:9 transition + View More + wrap loop
-    │   ├── InlineTrailerOverlay.kt   # 16:9 card PlayerView surface + top-right white muted speaker badge
+    │   ├── InlineTrailerOverlay.kt   # 16:9 card PlayerView surface + top-right white muted speaker badge; attaches only when playsIn(slot, cardFocused) — the one focused card owning the playing slot, so a duplicate title on an unfocused row keeps its backdrop
     │   └── PosterGrid.kt             # 5-column TvLazyVerticalGrid
     └── screens/
         ├── splash/                   # SplashScreen.kt (black hold screen, icon + Fredoka "seastreams" 420ms black start, then one-shot 2.84s left-to-right pop-in + bobbing; >= 3.35s AND AppGate loaded; preloads Profile Gate backdrop)

@@ -12,6 +12,7 @@ import com.seastreams.tv.domain.usecase.ResolveTrailerStreamUseCase
 import com.seastreams.tv.player.InlineTrailerController
 import com.seastreams.tv.player.InlineTrailerPlayerManager
 import com.seastreams.tv.player.InlineTrailerSettings
+import com.seastreams.tv.player.InlineTrailerSlot
 import com.seastreams.tv.player.InlineTrailerState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -47,9 +48,9 @@ class InlineTrailerViewModel @Inject constructor(
     val state: StateFlow<InlineTrailerState> = controller.state
     val player: StateFlow<ExoPlayer?> = manager.player
 
-    fun onCardFocused(item: MediaItem) = controller.onCardFocused(item)
+    fun onCardFocused(slot: InlineTrailerSlot, item: MediaItem) = controller.onCardFocused(slot, item)
 
-    fun onFocusLeft(itemKey: String) = controller.onFocusLeft(itemKey)
+    fun onFocusLeft(slot: InlineTrailerSlot) = controller.onFocusLeft(slot)
 
     fun cancel() = controller.cancel()
 

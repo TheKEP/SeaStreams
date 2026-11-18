@@ -88,7 +88,7 @@ fun DiscoverTabScreen(
     LaunchedEffect(state.profile?.isKids) { if (state.profile?.isKids == true) onTabSelected(NavTab.HOME) }
 
     TabScaffold(state.profile, tab, onTabSelected, onSwitchProfile) { chrome ->
-        DiscoverContent(state, chrome, viewModel::toggleProvider, onOpenDetails, onViewMore, returnFocus, scrollSpeed)
+        DiscoverContent(state, tab, chrome, viewModel::toggleProvider, onOpenDetails, onViewMore, returnFocus, scrollSpeed)
     }
 }
 
@@ -96,6 +96,7 @@ fun DiscoverTabScreen(
 @Composable
 private fun DiscoverContent(
     state: DiscoverUiState,
+    tab: NavTab,
     chrome: TabChrome,
     onToggleProvider: (StreamingProvider, Boolean) -> Unit,
     onOpenDetails: (MediaItem) -> Unit,
@@ -196,6 +197,7 @@ private fun DiscoverContent(
                         onViewMore = onViewMore,
                         returnFocus = returnFocus,
                         scrollSpeed = scrollSpeed,
+                        trailerRowKey = "${tab.name}/${row.spec.id}",
                     )
                 }
             }
@@ -227,6 +229,8 @@ private fun DiscoverRow(
     onViewMore: (CatalogRowSpec) -> Unit,
     returnFocus: ReturnRowFocus,
     scrollSpeed: CatalogRowScrollSpeed,
+    /** Unique across tabs, so the same title on a Home and a Movies row never shares a preview slot. */
+    trailerRowKey: String,
 ) {
     val ownFirstCard = remember { FocusRequester() }
     val ownActiveCard = remember { FocusRequester() }
@@ -245,7 +249,7 @@ private fun DiscoverRow(
             focusedIndexState = rowFocus.stateFor(row.spec.id, content.row.items.map { it.key }),
             activeCard = activeCard ?: ownActiveCard,
             scrollSpeed = scrollSpeed,
-            inlineTrailers = true,
+            trailerRowKey = trailerRowKey,
         )
     }
 }
