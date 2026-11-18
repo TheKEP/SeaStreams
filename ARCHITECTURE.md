@@ -23,7 +23,7 @@ app/src/main/java/com/seastreams/tv/
 │       ├── LocalPortalServer.kt      # Embedded Ktor CIO server on port 8765
 │       └── PortalHtmlTemplate.kt     # Mobile-responsive HTML/JS UI served to phone/PC browsers
 ├── domain/
-│   ├── model/                        # MediaItem, TitleDetails + CreditPerson (director/creator + top 9 cast), Episode, StreamSource, SubtitleTrack, UserProfile, AddonConfig, PlaybackRequest
+│   ├── model/                        # MediaItem, TitleDetails + CreditPerson (director/creator + top 9 cast), Episode, StreamSource, SubtitleTrack, UserProfile, AddonConfig, PlaybackRequest (`Media.artwork: PlaybackArtwork` = backdrop/logo/title for the loading screen, derived from `target.details.media` so every entry point and in-player switch carries it)
 │   ├── filter/
 │   │   ├── AgeRestrictionEngine.kt   # Pure Kotlin certification + genre safety evaluator (Kids profiles & Profile Gate artwork)
 │   │   └── SdhSubtitleCleaner.kt     # Pure Kotlin SDH cue stripper
@@ -59,5 +59,5 @@ app/src/main/java/com/seastreams/tv/
         ├── details/                  # DetailsScreen.kt, DetailsCastGrid.kt (translucent rounded card, 2x5 Director + Cast portraits, non-focusable), EpisodesScreen.kt
         ├── search/                   # SearchScreen.kt (Voice mic + hover genre sidebar)
         ├── library/                  # LibraryScreen.kt (All/Movies/Shows + Sort + A-Z jump bar)
-        ├── player/                   # PlayerScreen.kt + PlayerOverlayControls.kt
+        ├── player/                   # PlayerScreen.kt + PlayerOverlayControls.kt; PlayerTransport.kt (play/pause/seek); PlayerLoading.kt (pure LoadingVisual state machine: `PlayerUiState.started` is reset by every new stream and set by `PlayerEvent.FirstFrame` [`onRenderedFirstFrame`]. Not started → BACKDROP_AND_LOGO; started + buffering → LOGO_ONLY; trailers → NONE); PlayerLoadingOverlay.kt (full-screen backdrop + pulsing logo/title, also drawn by playback/PlaybackHost.kt while `PlaybackUiState.loading` covers auto-play's stream lookup)
         └── settings/                 # SettingsScreen.kt (Addons, Providers, Playback, Audio, Subtitles, QR Portal)
