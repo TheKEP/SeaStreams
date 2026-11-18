@@ -219,36 +219,28 @@ class SettingsDataStoreTest {
     }
 
     @Test
-    fun `catalog row scroll speed defaults to slow`() = runTest {
-        assertEquals(CatalogRowScrollSpeed.SLOW, settings.settings.first().appearance.catalogRowScrollSpeed)
+    fun `swatches are the seven picker colours in order, ending with ochre`() {
+        val expected = listOf(0xFF000000, 0xFF171535, 0xFF351529, 0xFF351515, 0xFF153535, 0xFF151F35, 0xFF916405)
+        assertEquals(expected.map { it.toInt() }, BackgroundSwatches.ALL)
     }
 
     @Test
-    fun `medium and fast catalog row scroll speeds persist`() = runTest {
-        settings.setCatalogRowScrollSpeed(CatalogRowScrollSpeed.MEDIUM)
-        assertEquals(CatalogRowScrollSpeed.MEDIUM, settings.settings.first().appearance.catalogRowScrollSpeed)
+    fun `the ochre swatch persists across store instances`() = runTest {
+        val ochre = 0xFF916405.toInt()
+        settings.setBackgroundColor(ochre)
 
-        settings.setCatalogRowScrollSpeed(CatalogRowScrollSpeed.FAST)
-        assertEquals(CatalogRowScrollSpeed.FAST, settings.settings.first().appearance.catalogRowScrollSpeed)
-
-        // A fresh facade over the same file reads the saved value back.
-        assertEquals(CatalogRowScrollSpeed.FAST, SettingsDataStore(rawStore).settings.first().appearance.catalogRowScrollSpeed)
+        assertEquals(ochre, SettingsDataStore(rawStore).settings.first().appearance.backgroundArgb)
     }
 
     @Test
-    fun `an unknown stored catalog row scroll speed falls back to slow`() = runTest {
-        rawStore.edit { it[stringPreferencesKey("${SCOPE}ui_catalog_row_scroll_speed")] = "LUDICROUS" }
-        assertEquals(CatalogRowScrollSpeed.SLOW, settings.settings.first().appearance.catalogRowScrollSpeed)
-    }
+    fun `a leftover scroll speed value is ignored and purged`() = runTest {
+        rawStore.edit { it[stringPreferencesKey("${SCOPE}ui_catalog_row_scroll_speed")] = "FAST" }
+        settings.setBackgroundColor(0xFF916405.toInt())
 
-    @Test
-    fun `changing the scroll speed leaves the background untouched`() = runTest {
-        val color = BackgroundSwatches.ALL.last()
-        settings.setBackgroundColor(color)
-        settings.setCatalogRowScrollSpeed(CatalogRowScrollSpeed.MEDIUM)
-        val appearance = settings.settings.first().appearance
-        assertEquals(color, appearance.backgroundArgb)
-        assertEquals(CatalogRowScrollSpeed.MEDIUM, appearance.catalogRowScrollSpeed)
+        settings.purgeRetiredSettings()
+
+        assertNull(rawStore.data.first()[stringPreferencesKey("${SCOPE}ui_catalog_row_scroll_speed")])
+        assertEquals(0xFF916405.toInt(), settings.settings.first().appearance.backgroundArgb)
     }
 
     private companion object {

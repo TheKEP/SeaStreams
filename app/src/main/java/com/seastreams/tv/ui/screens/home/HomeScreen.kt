@@ -19,7 +19,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import com.seastreams.tv.core.datastore.CatalogRowScrollSpeed
 import com.seastreams.tv.ui.components.ActionMenu
 import com.seastreams.tv.ui.components.ActionMenuRequest
 import com.seastreams.tv.ui.components.HeroAutoCycleEffect
@@ -60,7 +59,6 @@ fun HomeScreen(
     onTabSelected: (NavTab) -> Unit,
     onSwitchProfile: () -> Unit,
     returnFocus: ReturnRowFocus = ReturnRowFocus.None,
-    scrollSpeed: CatalogRowScrollSpeed = CatalogRowScrollSpeed.DEFAULT,
 ) {
     LaunchedEffect(profileId) { viewModel.showProfile(profileId) }
     val latest by viewModel.uiState.collectAsState()
@@ -172,7 +170,7 @@ fun HomeScreen(
             )
             HomeContent(
                 state, sections, listState, heroCarousel, heroButton, wrapToTop, onNavigate, returnFocus,
-                RowFocus(rowFocus, cards, onContinueWatchingLongPress, continueWatchingMenuOpen = menu != null), scrollSpeed,
+                RowFocus(rowFocus, cards, onContinueWatchingLongPress, continueWatchingMenuOpen = menu != null),
             )
         }
         menu?.let { request -> ActionMenu(request, onClose = { menu = null }) }

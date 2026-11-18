@@ -79,7 +79,6 @@ class ProfileScopedSettingsTest {
 
         val fresh = settings.settings.first()
         assertEquals(BackgroundSwatches.DEFAULT, fresh.appearance.backgroundArgb)
-        assertEquals(CatalogRowScrollSpeed.SLOW, fresh.appearance.catalogRowScrollSpeed)
         assertEquals(PlaybackBufferProfile.LARGE, fresh.player.playbackBufferProfile)
         assertEquals(3, fresh.player.parallelStreamConnections)
         assertTrue(fresh.player.autoPlayNextEpisode)
@@ -149,6 +148,34 @@ class ProfileScopedSettingsTest {
     }
 
     @Test
+    fun `retired scroll speed values are purged from every profile and the legacy key`() = runTest {
+        raw.edit { prefs ->
+            prefs[stringPreferencesKey(RETIRED)] = "FAST"
+            prefs[stringPreferencesKey("p$A/$RETIRED")] = "MEDIUM"
+            prefs[stringPreferencesKey("p$TEN/$RETIRED")] = "FAST"
+        }
+        settings.setActiveProfileId(A)
+        customise()
+
+        settings.purgeRetiredSettings()
+        settings.purgeRetiredSettings() // Idempotent.
+
+        val keys = raw.data.first().asMap().keys.map { it.name }
+        assertTrue(keys.none { it.endsWith(RETIRED) }, "$keys")
+        assertA(settings.settings.first())
+        assertEquals(A, settings.activeProfileId.first())
+    }
+
+    @Test
+    fun `only exact retired names are treated as retired`() {
+        assertTrue(isRetiredSettingKey(RETIRED))
+        assertTrue(isRetiredSettingKey("p12/$RETIRED"))
+        assertFalse(isRetiredSettingKey("p1/ui_background_color"))
+        assertFalse(isRetiredSettingKey("x1/$RETIRED"))
+        assertFalse(isRetiredSettingKey("p1/${RETIRED}_v2"))
+    }
+
+    @Test
     fun `before migration a profile still sees the legacy values`() = runTest {
         writeLegacy()
         settings.setActiveProfileId(A)
@@ -180,7 +207,6 @@ class ProfileScopedSettingsTest {
 
     private suspend fun customise() {
         settings.setBackgroundColor(PLUM)
-        settings.setCatalogRowScrollSpeed(CatalogRowScrollSpeed.FAST)
         settings.updatePlayer {
             it.copy(
                 playbackBufferProfile = PlaybackBufferProfile.MAX,
@@ -198,7 +224,6 @@ class ProfileScopedSettingsTest {
 
     private fun assertA(s: AppSettings) {
         assertEquals(PLUM, s.appearance.backgroundArgb)
-        assertEquals(CatalogRowScrollSpeed.FAST, s.appearance.catalogRowScrollSpeed)
         assertEquals(PlaybackBufferProfile.MAX, s.player.playbackBufferProfile)
         assertEquals(1, s.player.parallelStreamConnections)
         assertEquals(6, s.player.trailerAutoPlayDelaySeconds)
@@ -233,5 +258,6 @@ class ProfileScopedSettingsTest {
         const val TEN = 10L
         val PLUM = BackgroundSwatches.ALL[2]
         val TEAL = BackgroundSwatches.ALL[4]
+        const val RETIRED = "ui_catalog_row_scroll_speed"
     }
 }

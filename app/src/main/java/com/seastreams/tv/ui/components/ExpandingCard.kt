@@ -39,7 +39,6 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
-import com.seastreams.tv.core.datastore.CatalogRowScrollSpeed
 import com.seastreams.tv.domain.model.MediaItem
 import com.seastreams.tv.ui.theme.Obsidian
 import com.seastreams.tv.ui.theme.SurfaceCard
@@ -56,6 +55,12 @@ val PosterSize = DpSize(PosterWidth, CardHeight)
 private val ExpandedSize = DpSize(ExpandedCardWidth, CardHeight)
 private val CardLogoSize = DpSize(216.dp, 68.dp)
 private val CardShape = RoundedCornerShape(12.dp)
+
+/** Catalog row horizontal glide time (PRD §2): the slow, fluid eased glide as focus steps along a row. */
+const val CATALOG_ROW_GLIDE_MS = 480
+
+/** Poster ↔ backdrop widen and cross-fade time; finishes just before the row's glide settles. */
+const val CARD_EXPAND_MS = 450
 
 /**
  * Catalog card that is a 2:3 poster at rest and a 16:9 backdrop (with title logo) while [expanded].
@@ -74,8 +79,8 @@ fun ExpandingMediaCard(
     onBlurred: () -> Unit = {},
     /** Held `OK`; `null` (the default) leaves long-press unhandled. */
     onLongClick: (() -> Unit)? = null,
-    /** Poster ↔ backdrop width and cross-fade time; from the Catalog row scroll speed setting. */
-    expandDurationMs: Int = CatalogRowScrollSpeed.DEFAULT.expandDurationMs,
+    /** Poster ↔ backdrop width and cross-fade time. */
+    expandDurationMs: Int = CARD_EXPAND_MS,
     overlay: @Composable BoxScope.(expanded: Boolean) -> Unit = {},
 ) {
     ExpandingCardSurface(
@@ -135,7 +140,7 @@ fun ViewMoreCard(
     onClick: () -> Unit,
     onFocusChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
-    expandDurationMs: Int = CatalogRowScrollSpeed.DEFAULT.expandDurationMs,
+    expandDurationMs: Int = CARD_EXPAND_MS,
 ) {
     ExpandingCardSurface(
         onClick = onClick,

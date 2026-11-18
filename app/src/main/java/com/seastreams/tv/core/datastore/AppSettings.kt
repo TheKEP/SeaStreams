@@ -130,27 +130,10 @@ data class SubtitleSettings(
     val style: SubtitleStyle = SubtitleStyle(),
 )
 
-/**
- * How fast catalog rows (Home, Movies, TV Shows) glide sideways as focus moves, and how fast the
- * focused card widens from a 2:3 poster to a 16:9 backdrop. Slow is the default; Fast is the
- * original snappy feel. Each card finishes widening just before its row's glide settles.
- */
-enum class CatalogRowScrollSpeed(val label: String, val scrollDurationMs: Int, val expandDurationMs: Int) {
-    SLOW("Slow", scrollDurationMs = 480, expandDurationMs = 450),
-    MEDIUM("Medium", scrollDurationMs = 280, expandDurationMs = 260),
-    FAST("Fast", scrollDurationMs = 130, expandDurationMs = 120),
-    ;
-
-    companion object {
-        val DEFAULT = SLOW
-    }
-}
-
 /** Per-profile look (PRD §1, §10). */
 data class AppearanceSettings(
     /** Opaque ARGB page background; one of [BackgroundSwatches.ALL]. */
     val backgroundArgb: Int = BackgroundSwatches.DEFAULT,
-    val catalogRowScrollSpeed: CatalogRowScrollSpeed = CatalogRowScrollSpeed.DEFAULT,
 )
 
 /** The selectable page backgrounds, in picker order (PRD §1). */
@@ -163,6 +146,7 @@ object BackgroundSwatches {
         0xFF351515.toInt(),
         0xFF153535.toInt(),
         0xFF151F35.toInt(),
+        0xFF916405.toInt(),
     )
 }
 

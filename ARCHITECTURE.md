@@ -18,7 +18,7 @@ app/src/main/java/com/seastreams/tv/
 │   │   ├── dao/                      # ProfileDao, LibraryDao, WatchProgressDao (tracks resume position + dismissedFromContinueWatching flag), AddonDao (every query/mutation takes `profileId`; `deleteAllForProfile`, `profileIdsMissing` for built-in repair)
 │   │   └── entity/                   # Room @Entity definitions. `AddonEntity` is per profile: PK (`profileId`, `manifestUrl`), FK → `profiles.id` ON DELETE CASCADE, `sortOrder` dense within each profile (index on `profileId, sortOrder`)
 │   ├── datastore/
-│   │   ├── SettingsDataStore.kt      # Typed Preferences DataStore. General Settings (background color, UI scroll speed, buffer profile, parallel connections, audio, subtitles, player, inline trailers) are persisted per profile under `p{profileId}/…` keys and always reflect the active profile; the active profile id, TMDB key and Movies/TV provider rows stay global. Deleting a profile clears its keys; pre-per-profile app-wide values are copied once into every existing profile at startup by `data/setup/ProfileSettingsMigrator`.
+│   │   ├── SettingsDataStore.kt      # Typed Preferences DataStore. General Settings (background color, buffer profile, parallel connections, audio, subtitles, player, inline trailers) are persisted per profile under `p{profileId}/…` keys and always reflect the active profile; the active profile id, TMDB key and Movies/TV provider rows stay global. Deleting a profile clears its keys; pre-per-profile app-wide values are copied once into every existing profile at startup by `data/setup/ProfileSettingsMigrator`, which also purges values of removed settings (`RETIRED_SETTING_NAMES` in `ProfileSettingsCodec.kt`, e.g. the former catalog row scroll speed).
 │   │   └── ProfileSettingsCodec.kt   # Per-profile key set + typed reader/writer (scoped value → legacy global fallback → default)
 │   └── webserver/
 │       ├── LocalPortalServer.kt      # Embedded Ktor CIO server on port 8765
@@ -53,7 +53,7 @@ app/src/main/java/com/seastreams/tv/
     ├── components/
     │   ├── TopNavBar.kt              # Avatar, Clock, Search, Home, Movies, TV Shows, Library, Settings (Avatar ⇄ Settings edge wrap loop; no focusRestorer — navBarEntry sends D-pad Up/Down entry to the active pill and never redirects programmatic requests, so Back → active pill and Settings-close → gear land exactly)
     │   ├── HeroCarousel.kt           # Full-width hero card with horizontal D-pad cycling
-    │   ├── ExpandingCatalogRow.kt    # TvLazyRow with configurable scroll/expansion speed + 2:3 -> 16:9 transition + View More + wrap loop + `holdInfo` (keeps the info panel while the row's long-press menu holds focus)
+    │   ├── ExpandingCatalogRow.kt    # TvLazyRow with fixed slow glide/expansion timing (`CATALOG_ROW_GLIDE_MS` / `CARD_EXPAND_MS` in ExpandingCard.kt) + 2:3 -> 16:9 transition + View More + wrap loop + `holdInfo` (keeps the info panel while the row's long-press menu holds focus)
     │   ├── InlineTrailerOverlay.kt   # 16:9 card PlayerView surface + top-right white muted speaker badge; attaches only when playsIn(slot, cardFocused) — the one focused card owning the playing slot, so a duplicate title on an unfocused row keeps its backdrop
     │   └── PosterGrid.kt             # 5-column TvLazyVerticalGrid
     └── screens/

@@ -27,7 +27,6 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.unit.dp
 import com.seastreams.tv.domain.model.CatalogRowState
-import com.seastreams.tv.core.datastore.CatalogRowScrollSpeed
 import com.seastreams.tv.domain.model.CatalogRowSpec
 import com.seastreams.tv.domain.model.MediaItem
 import com.seastreams.tv.domain.model.MediaType
@@ -75,7 +74,6 @@ fun DiscoverTabScreen(
     onOpenDetails: (MediaItem) -> Unit,
     onViewMore: (CatalogRowSpec) -> Unit,
     returnFocus: ReturnRowFocus = ReturnRowFocus.None,
-    scrollSpeed: CatalogRowScrollSpeed = CatalogRowScrollSpeed.DEFAULT,
 ) {
     LaunchedEffect(profileId, mediaType) { viewModel.show(profileId, mediaType) }
     val latest by viewModel.uiState.collectAsState()
@@ -88,7 +86,7 @@ fun DiscoverTabScreen(
     LaunchedEffect(state.profile?.isKids) { if (state.profile?.isKids == true) onTabSelected(NavTab.HOME) }
 
     TabScaffold(state.profile, tab, onTabSelected, onSwitchProfile) { chrome ->
-        DiscoverContent(state, tab, chrome, viewModel::toggleProvider, onOpenDetails, onViewMore, returnFocus, scrollSpeed)
+        DiscoverContent(state, tab, chrome, viewModel::toggleProvider, onOpenDetails, onViewMore, returnFocus)
     }
 }
 
@@ -102,7 +100,6 @@ private fun DiscoverContent(
     onOpenDetails: (MediaItem) -> Unit,
     onViewMore: (CatalogRowSpec) -> Unit,
     returnFocus: ReturnRowFocus,
-    scrollSpeed: CatalogRowScrollSpeed,
 ) {
     // Not saveable on purpose: the tab host would restore the last scroll position (often the bottom
     // bar) on re-entry, and a return from View More scrolls to its row itself.
@@ -196,7 +193,6 @@ private fun DiscoverContent(
                         onOpenDetails = onOpenDetails,
                         onViewMore = onViewMore,
                         returnFocus = returnFocus,
-                        scrollSpeed = scrollSpeed,
                         trailerRowKey = "${tab.name}/${row.spec.id}",
                     )
                 }
@@ -228,7 +224,6 @@ private fun DiscoverRow(
     onOpenDetails: (MediaItem) -> Unit,
     onViewMore: (CatalogRowSpec) -> Unit,
     returnFocus: ReturnRowFocus,
-    scrollSpeed: CatalogRowScrollSpeed,
     /** Unique across tabs, so the same title on a Home and a Movies row never shares a preview slot. */
     trailerRowKey: String,
 ) {
@@ -248,7 +243,6 @@ private fun DiscoverRow(
             onFocusReturned = returnFocus.consume,
             focusedIndexState = rowFocus.stateFor(row.spec.id, content.row.items.map { it.key }),
             activeCard = activeCard ?: ownActiveCard,
-            scrollSpeed = scrollSpeed,
             trailerRowKey = trailerRowKey,
         )
     }
