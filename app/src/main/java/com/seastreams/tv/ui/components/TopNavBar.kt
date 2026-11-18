@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -26,6 +27,7 @@ import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Border
@@ -40,6 +42,8 @@ import com.seastreams.tv.ui.theme.FocusPill
 import com.seastreams.tv.ui.theme.TextPrimary
 import com.seastreams.tv.ui.theme.TextSecondary
 import com.seastreams.tv.ui.theme.focusPillColors
+import com.seastreams.tv.ui.theme.onDpadEdgeWrap
+import com.seastreams.tv.ui.theme.tryRequestFocus
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -68,6 +72,10 @@ enum class NavTab(val label: String, val icon: ImageVector? = null) {
  *
  * The bar is one focus group: entering it from below restores the last-focused pill, defaulting to
  * [selectedTabFocusRequester] (the pill of the screen being shown).
+ *
+ * Edge-stop-then-wrap across the whole bar (PRD §1): the avatar is the left edge and Settings (always
+ * the last pill, Kids or not) the right edge. A fresh `Left` on the avatar wraps to Settings, a fresh
+ * `Right` on Settings wraps to the avatar; held keys stop there. Avatar ⇄ Search is plain focus search.
  */
 @Composable
 fun TopNavBar(
@@ -79,6 +87,8 @@ fun TopNavBar(
     onSelectedTabFocusChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val avatar = remember { FocusRequester() }
+    val settings = remember { FocusRequester() }
     Row(
         modifier
             .fillMaxWidth()
@@ -89,7 +99,10 @@ fun TopNavBar(
     ) {
         Surface(
             onClick = onAvatarClick,
-            modifier = Modifier.size(44.dp),
+            modifier = Modifier
+                .focusRequester(avatar)
+                .onDpadEdgeWrap(Key.DirectionLeft) { settings.tryRequestFocus() }
+                .size(44.dp),
             shape = ClickableSurfaceDefaults.shape(CircleShape),
             border = ClickableSurfaceDefaults.border(
                 focusedBorder = Border(BorderStroke(3.dp, FocusPill), shape = CircleShape),
@@ -110,15 +123,21 @@ fun TopNavBar(
         ) {
             // Until the profile is known, show only the tabs every profile type gets.
             NavTab.visibleFor(isKids = profile?.isKids ?: true).forEach { tab ->
+                val selectedModifier = if (tab == selectedTab) {
+                    Modifier.focusRequester(selectedTabFocusRequester).onFocusChanged { onSelectedTabFocusChanged(it.isFocused) }
+                } else {
+                    Modifier
+                }
+                val edgeModifier = if (tab == NavTab.SETTINGS) {
+                    Modifier.focusRequester(settings).onDpadEdgeWrap(Key.DirectionRight) { avatar.tryRequestFocus() }
+                } else {
+                    Modifier
+                }
                 NavPill(
                     tab = tab,
                     selected = tab == selectedTab,
                     onClick = { onTabSelected(tab) },
-                    modifier = if (tab == selectedTab) {
-                        Modifier.focusRequester(selectedTabFocusRequester).onFocusChanged { onSelectedTabFocusChanged(it.isFocused) }
-                    } else {
-                        Modifier
-                    },
+                    modifier = selectedModifier.then(edgeModifier),
                 )
             }
         }

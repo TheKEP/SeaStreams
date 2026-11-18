@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,10 +38,43 @@ import com.seastreams.tv.ui.theme.ignoreInitialKeyUp
 import com.seastreams.tv.ui.theme.onDpadEdgeWrap
 import kotlinx.coroutines.launch
 
+/** One control on the bottom action bar, in left-to-right order (PRD §9). */
+enum class BarControl {
+    PLAY_PAUSE,
+    NEXT_EPISODE,
+    SUBTITLES,
+    SUBTITLE_SYNC,
+    AUDIO,
+    STREAMS,
+    EPISODES,
+    INFO,
+}
+
 /**
- * Bottom action bar, left to right (PRD §9): Play/Pause, Next Episode (episodes only), Subtitles, the
- * `- 0.0s +` sync offset (only while an addon subtitle is on), Audio, Streams, Episodes (episodes
- * only), Info. Trailers show Play/Pause only. A fresh `Right` on the last button wraps to the first.
+ * The controls currently on the bar, left to right: Play/Pause, Next Episode (episodes only),
+ * Subtitles, the `- 0.0s +` sync offset (only while an addon subtitle is on), Audio, Streams, Episodes
+ * (episodes only), Info. Trailers show Play/Pause only. Its first and last entries are the wrap edges.
+ */
+fun actionBarControls(state: PlayerUiState): List<BarControl> = buildList {
+    add(BarControl.PLAY_PAUSE)
+    if (state.isTrailer) return@buildList
+    if (state.isEpisode) add(BarControl.NEXT_EPISODE)
+    // Pill visibility is shared with the overlay-close focus restore ([panelReturnFocus]).
+    fun pill(control: BarControl, panel: PlayerPanel) {
+        if (panel.onActionBar(state)) add(control)
+    }
+    pill(BarControl.SUBTITLES, PlayerPanel.SUBTITLES)
+    if (state.externalSubtitleActive) add(BarControl.SUBTITLE_SYNC)
+    pill(BarControl.AUDIO, PlayerPanel.AUDIO)
+    pill(BarControl.STREAMS, PlayerPanel.STREAMS)
+    pill(BarControl.EPISODES, PlayerPanel.EPISODES)
+    pill(BarControl.INFO, PlayerPanel.INFO)
+}
+
+/**
+ * Bottom action bar ([actionBarControls]). Edge-stop-then-wrap both ways (PRD §9): a fresh `Right` on
+ * the last visible control wraps to Play/Pause, a fresh `Left` on Play/Pause wraps to the last visible
+ * control; held keys stop at the edge.
  */
 @Composable
 fun PlayerActionBar(
@@ -50,40 +84,57 @@ fun PlayerActionBar(
     panelButtons: Map<PlayerPanel, FocusRequester>,
 ) {
     val scope = rememberCoroutineScope()
+    val lastControl = remember { FocusRequester() }
     val wrapToFirst: () -> Unit = { scope.launch { playButton.requestFocus() } }
-    val items = buildList<@Composable (Modifier) -> Unit> {
-        add { modifier ->
-            CircleButton(
-                icon = if (state.playing) SeaIcons.Pause else Icons.Filled.PlayArrow,
-                description = if (state.playing) "Pause" else "Play",
-                onClick = viewModel::togglePlayPause,
-                // The HUD opens on Enter's KeyDown with focus here: its release must not un-pause.
-                modifier = modifier.focusRequester(playButton).ignoreInitialKeyUp(),
-            )
-        }
-        if (state.isTrailer) return@buildList
-        if (state.isEpisode) add { modifier -> CircleButton(SeaIcons.SkipNext, "Next episode", viewModel::nextEpisode, modifier) }
-        // Pill visibility is shared with the overlay-close focus restore ([panelReturnFocus]).
-        fun pill(label: String, panel: PlayerPanel) {
-            if (panel.onActionBar(state)) add { modifier -> PanelPill(label, panel, state, viewModel, panelButtons, modifier) }
-        }
-        pill("Subtitles", PlayerPanel.SUBTITLES)
-        if (state.externalSubtitleActive) {
-            add { modifier -> SubtitleSync(state.subtitleOffsetMs, viewModel::stepSubtitleOffset, modifier) }
-        }
-        pill("Audio", PlayerPanel.AUDIO)
-        pill("Streams", PlayerPanel.STREAMS)
-        pill("Episodes", PlayerPanel.EPISODES)
-        pill("Info", PlayerPanel.INFO)
-    }
+    val wrapToLast: () -> Unit = { scope.launch { lastControl.requestFocus() } }
+    val controls = actionBarControls(state)
+    // The divider separates the round transport buttons from the pills (none on the trailer HUD).
+    val firstPill = controls.indexOfFirst { it !in CircleControls }
     Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-        val firstPill = if (state.isEpisode) 2 else 1
-        items.forEachIndexed { index, item ->
+        controls.forEachIndexed { index, control ->
             if (index == firstPill) Divider()
-            item(if (index == items.lastIndex) Modifier.onDpadEdgeWrap(Key.DirectionRight, wrapToFirst) else Modifier)
+            val edges = Modifier
+                .then(if (index == 0) Modifier.onDpadEdgeWrap(Key.DirectionLeft, wrapToLast) else Modifier)
+                .then(
+                    if (index == controls.lastIndex) {
+                        Modifier.focusRequester(lastControl).onDpadEdgeWrap(Key.DirectionRight, wrapToFirst)
+                    } else {
+                        Modifier
+                    },
+                )
+            BarControlItem(control, state, viewModel, playButton, panelButtons, edges)
         }
     }
 }
+
+@Composable
+private fun BarControlItem(
+    control: BarControl,
+    state: PlayerUiState,
+    viewModel: PlayerViewModel,
+    playButton: FocusRequester,
+    panelButtons: Map<PlayerPanel, FocusRequester>,
+    modifier: Modifier,
+) {
+    when (control) {
+        BarControl.PLAY_PAUSE -> CircleButton(
+            icon = if (state.playing) SeaIcons.Pause else Icons.Filled.PlayArrow,
+            description = if (state.playing) "Pause" else "Play",
+            onClick = viewModel::togglePlayPause,
+            // The HUD opens on Enter's KeyDown with focus here: its release must not un-pause.
+            modifier = modifier.focusRequester(playButton).ignoreInitialKeyUp(),
+        )
+        BarControl.NEXT_EPISODE -> CircleButton(SeaIcons.SkipNext, "Next episode", viewModel::nextEpisode, modifier)
+        BarControl.SUBTITLES -> PanelPill("Subtitles", PlayerPanel.SUBTITLES, state, viewModel, panelButtons, modifier)
+        BarControl.SUBTITLE_SYNC -> SubtitleSync(state.subtitleOffsetMs, viewModel::stepSubtitleOffset, modifier)
+        BarControl.AUDIO -> PanelPill("Audio", PlayerPanel.AUDIO, state, viewModel, panelButtons, modifier)
+        BarControl.STREAMS -> PanelPill("Streams", PlayerPanel.STREAMS, state, viewModel, panelButtons, modifier)
+        BarControl.EPISODES -> PanelPill("Episodes", PlayerPanel.EPISODES, state, viewModel, panelButtons, modifier)
+        BarControl.INFO -> PanelPill("Info", PlayerPanel.INFO, state, viewModel, panelButtons, modifier)
+    }
+}
+
+private val CircleControls = setOf(BarControl.PLAY_PAUSE, BarControl.NEXT_EPISODE)
 
 @Composable
 private fun Divider() {
