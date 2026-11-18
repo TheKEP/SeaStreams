@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -36,6 +37,7 @@ class PlaybackSettingsDataStoreTest {
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         raw = PreferenceDataStoreFactory.create(scope = scope) { File(dir, "playback.preferences_pb") }
         settings = SettingsDataStore(raw)
+        runBlocking { settings.setActiveProfileId(PROFILE_ID) }
     }
 
     @AfterEach
@@ -63,7 +65,7 @@ class PlaybackSettingsDataStoreTest {
 
     @Test
     fun `an out of range delay already on disk is clamped when read`() = runTest {
-        raw.edit { it[intPreferencesKey("player_trailer_delay_s")] = 30 }
+        raw.edit { it[intPreferencesKey("${SCOPE}player_trailer_delay_s")] = 30 }
         assertEquals(7, settings.settings.first().player.trailerAutoPlayDelaySeconds)
     }
 
@@ -93,7 +95,12 @@ class PlaybackSettingsDataStoreTest {
 
     @Test
     fun `an unknown stored buffer profile falls back to Large`() = runTest {
-        raw.edit { it[stringPreferencesKey("player_buffer_profile")] = "HUGE" }
+        raw.edit { it[stringPreferencesKey("${SCOPE}player_buffer_profile")] = "HUGE" }
         assertEquals(PlaybackBufferProfile.LARGE, settings.settings.first().player.playbackBufferProfile)
+    }
+
+    private companion object {
+        const val PROFILE_ID = 1L
+        const val SCOPE = "p$PROFILE_ID/"
     }
 }

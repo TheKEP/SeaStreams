@@ -4,6 +4,7 @@ import com.seastreams.tv.data.catalog.DiscoverSnapshotStore
 import com.seastreams.tv.data.catalog.LoadedCatalogStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import app.cash.turbine.test
+import com.seastreams.tv.core.datastore.BackgroundSwatches
 import com.seastreams.tv.core.datastore.SettingsDataStore
 import com.seastreams.tv.core.network.ApiEndpoints
 import com.seastreams.tv.core.network.HttpCachePolicy
@@ -189,8 +190,14 @@ class PortalServerTest {
         assertEquals("You can have at most 5 profiles", message(sixth).message)
         assertEquals(5, state().profiles.size)
 
+        // Deleting a profile also removes its per-profile General Settings.
+        settings.setActiveProfileId(mia.id)
+        settings.setBackgroundColor(BackgroundSwatches.ALL.last())
         assertEquals(200, browser.post("$base/api/profiles/${mia.id}/delete") { contentType(ContentType.Application.Json) }.status.value)
         assertEquals(4, profileDao.rows.value.size)
+        assertEquals(null, settings.activeProfileId.first())
+        settings.setActiveProfileId(mia.id)
+        assertEquals(BackgroundSwatches.DEFAULT, settings.settings.first().appearance.backgroundArgb)
     }
 
     @Test

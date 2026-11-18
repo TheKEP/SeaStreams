@@ -17,7 +17,8 @@ app/src/main/java/com/seastreams/tv/
 │   │   ├── dao/                      # ProfileDao, LibraryDao, WatchProgressDao (tracks resume position + dismissedFromContinueWatching flag), AddonDao
 │   │   └── entity/                   # Room @Entity definitions
 │   ├── datastore/
-│   │   └── SettingsDataStore.kt      # Typed Preferences DataStore (UI scroll speed, buffer profile, parallel connections, audio, subtitles, player, inline trailers, active profile)
+│   │   ├── SettingsDataStore.kt      # Typed Preferences DataStore. General Settings (background color, UI scroll speed, buffer profile, parallel connections, audio, subtitles, player, inline trailers) are persisted per profile under `p{profileId}/…` keys and always reflect the active profile; the active profile id, TMDB key and Movies/TV provider rows stay global. Deleting a profile clears its keys; pre-per-profile app-wide values are copied once into every existing profile at startup by `data/setup/ProfileSettingsMigrator`.
+│   │   └── ProfileSettingsCodec.kt   # Per-profile key set + typed reader/writer (scoped value → legacy global fallback → default)
 │   └── webserver/
 │       ├── LocalPortalServer.kt      # Embedded Ktor CIO server on port 8765
 │       └── PortalHtmlTemplate.kt     # Mobile-responsive HTML/JS UI served to phone/PC browsers

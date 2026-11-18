@@ -6,6 +6,7 @@ import com.seastreams.tv.core.util.ApplicationScope
 import com.seastreams.tv.data.setup.DebugProfileSeeder
 import com.seastreams.tv.data.trailer.NewPipeInitializer
 import com.seastreams.tv.data.setup.FirstLaunchSeeder
+import com.seastreams.tv.data.setup.ProfileSettingsMigrator
 import dagger.Lazy
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
@@ -23,6 +24,10 @@ class SeaStreamsApp : Application() {
     @Inject
     lateinit var debugProfileSeeder: Lazy<DebugProfileSeeder>
 
+    /** Copies pre-per-profile General Settings into every existing profile; Room is built on IO. */
+    @Inject
+    lateinit var profileSettingsMigrator: Lazy<ProfileSettingsMigrator>
+
     /** NewPipeExtractor (in-app trailers) on the shared OkHttp client; lazy for the same reason. */
     @Inject
     lateinit var newPipe: Lazy<NewPipeInitializer>
@@ -35,6 +40,9 @@ class SeaStreamsApp : Application() {
     override fun onCreate() {
         super.onCreate()
         appScope.launch {
+            // First, so profiles stop reading legacy app-wide values as early as possible.
+            runCatching { profileSettingsMigrator.get().migrateIfNeeded() }
+                .onFailure { Log.e("SeaStreamsApp", "Migrating per-profile settings failed", it) }
             // NewPipe.init(OkHttpDownloader(okHttpClient)); trailer extraction also ensures it lazily.
             runCatching { newPipe.get().ensureInitialized() }
                 .onFailure { Log.e("SeaStreamsApp", "NewPipe init failed", it) }

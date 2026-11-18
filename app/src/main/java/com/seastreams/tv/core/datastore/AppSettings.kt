@@ -146,7 +146,7 @@ enum class CatalogRowScrollSpeed(val label: String, val scrollDurationMs: Int, v
     }
 }
 
-/** App-wide look (PRD §1, §10). */
+/** Per-profile look (PRD §1, §10). */
 data class AppearanceSettings(
     /** Opaque ARGB page background; one of [BackgroundSwatches.ALL]. */
     val backgroundArgb: Int = BackgroundSwatches.DEFAULT,
@@ -166,7 +166,7 @@ object BackgroundSwatches {
     )
 }
 
-/** Snapshot of every persisted, non-profile-specific setting. */
+/** Snapshot of the active profile's General Settings (persisted per profile; PRD §10). */
 data class AppSettings(
     val player: PlayerSettings = PlayerSettings(),
     val audio: AudioSettings = AudioSettings(),

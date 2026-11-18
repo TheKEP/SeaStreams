@@ -6,13 +6,10 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
-import androidx.datastore.preferences.core.floatPreferencesKey
-import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.seastreams.tv.core.network.TmdbApiKeyProvider
-import com.seastreams.tv.core.util.enumByNameOrNull
 import com.seastreams.tv.domain.model.StreamingProvider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -25,8 +22,13 @@ import javax.inject.Singleton
 import kotlin.math.roundToInt
 
 /**
- * Typed facade over Preferences DataStore for global settings (audio, subtitles, player),
- * the active profile and the TMDB credential. All setters clamp values to their legal ranges.
+ * Typed facade over Preferences DataStore.
+ *
+ * Every General Settings value (appearance, playback, trailers, audio, subtitles; PRD §10) is
+ * stored **per profile** under `p{profileId}/…` keys: [settings] always reflects the active
+ * profile and every setter writes only to the active profile. The active profile id, the TMDB
+ * credential, the first-launch flag and the Movies/TV provider-row toggles stay app-wide.
+ * All setters clamp values to their legal ranges.
  */
 @Singleton
 class SettingsDataStore @Inject constructor(
@@ -38,7 +40,10 @@ class SettingsDataStore @Inject constructor(
         if (error is IOException) emit(emptyPreferences()) else throw error
     }
 
-    val settings: Flow<AppSettings> = preferences.map(::toAppSettings).distinctUntilChanged()
+    /** The active profile's General Settings; documented defaults when no profile is active. */
+    val settings: Flow<AppSettings> = preferences
+        .map { prefs -> ProfileSettingsReader(prefs, prefs[Keys.ACTIVE_PROFILE_ID]).appSettings() }
+        .distinctUntilChanged()
 
     val tmdbApiKey: Flow<String?> = preferences.map { it[Keys.TMDB_API_KEY] }.distinctUntilChanged()
 
@@ -76,130 +81,56 @@ class SettingsDataStore @Inject constructor(
         if (profileId == null) prefs.remove(Keys.ACTIVE_PROFILE_ID) else prefs[Keys.ACTIVE_PROFILE_ID] = profileId
     }
 
-    suspend fun updatePlayer(transform: (PlayerSettings) -> PlayerSettings) = edit { prefs ->
-        val updated = transform(readPlayer(prefs))
-        prefs[Keys.EXTERNAL_PLAYER] = updated.playerChoice.storageValue
-        prefs[Keys.AUTO_PLAY_TOP_STREAM] = updated.autoPlayTopStream
-        prefs[Keys.AUTO_PLAY_NEXT_EPISODE] = updated.autoPlayNextEpisode
-        prefs[Keys.CONVERT_DV_PROFILE_7] = updated.convertDvProfile7ToHdr
-        val addonUrl = updated.preferredAutoPlayAddonUrl
-        if (addonUrl == null) prefs.remove(Keys.PREFERRED_AUTOPLAY_ADDON) else prefs[Keys.PREFERRED_AUTOPLAY_ADDON] = addonUrl
-        prefs[Keys.FALLBACK_TIMEOUT_SECONDS] = clampFallbackTimeout(updated.fallbackTimeoutSeconds)
-        prefs[Keys.AUTO_PLAY_FROM_CONTINUE_WATCHING] = updated.autoPlayFromContinueWatching
-        prefs[Keys.BLUR_UNWATCHED_THUMBNAILS] = updated.blurUnwatchedThumbnails
-        prefs[Keys.HDR_WHITE_DIMMING] = updated.hdrWhiteDimming
-        prefs[Keys.BUFFER_PROFILE] = updated.playbackBufferProfile.name
-        prefs[Keys.PARALLEL_CONNECTIONS] = clampParallelConnections(updated.parallelStreamConnections)
-        prefs[Keys.AUTO_PLAY_TRAILERS] = updated.autoPlayTrailers
-        prefs[Keys.MUTE_AUTO_PLAY_TRAILERS] = updated.muteAutoPlayTrailers
-        prefs[Keys.TRAILER_DELAY_SECONDS] = clampTrailerDelay(updated.trailerAutoPlayDelaySeconds)
+    suspend fun updatePlayer(transform: (PlayerSettings) -> PlayerSettings) = editActiveProfile { prefs, id ->
+        ProfileSettingsWriter(prefs, id).player(transform(ProfileSettingsReader(prefs, id).player()))
     }
 
     /** Persists the page background; anything other than a [BackgroundSwatches] colour is ignored. */
     suspend fun setBackgroundColor(argb: Int) {
         if (argb !in BackgroundSwatches.ALL) return
-        edit { prefs -> prefs[Keys.BACKGROUND_COLOR] = argb }
+        editActiveProfile { prefs, id -> ProfileSettingsWriter(prefs, id)[ProfileSettingsKeys.BACKGROUND_COLOR] = argb }
     }
 
-    suspend fun setCatalogRowScrollSpeed(speed: CatalogRowScrollSpeed) = edit { prefs ->
-        prefs[Keys.CATALOG_ROW_SCROLL_SPEED] = speed.name
+    suspend fun setCatalogRowScrollSpeed(speed: CatalogRowScrollSpeed) = editActiveProfile { prefs, id ->
+        ProfileSettingsWriter(prefs, id)[ProfileSettingsKeys.CATALOG_ROW_SCROLL_SPEED] = speed.name
     }
 
-    suspend fun updateAudio(transform: (AudioSettings) -> AudioSettings) = edit { prefs ->
-        val updated = transform(readAudio(prefs))
-        prefs[Keys.PASSTHROUGH_ENABLED] = updated.passthroughEnabled
-        prefs[Keys.DIALOGUE_BOOST] = updated.dialogueBoost.name
-        prefs[Keys.NIGHT_MODE] = updated.nightMode
-        prefs[Keys.AUDIO_DELAY_MS] = snapAudioDelay(updated.audioDelayMs)
-        prefs[Keys.PREFERRED_AUDIO_LANGUAGE] = updated.preferredAudioLanguage.ifBlank { DEFAULT_LANGUAGE }
+    suspend fun updateAudio(transform: (AudioSettings) -> AudioSettings) = editActiveProfile { prefs, id ->
+        ProfileSettingsWriter(prefs, id).audio(transform(ProfileSettingsReader(prefs, id).audio()))
     }
 
-    suspend fun updateSubtitles(transform: (SubtitleSettings) -> SubtitleSettings) = edit { prefs ->
-        val updated = transform(readSubtitles(prefs))
-        prefs[Keys.SUBTITLE_MODE] = updated.mode.name
-        prefs[Keys.SUBTITLE_LANGUAGE] = updated.preferredLanguage.ifBlank { DEFAULT_LANGUAGE }
-        prefs[Keys.HIDE_NON_PREFERRED_SUBTITLES] = updated.hideNonPreferredLanguages
-        prefs[Keys.CLEAN_SDH] = updated.cleanSdh
-        val style = updated.style
-        prefs[Keys.SUBTITLE_FONT_SCALE] =
-            style.fontScale.coerceIn(SubtitleStyle.MIN_FONT_SCALE, SubtitleStyle.MAX_FONT_SCALE)
-        prefs[Keys.SUBTITLE_BOLD] = style.bold
-        prefs[Keys.SUBTITLE_ITALIC] = style.italic
-        prefs[Keys.SUBTITLE_TEXT_COLOR] = style.textColor
-        prefs[Keys.SUBTITLE_EDGE_TYPE] = style.edgeType.name
-        prefs[Keys.SUBTITLE_BACKGROUND_OPACITY] = style.backgroundOpacity.coerceIn(0f, 1f)
+    suspend fun updateSubtitles(transform: (SubtitleSettings) -> SubtitleSettings) = editActiveProfile { prefs, id ->
+        ProfileSettingsWriter(prefs, id).subtitles(transform(ProfileSettingsReader(prefs, id).subtitles()))
+    }
+
+    /**
+     * Removes every General Settings value stored for [profileId] (called when the profile is
+     * deleted) and, if it was the active profile, clears the active selection in the same write.
+     */
+    suspend fun clearProfile(profileId: Long) = edit { prefs ->
+        val prefix = profileKeyPrefix(profileId)
+        prefs.asMap().keys.filter { it.name.startsWith(prefix) }.forEach { prefs.remove(it) }
+        if (prefs[Keys.ACTIVE_PROFILE_ID] == profileId) prefs.remove(Keys.ACTIVE_PROFILE_ID)
+    }
+
+    /**
+     * One-time upgrade from app-wide settings: copies each legacy global value into every profile in
+     * [profileIds] that has no value of its own yet, then deletes the legacy keys. Runs at most once;
+     * the done-flag is written even when [profileIds] is empty (legacy values are then dropped).
+     */
+    suspend fun migrateLegacySettings(profileIds: List<Long>) = edit { prefs ->
+        if (prefs[Keys.LEGACY_SETTINGS_MIGRATED] == true) return@edit
+        ProfileSettingsKeys.ALL.forEach { it.migrateLegacy(prefs, profileIds) }
+        prefs[Keys.LEGACY_SETTINGS_MIGRATED] = true
+    }
+
+    /** Edits the active profile's settings atomically; a no-op while no profile is active. */
+    private suspend fun editActiveProfile(block: (MutablePreferences, Long) -> Unit) = edit { prefs ->
+        prefs[Keys.ACTIVE_PROFILE_ID]?.let { id -> block(prefs, id) }
     }
 
     private suspend fun edit(block: (MutablePreferences) -> Unit) {
         dataStore.edit { block(it) }
-    }
-
-    private fun toAppSettings(prefs: Preferences) = AppSettings(
-        player = readPlayer(prefs),
-        audio = readAudio(prefs),
-        subtitles = readSubtitles(prefs),
-        appearance = AppearanceSettings(
-            backgroundArgb = prefs[Keys.BACKGROUND_COLOR]?.takeIf { it in BackgroundSwatches.ALL }
-                ?: BackgroundSwatches.DEFAULT,
-            catalogRowScrollSpeed = enumOrDefault(prefs[Keys.CATALOG_ROW_SCROLL_SPEED], CatalogRowScrollSpeed.DEFAULT),
-        ),
-    )
-
-    private fun readPlayer(prefs: Preferences): PlayerSettings {
-        val defaults = PlayerSettings()
-        return PlayerSettings(
-            playerChoice = PlayerChoice.fromStorage(prefs[Keys.EXTERNAL_PLAYER]),
-            autoPlayTopStream = prefs[Keys.AUTO_PLAY_TOP_STREAM] ?: defaults.autoPlayTopStream,
-            autoPlayNextEpisode = prefs[Keys.AUTO_PLAY_NEXT_EPISODE] ?: defaults.autoPlayNextEpisode,
-            convertDvProfile7ToHdr = prefs[Keys.CONVERT_DV_PROFILE_7] ?: defaults.convertDvProfile7ToHdr,
-            preferredAutoPlayAddonUrl = prefs[Keys.PREFERRED_AUTOPLAY_ADDON],
-            fallbackTimeoutSeconds = clampFallbackTimeout(
-                prefs[Keys.FALLBACK_TIMEOUT_SECONDS] ?: defaults.fallbackTimeoutSeconds,
-            ),
-            autoPlayFromContinueWatching =
-                prefs[Keys.AUTO_PLAY_FROM_CONTINUE_WATCHING] ?: defaults.autoPlayFromContinueWatching,
-            blurUnwatchedThumbnails = prefs[Keys.BLUR_UNWATCHED_THUMBNAILS] ?: defaults.blurUnwatchedThumbnails,
-            hdrWhiteDimming = prefs[Keys.HDR_WHITE_DIMMING] ?: defaults.hdrWhiteDimming,
-            playbackBufferProfile = enumOrDefault(prefs[Keys.BUFFER_PROFILE], defaults.playbackBufferProfile),
-            parallelStreamConnections = clampParallelConnections(
-                prefs[Keys.PARALLEL_CONNECTIONS] ?: defaults.parallelStreamConnections,
-            ),
-            autoPlayTrailers = prefs[Keys.AUTO_PLAY_TRAILERS] ?: defaults.autoPlayTrailers,
-            muteAutoPlayTrailers = prefs[Keys.MUTE_AUTO_PLAY_TRAILERS] ?: defaults.muteAutoPlayTrailers,
-            trailerAutoPlayDelaySeconds = clampTrailerDelay(
-                prefs[Keys.TRAILER_DELAY_SECONDS] ?: defaults.trailerAutoPlayDelaySeconds,
-            ),
-        )
-    }
-
-    private fun readAudio(prefs: Preferences): AudioSettings {
-        val defaults = AudioSettings()
-        return AudioSettings(
-            passthroughEnabled = prefs[Keys.PASSTHROUGH_ENABLED] ?: defaults.passthroughEnabled,
-            dialogueBoost = enumOrDefault(prefs[Keys.DIALOGUE_BOOST], defaults.dialogueBoost),
-            nightMode = prefs[Keys.NIGHT_MODE] ?: defaults.nightMode,
-            audioDelayMs = snapAudioDelay(prefs[Keys.AUDIO_DELAY_MS] ?: defaults.audioDelayMs),
-            preferredAudioLanguage = prefs[Keys.PREFERRED_AUDIO_LANGUAGE] ?: defaults.preferredAudioLanguage,
-        )
-    }
-
-    private fun readSubtitles(prefs: Preferences): SubtitleSettings {
-        val defaults = SubtitleSettings()
-        val defaultStyle = defaults.style
-        return SubtitleSettings(
-            mode = enumOrDefault(prefs[Keys.SUBTITLE_MODE], defaults.mode),
-            preferredLanguage = prefs[Keys.SUBTITLE_LANGUAGE] ?: defaults.preferredLanguage,
-            hideNonPreferredLanguages = prefs[Keys.HIDE_NON_PREFERRED_SUBTITLES] ?: defaults.hideNonPreferredLanguages,
-            cleanSdh = prefs[Keys.CLEAN_SDH] ?: defaults.cleanSdh,
-            style = SubtitleStyle(
-                fontScale = prefs[Keys.SUBTITLE_FONT_SCALE] ?: defaultStyle.fontScale,
-                bold = prefs[Keys.SUBTITLE_BOLD] ?: defaultStyle.bold,
-                italic = prefs[Keys.SUBTITLE_ITALIC] ?: defaultStyle.italic,
-                textColor = prefs[Keys.SUBTITLE_TEXT_COLOR] ?: defaultStyle.textColor,
-                edgeType = enumOrDefault(prefs[Keys.SUBTITLE_EDGE_TYPE], defaultStyle.edgeType),
-                backgroundOpacity = prefs[Keys.SUBTITLE_BACKGROUND_OPACITY] ?: defaultStyle.backgroundOpacity,
-            ),
-        )
     }
 
     private object Keys {
@@ -207,40 +138,7 @@ class SettingsDataStore @Inject constructor(
         val ACTIVE_PROFILE_ID = longPreferencesKey("active_profile_id")
         val DEFAULTS_SEEDED = booleanPreferencesKey("defaults_seeded_v1")
         val DISABLED_PROVIDERS = stringSetPreferencesKey("catalog_disabled_providers")
-
-        val EXTERNAL_PLAYER = stringPreferencesKey("player_external")
-        val AUTO_PLAY_TOP_STREAM = booleanPreferencesKey("player_autoplay_top_stream")
-        val PREFERRED_AUTOPLAY_ADDON = stringPreferencesKey("player_autoplay_addon")
-        val FALLBACK_TIMEOUT_SECONDS = intPreferencesKey("player_fallback_timeout_s")
-        val AUTO_PLAY_FROM_CONTINUE_WATCHING = booleanPreferencesKey("player_autoplay_continue_watching")
-        val BLUR_UNWATCHED_THUMBNAILS = booleanPreferencesKey("player_blur_unwatched")
-        val HDR_WHITE_DIMMING = booleanPreferencesKey("player_hdr_white_dimming")
-        val AUTO_PLAY_NEXT_EPISODE = booleanPreferencesKey("player_autoplay_next_episode")
-        val CONVERT_DV_PROFILE_7 = booleanPreferencesKey("player_convert_dv_profile7")
-        val BUFFER_PROFILE = stringPreferencesKey("player_buffer_profile")
-        val PARALLEL_CONNECTIONS = intPreferencesKey("player_parallel_connections")
-        val AUTO_PLAY_TRAILERS = booleanPreferencesKey("player_autoplay_trailers")
-        val MUTE_AUTO_PLAY_TRAILERS = booleanPreferencesKey("player_mute_autoplay_trailers")
-        val TRAILER_DELAY_SECONDS = intPreferencesKey("player_trailer_delay_s")
-        val BACKGROUND_COLOR = intPreferencesKey("ui_background_color")
-        val CATALOG_ROW_SCROLL_SPEED = stringPreferencesKey("ui_catalog_row_scroll_speed")
-
-        val PASSTHROUGH_ENABLED = booleanPreferencesKey("audio_passthrough")
-        val DIALOGUE_BOOST = stringPreferencesKey("audio_dialogue_boost")
-        val NIGHT_MODE = booleanPreferencesKey("audio_night_mode")
-        val AUDIO_DELAY_MS = intPreferencesKey("audio_delay_ms")
-        val PREFERRED_AUDIO_LANGUAGE = stringPreferencesKey("audio_language")
-
-        val SUBTITLE_MODE = stringPreferencesKey("subs_mode")
-        val SUBTITLE_LANGUAGE = stringPreferencesKey("subs_language")
-        val HIDE_NON_PREFERRED_SUBTITLES = booleanPreferencesKey("subs_hide_non_preferred")
-        val CLEAN_SDH = booleanPreferencesKey("subs_clean_sdh")
-        val SUBTITLE_FONT_SCALE = floatPreferencesKey("subs_font_scale")
-        val SUBTITLE_BOLD = booleanPreferencesKey("subs_bold")
-        val SUBTITLE_ITALIC = booleanPreferencesKey("subs_italic")
-        val SUBTITLE_TEXT_COLOR = intPreferencesKey("subs_text_color")
-        val SUBTITLE_EDGE_TYPE = stringPreferencesKey("subs_edge_type")
-        val SUBTITLE_BACKGROUND_OPACITY = floatPreferencesKey("subs_background_opacity")
+        val LEGACY_SETTINGS_MIGRATED = booleanPreferencesKey("legacy_settings_migrated_v1")
     }
 
     companion object {
@@ -257,8 +155,5 @@ class SettingsDataStore @Inject constructor(
             val snapped = (delayMs.toFloat() / step).roundToInt() * step
             return snapped.coerceIn(-AudioSettings.AUDIO_DELAY_LIMIT_MS, AudioSettings.AUDIO_DELAY_LIMIT_MS)
         }
-
-        private inline fun <reified E : Enum<E>> enumOrDefault(name: String?, default: E): E =
-            enumByNameOrNull<E>(name) ?: default
     }
 }
