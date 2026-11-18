@@ -2,6 +2,7 @@ package com.seastreams.tv.ui.screens.player
 
 import android.net.Uri
 import androidx.media3.common.Format
+import com.seastreams.tv.core.util.MILLIS_PER_SECOND
 import com.seastreams.tv.domain.model.PlaybackRequest
 import com.seastreams.tv.player.PlayerTracks
 import com.seastreams.tv.player.SeaStreamsPlayerManager
@@ -18,7 +19,7 @@ fun buildInfoRows(state: PlayerUiState, manager: SeaStreamsPlayerManager): List<
     val request = state.request
     val stream = state.streams.getOrNull(state.streamIndex)
     val subtitle = state.selectedSubtitle
-    val bufferedSeconds = player.totalBufferedDuration / MS_PER_SECOND.toDouble()
+    val bufferedSeconds = player.totalBufferedDuration / MILLIS_PER_SECOND.toDouble()
     val bufferedMb = manager.bufferedBytes / BYTES_PER_MB
     val dv7 = PlayerTracks.hasDolbyVisionProfile7(player.currentTracks)
     return buildList {
@@ -66,7 +67,6 @@ private fun fileName(description: String?, url: String?): String? {
     return url?.let { runCatching { Uri.parse(it).lastPathSegment }.getOrNull() }?.takeIf { it.isNotBlank() }
 }
 
-private const val MS_PER_SECOND = 1_000L
 private const val BYTES_PER_MB = 1024.0 * 1024.0
 private const val HZ_PER_KHZ = 1_000.0
 private const val BITS_PER_MEGABIT = 1_000_000.0

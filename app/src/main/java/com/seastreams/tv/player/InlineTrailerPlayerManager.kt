@@ -7,6 +7,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import com.seastreams.tv.core.network.withoutDiskCache
 import com.seastreams.tv.domain.model.TrailerStream
 import dagger.Lazy
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -40,7 +41,7 @@ class InlineTrailerPlayerManager @Inject constructor(
     private var listener: Player.Listener? = null
 
     override suspend fun start(stream: TrailerStream, muted: Boolean, onReady: () -> Unit, onError: () -> Unit) {
-        val http = client ?: withContext(Dispatchers.IO) { okHttp.get().newBuilder().cache(null).build() }.also { client = it }
+        val http = client ?: withContext(Dispatchers.IO) { okHttp.get().withoutDiskCache() }.also { client = it }
         val player = _player.value ?: ExoPlayer.Builder(context).build().also { _player.value = it }
         listener?.let(player::removeListener)
         val callbacks = object : Player.Listener {
@@ -76,9 +77,10 @@ class InlineTrailerPlayerManager @Inject constructor(
     }
 
     override fun stop() {
-        val player = _player.value ?: return
-        listener?.let(player::removeListener)
+        val callbacks = listener
         listener = null
+        val player = _player.value ?: return
+        callbacks?.let(player::removeListener)
         player.stop()
         player.clearMediaItems()
     }

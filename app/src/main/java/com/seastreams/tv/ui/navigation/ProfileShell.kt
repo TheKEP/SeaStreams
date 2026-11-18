@@ -19,8 +19,7 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.LifecycleEventEffect
 import com.seastreams.tv.domain.model.CatalogRowSpec
 import com.seastreams.tv.domain.model.CatalogSource
 import com.seastreams.tv.domain.model.MediaItem
@@ -222,15 +221,7 @@ fun ProfileShell(profileId: Long, homeViewModel: HomeViewModel, onSwitchProfile:
 /** Pausing/stopping the app stops the catalog trailer preview and frees its decoder (PRD §4). */
 @Composable
 private fun ReleaseOnBackground(trailers: InlineTrailerViewModel) {
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
-    DisposableEffect(lifecycle, trailers) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) trailers.release()
-        }
-        lifecycle.addObserver(observer)
-        onDispose {
-            lifecycle.removeObserver(observer)
-            trailers.release()
-        }
-    }
+    // ON_PAUSE always precedes ON_STOP, so it covers both; release() is idempotent.
+    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { trailers.release() }
+    DisposableEffect(trailers) { onDispose { trailers.release() } }
 }

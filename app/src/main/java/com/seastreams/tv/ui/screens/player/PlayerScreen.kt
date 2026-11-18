@@ -51,8 +51,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.media3.common.C
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.tv.material3.Icon
@@ -246,12 +245,7 @@ private fun KeepScreenOn() {
 
 @Composable
 private fun PauseWhenBackgrounded(viewModel: PlayerViewModel) {
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
-    DisposableEffect(lifecycle, viewModel) {
-        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_STOP) viewModel.onHostPaused() }
-        lifecycle.addObserver(observer)
-        onDispose { lifecycle.removeObserver(observer) }
-    }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { viewModel.onHostPaused() }
 }
 
 private fun ExoPlayer.isHdr(): Boolean {

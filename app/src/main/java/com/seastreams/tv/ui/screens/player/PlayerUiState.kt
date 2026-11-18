@@ -3,6 +3,7 @@ package com.seastreams.tv.ui.screens.player
 import com.seastreams.tv.core.datastore.AudioSettings
 import com.seastreams.tv.core.datastore.DialogueBoost
 import com.seastreams.tv.core.datastore.SubtitleStyle
+import com.seastreams.tv.core.util.MILLIS_PER_SECOND
 import com.seastreams.tv.domain.model.Episode
 import com.seastreams.tv.domain.model.EpisodeRef
 import com.seastreams.tv.domain.model.PlaybackRequest
@@ -85,13 +86,12 @@ fun episodeSubtitle(request: PlaybackRequest.Media): String? {
 
 /** `1:02:03` / `42:05`. */
 fun formatPlaybackTime(ms: Long): String {
-    val totalSeconds = (ms.coerceAtLeast(0) / MS_PER_SECOND).toInt()
+    val totalSeconds = (ms.coerceAtLeast(0) / MILLIS_PER_SECOND).toInt()
     val hours = totalSeconds / SECONDS_PER_HOUR
     val minutes = (totalSeconds % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE
     val seconds = totalSeconds % SECONDS_PER_MINUTE
     return if (hours > 0) "%d:%02d:%02d".format(hours, minutes, seconds) else "%d:%02d".format(minutes, seconds)
 }
 
-private const val MS_PER_SECOND = 1_000L
 private const val SECONDS_PER_HOUR = 3_600
 private const val SECONDS_PER_MINUTE = 60

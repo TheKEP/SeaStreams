@@ -17,7 +17,7 @@ import kotlinx.coroutines.launch
  * first, non-preferred optionally hidden), the active addon track's parsed timeline, and the cue text
  * to draw at a position (through [CleanSdhTextRenderer]).
  */
-class PlayerSubtitles(private val scope: CoroutineScope, private val loader: () -> ExternalSubtitleLoader) {
+class PlayerSubtitles(private val scope: CoroutineScope, private val loader: suspend () -> ExternalSubtitleLoader) {
 
     val renderer = CleanSdhTextRenderer()
     private var timeline: ExternalSubtitleTimeline? = null
