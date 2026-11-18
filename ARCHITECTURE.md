@@ -36,8 +36,8 @@ app/src/main/java/com/seastreams/tv/
 │   └── subtitle/
 │       └── CleanSdhTextRenderer.kt   # Intercepts cues when Clean SDH is active + applies session/global styles
 └── ui/
-    ├── theme/                        # Color.kt, Type.kt, FocusModifiers.kt
-    ├── navigation/                   # SeaStreamsNavGraph.kt
+    ├── theme/                        # Color.kt, Type.kt (FredokaFontFamily from res/font/fredoka_semibold.ttf), FocusModifiers.kt
+    ├── navigation/                   # SeaStreamsNavGraph.kt (Splash -> AppGate: Onboarding | Profile Gate)
     ├── components/
     │   ├── TopNavBar.kt              # Avatar, Clock, Search, Home, Movies, TV Shows, Library, Settings
     │   ├── HeroCarousel.kt           # Full-width hero card with horizontal D-pad cycling
@@ -45,6 +45,7 @@ app/src/main/java/com/seastreams/tv/
     │   ├── InlineTrailerOverlay.kt   # 16:9 card PlayerView surface + top-right white muted speaker badge
     │   └── PosterGrid.kt             # 5-column TvLazyVerticalGrid
     └── screens/
+        ├── splash/                   # SplashScreen.kt (black hold screen, icon + Fredoka "seastreams" 420ms black start, then one-shot 2.84s left-to-right pop-in + bobbing; >= 3.35s AND AppGate loaded; preloads Profile Gate backdrop)
         ├── profiles/                 # ProfileSelectScreen.kt, ProfileCreateScreen.kt (with QR code)
         ├── home/                     # HomeScreen.kt + HomeViewModel.kt
         ├── catalog/                  # MoviesScreen.kt, TvShowsScreen.kt, ViewMoreScreen.kt

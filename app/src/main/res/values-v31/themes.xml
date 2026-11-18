@@ -1,0 +1,15 @@
+<resources>
+    <!--
+        Android 12+ always draws a system splash before the first frame. Keep it pure black with a
+        transparent icon so the Compose SeaStreamsSplashScreen is the only splash the user sees.
+    -->
+    <style name="Theme.SeaStreams" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:colorBackground">@android:color/black</item>
+        <item name="android:navigationBarColor">@android:color/black</item>
+        <item name="android:statusBarColor">@android:color/black</item>
+        <item name="android:windowSplashScreenBackground">@android:color/black</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@android:color/black</item>
+    </style>
+</resources>

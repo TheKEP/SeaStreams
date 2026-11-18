@@ -1,5 +1,6 @@
 package com.seastreams.tv.ui.screens.profiles
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.seastreams.tv.core.database.entity.ProfileEntity
@@ -12,6 +13,7 @@ import com.seastreams.tv.ui.screens.home.HomeImagePrewarmer
 import com.seastreams.tv.ui.screens.home.firstScreenImages
 import com.seastreams.tv.ui.navigation.WhileUiSubscribed
 import dagger.Lazy
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -42,6 +44,7 @@ class ProfileSelectViewModel @Inject constructor(
     private val gateBackdrop: Lazy<GetProfileGateBackdropUseCase>,
     private val homeCatalogs: GetHomeCatalogsUseCase,
     private val imagePrewarmer: HomeImagePrewarmer,
+    @param:ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
     private val backdropUrl = MutableStateFlow<String?>(null)
@@ -83,13 +86,23 @@ class ProfileSelectViewModel @Inject constructor(
 
     /**
      * A child-safe popular backdrop, filtered by genre and certification in
-     * [GetProfileGateBackdropUseCase] (stricter whenever a Kids profile exists).
+     * [GetProfileGateBackdropUseCase] (stricter whenever a Kids profile exists). This VM is first
+     * created during the startup splash (`SeaStreamsNavGraph`), so the fetch and the image decode
+     * run behind the splash; the URL is published only once the bitmap is in Coil's memory cache,
+     * so the gate draws the artwork on its first frame instead of popping it in.
      */
     private fun loadBackdrop() {
         viewModelScope.launch {
             val anyKids = profiles.observeProfiles().first().any { it.isKids }
             // Purely decorative: offline or rate-limited simply leaves the dark background.
-            backdropUrl.value = orNullUnlessCancelled { withContext(Dispatchers.IO) { gateBackdrop.get() }(anyKids) }
+            val url = orNullUnlessCancelled { withContext(Dispatchers.IO) { gateBackdrop.get() }(anyKids) }
+            if (url != null) {
+                // Best effort: if decoding fails, the on-screen request simply retries.
+                orNullUnlessCancelled {
+                    imagePrewarmer.warm(listOf(profileGateBackdropTarget(appContext.resources.displayMetrics, url)))
+                }
+            }
+            backdropUrl.value = url
         }
     }
 
