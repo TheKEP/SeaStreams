@@ -34,7 +34,17 @@ data class EpisodeBrowser(
     val episodes: List<Episode> = emptyList(),
     val loading: Boolean = false,
     val playing: EpisodeRef? = null,
-)
+) {
+    /**
+     * The browser once [episode] starts playing. When it is in another season than the one loaded
+     * (e.g. a shuffled Next Episode jumped seasons), the loaded list is dropped so the overlay opens
+     * on the playing episode's season.
+     */
+    fun following(episode: EpisodeRef?): EpisodeBrowser = when {
+        episode == null || episode.season == season -> copy(playing = episode)
+        else -> copy(season = episode.season, episodes = emptyList(), loading = false, playing = episode)
+    }
+}
 
 data class PlayerUiState(
     val request: PlaybackRequest? = null,

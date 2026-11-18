@@ -48,10 +48,43 @@ object EpisodeNavigator {
     }
 
     /** A uniformly random aired episode across every regular season (`Shuffle`); `null` when there are none. */
-    fun shuffle(seasons: List<SeasonInfo>, lastAired: EpisodeRef?, random: Random = Random.Default): EpisodeRef? {
-        val pool = seasons.filter { it.episodeCount > 0 }.sortedBy { it.number }.flatMap { season ->
+    fun shuffle(seasons: List<SeasonInfo>, lastAired: EpisodeRef?, random: Random = Random.Default): EpisodeRef? =
+        airedPool(seasons, lastAired).randomOrNull(random)
+
+    /**
+     * What `Next Episode` and Auto-Play Next Episode play after [current] (built-in and external players
+     * alike). Sequential sessions use [next]. Shuffle sessions pick a random aired episode from the show
+     * ([ShuffleMode.Show]) or from that one season only ([ShuffleMode.Season]). The pick is never
+     * [current], and it avoids episodes already played in the session until the whole pool has played,
+     * then a new cycle starts. `null` when nothing is left (end of show, or [current] is the only
+     * aired episode in the pool).
+     */
+    fun next(
+        current: EpisodeRef,
+        seasons: List<SeasonInfo>,
+        lastAired: EpisodeRef?,
+        session: ShuffleSession,
+        random: Random = Random.Default,
+    ): NextPick? {
+        val mode = session.mode
+        val pool = when (mode) {
+            ShuffleMode.None -> return next(current, seasons, lastAired)?.let { NextPick(it, session) }
+            ShuffleMode.Show -> airedPool(seasons, lastAired)
+            is ShuffleMode.Season -> airedPool(seasons, lastAired).filter { it.season == mode.number }
+        }
+        val others = pool - current
+        val fresh = others - session.played.toSet()
+        if (fresh.isNotEmpty()) {
+            val pick = fresh.random(random)
+            return NextPick(pick, session.copy(played = (session.played + current + pick).distinct()))
+        }
+        val pick = others.randomOrNull(random) ?: return null
+        return NextPick(pick, session.copy(played = listOf(current, pick)))
+    }
+
+    /** Every aired episode of every regular season, in order. */
+    private fun airedPool(seasons: List<SeasonInfo>, lastAired: EpisodeRef?): List<EpisodeRef> =
+        seasons.filter { it.episodeCount > 0 }.sortedBy { it.number }.flatMap { season ->
             (1..season.episodeCount).map { EpisodeRef(season.number, it) }
         }.filter { lastAired == null || it <= lastAired }
-        return pool.randomOrNull(random)
-    }
 }

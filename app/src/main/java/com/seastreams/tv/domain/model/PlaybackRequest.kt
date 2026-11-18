@@ -1,6 +1,7 @@
 package com.seastreams.tv.domain.model
 
 import com.seastreams.tv.domain.playback.PlaybackTarget
+import com.seastreams.tv.domain.playback.ShuffleMode
 
 /**
  * What the built-in player is asked to play. [sessionId] tells two requests for the same title apart,
@@ -23,6 +24,12 @@ sealed interface PlaybackRequest {
 
         /** Loading-screen branding, derived from [target] so stream/episode switches and auto-next always match. */
         val artwork: PlaybackArtwork get() = target.details.media.playbackArtwork()
+
+        /**
+         * Active shuffle mode, derived from [target] so it survives stream switches and is carried
+         * through `Next Episode` / Auto-Play Next Episode; a manual `Episodes` overlay pick resets it to `None`.
+         */
+        val shuffle: ShuffleMode get() = target.shuffle.mode
     }
 
     /**
