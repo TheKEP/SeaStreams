@@ -32,7 +32,7 @@
 >    - Set/validate TMDB API key and create/edit user profiles.
 >    - Add Stremio addons via `manifest.json` URL, plus remove, rename, enable/disable, and reorder existing addons.
 >    - Import `mdblist.com` URLs directly into a profile's `Movies` or `TV Shows` Library as a one-time batch import (no custom MDBList catalog rows on `Home`, `Movies`, or `TV Shows`, and no ongoing list change tracking or syncing).
-> 3. Seed the database on first launch with built-in TMDB metadata and a default enabled OpenSubtitles Stremio addon.
+> 3. Seed the database on first launch with built-in TMDB metadata and a default enabled OpenSubtitles Stremio addon. *(Superseded: addons are now per profile, so every new profile is seeded with its own copy of these defaults, and the portal edits one selected profile's addons. See PRD §8.)*
 > 4. Build `ProfileCreateScreen.kt` (triggered when 0 profiles exist, displaying a live QR code + LAN IP URL and observing Room so entering the TMDB key on a phone automatically unlocks the "Continue" button on TV) and `ProfileSelectScreen.kt` (matching `docs/ui-references/profiles.jpg`, max 5 profiles, with Kids age-restriction setup).
 > 5. Write unit tests for Stremio `manifest.json` parsing, addon reordering, and portal form submission. Run `./gradlew testDebugUnitTest` and `./gradlew assembleDebug`.
 

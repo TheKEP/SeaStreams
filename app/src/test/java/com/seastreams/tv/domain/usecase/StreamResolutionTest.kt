@@ -47,8 +47,8 @@ class StreamResolutionTest {
         assertEquals("eng", subs.single().language)
     }
 
-    private val movie = StreamQuery(MediaRef(603, MediaType.MOVIE), imdbId = "tt0133093", episode = null)
-    private val episode = StreamQuery(MediaRef(1399, MediaType.TV), imdbId = "tt0944947", episode = EpisodeRef(2, 5))
+    private val movie = StreamQuery(1, MediaRef(603, MediaType.MOVIE), imdbId = "tt0133093", episode = null)
+    private val episode = StreamQuery(1, MediaRef(1399, MediaType.TV), imdbId = "tt0944947", episode = EpisodeRef(2, 5))
 
     private fun manifest(resources: String, idPrefixes: String = "[]", types: String = """["movie","series"]""") =
         StremioManifestParser.parse("""{"id":"x","name":"X","version":"1","types":$types,"idPrefixes":$idPrefixes,"resources":$resources}""")

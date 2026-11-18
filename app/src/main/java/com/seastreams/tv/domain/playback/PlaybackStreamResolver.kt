@@ -26,8 +26,8 @@ sealed interface NextEpisode {
 
 /**
  * Shared by the stream picker, the external-player return path and the built-in player: fills in an
- * episode's title/runtime, resolves its streams from every enabled addon and picks the top stream
- * (preferred auto-play addon first), and finds the next episode for Auto-Play Next Episode.
+ * episode's title/runtime, resolves its streams from the target profile's enabled addons, picks the
+ * top stream (preferred auto-play addon first), and finds the next episode for Auto-Play Next Episode.
  */
 class PlaybackStreamResolver @Inject constructor(
     private val resolveStreams: ResolveStreamsUseCase,
@@ -35,7 +35,7 @@ class PlaybackStreamResolver @Inject constructor(
 ) {
     suspend fun resolve(target: PlaybackTarget, preferredAddonUrl: String?): ResolvedPlayback {
         val withInfo = withEpisodeInfo(target)
-        val resolution = resolveStreams(StreamQuery(withInfo.details.ref, withInfo.imdbId, withInfo.episode))
+        val resolution = resolveStreams(StreamQuery(withInfo.profileId, withInfo.details.ref, withInfo.imdbId, withInfo.episode))
         val top = topStream(resolution.streams, preferredAddonUrl)
         return ResolvedPlayback(withInfo, resolution, top?.let(resolution.streams::indexOf) ?: -1)
     }

@@ -32,11 +32,14 @@ data class StreamResolution(
     val failedAddons: List<String>,
 )
 
-/** Which title to resolve: [imdbId] is used where addons accept it, else the `tmdb:` id. */
-data class StreamQuery(val ref: MediaRef, val imdbId: String?, val episode: EpisodeRef?)
+/**
+ * Which title to resolve, with whose addons: only [profileId]'s enabled addons are queried.
+ * [imdbId] is used where addons accept it, else the `tmdb:` id.
+ */
+data class StreamQuery(val profileId: Long, val ref: MediaRef, val imdbId: String?, val episode: EpisodeRef?)
 
 /**
- * Queries every enabled Stremio addon that serves `stream` or `subtitles` for the title's type, all in
+ * Queries every Stremio addon the profile has enabled that serves `stream` or `subtitles` for the title's type, all in
  * parallel with a per-addon timeout, so one slow addon never holds up the list.
  */
 class ResolveStreamsUseCase @Inject constructor(
@@ -46,7 +49,7 @@ class ResolveStreamsUseCase @Inject constructor(
 ) {
     suspend operator fun invoke(query: StreamQuery): StreamResolution = withContext(Dispatchers.IO) {
         val type = query.ref.mediaType.stremioType
-        val addons = addonDao.observeEnabled().first().mapNotNull { entity -> entity.parsed()?.let { entity to it } }
+        val addons = addonDao.observeEnabled(query.profileId).first().mapNotNull { entity -> entity.parsed()?.let { entity to it } }
         val results = coroutineScope {
             addons.map { (entity, manifest) -> async { queryAddon(entity, manifest, type, query) } }.awaitAll()
         }
