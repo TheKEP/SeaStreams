@@ -155,7 +155,7 @@ class PlayerViewModel @Inject constructor(
                 subtitleOffsetMs = 0,
                 audioOptions = emptyList(),
                 selectedAudioId = null,
-                episodes = it.episodes.copy(playing = request.target.episode),
+                episodes = it.episodes.following(request.target.episode),
             )
         }
         playIndex(manager, request.streamIndex, request.startPositionMs)

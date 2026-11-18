@@ -7,6 +7,7 @@ import com.seastreams.tv.domain.playback.NextEpisode
 import com.seastreams.tv.domain.playback.PlaybackProgressRecorder
 import com.seastreams.tv.domain.playback.PlaybackStreamResolver
 import com.seastreams.tv.domain.playback.ResolvedPlayback
+import com.seastreams.tv.domain.playback.forEpisode
 import com.seastreams.tv.ui.components.MetadataFormat
 import com.seastreams.tv.ui.screens.playback.noStreamsMessage
 import kotlinx.coroutines.Job
@@ -60,7 +61,7 @@ class PlayerSwitching @Inject constructor(
         }
     }
 
-    /** Episodes overlay: play [ref] of the current show. */
+    /** Episodes overlay: play [ref] of the current show. A manual pick ends any shuffle (sequential from here). */
     fun playEpisode(vm: PlayerViewModel, ref: EpisodeRef) {
         val media = vm._state.value.request as? PlaybackRequest.Media ?: return
         vm.saveNow()
@@ -68,7 +69,7 @@ class PlayerSwitching @Inject constructor(
         switchJob = vm.viewModelScope.launch {
             val badge = MetadataFormat.episodeBadge(ref.season, ref.episode)
             vm._state.update { it.copy(status = "Finding streams for $badge…", panel = null, hudVisible = false) }
-            val target = media.target.copy(episode = ref, episodeTitle = null, episodeRuntimeMinutes = null)
+            val target = media.target.forEpisode(ref)
             start(vm, resolver.resolve(target, vm.settings.player.preferredAutoPlayAddonUrl), leaveWhenEmpty = false)
         }
     }

@@ -4,8 +4,12 @@ import com.seastreams.tv.data.details.RestrictedTitleException
 import com.seastreams.tv.data.details.TitleDetailsRepository
 import com.seastreams.tv.data.library.LibraryRepository
 import com.seastreams.tv.data.profile.ProfileRepository
+import com.seastreams.tv.domain.model.EpisodeRef
 import com.seastreams.tv.domain.model.MediaType
+import com.seastreams.tv.domain.model.SeasonInfo
 import com.seastreams.tv.domain.playback.PlaybackProgressRecorder
+import com.seastreams.tv.domain.playback.ShuffleMode
+import com.seastreams.tv.domain.playback.ShuffleSession
 import com.seastreams.tv.testutil.FakeLibraryDao
 import com.seastreams.tv.testutil.FakeWatchProgressDao
 import com.seastreams.tv.testutil.testDetails
@@ -115,7 +119,26 @@ class DetailsViewModelTest {
     }
 
     @Test
-    fun `a title outside a Kids profile's ceiling is shown as restricted`() = runTest(UnconfinedTestDispatcher()) {
+    fun `Shuffle starts a show-wide shuffle while Play stays sequential`() = runTest(UnconfinedTestDispatcher()) {
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
+        val show = testDetails(11, MediaType.TV, seasons = listOf(SeasonInfo(1, "Season 1", 4), SeasonInfo(2, "Season 2", 4)))
+        coEvery { titles.load(show.ref, profile.toAgeRestriction()) } returns show
+        coEvery { titles.imdbIdForDetails(show.ref) } returns "tt0000011"
+        val vm = viewModel()
+        vm.open(1, show.media)
+
+        val episode = checkNotNull(vm.shuffleEpisode())
+        val shuffled = vm.awaitPlayTarget(episode, ShuffleMode.Show)
+        assertEquals(episode, shuffled?.episode)
+        assertEquals(ShuffleSession(ShuffleMode.Show, listOf(episode)), shuffled?.shuffle)
+
+        val play = vm.awaitPlayTarget()
+        assertEquals(EpisodeRef(1, 1), play?.episode)
+        assertEquals(ShuffleSession.Sequential, play?.shuffle)
+    }
+
+    @Test
+    fun `a title outside a Kids profile's ceiling is shown as restricted`()= runTest(UnconfinedTestDispatcher()) {
         Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
         val kid = testProfile(2, isKids = true)
         val show = testDetails(9, MediaType.TV)

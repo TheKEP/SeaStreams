@@ -34,6 +34,7 @@ import androidx.tv.material3.Text
 import com.seastreams.tv.core.util.MILLIS_PER_MINUTE
 import com.seastreams.tv.domain.model.MediaItem
 import com.seastreams.tv.domain.model.TitleDetails
+import com.seastreams.tv.domain.playback.ShuffleMode
 import com.seastreams.tv.ui.components.LocalFocusOrigins
 import com.seastreams.tv.ui.components.LocalLayerCovered
 import com.seastreams.tv.ui.components.LocalTransientMessages
@@ -115,7 +116,9 @@ fun DetailsScreen(
             if (episode == null) {
                 messages?.show("No episodes to shuffle yet")
             } else {
-                scope.launch { viewModel.awaitPlayTarget(episode)?.let { playback.play(it, forcePicker = false) } }
+                scope.launch {
+                    viewModel.awaitPlayTarget(episode, ShuffleMode.Show)?.let { playback.play(it, forcePicker = false) }
+                }
             }
         },
         onToggleLibrary = viewModel::toggleLibrary,

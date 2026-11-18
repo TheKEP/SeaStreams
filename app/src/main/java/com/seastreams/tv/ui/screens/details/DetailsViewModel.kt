@@ -13,6 +13,8 @@ import com.seastreams.tv.domain.model.MediaItem
 import com.seastreams.tv.domain.playback.EpisodeNavigator
 import com.seastreams.tv.domain.playback.PlaybackProgressRecorder
 import com.seastreams.tv.domain.playback.PlaybackTarget
+import com.seastreams.tv.domain.playback.ShuffleMode
+import com.seastreams.tv.domain.playback.ShuffleSession
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -97,14 +99,17 @@ class DetailsViewModel @Inject constructor(
 
     /**
      * What `Play` starts ([episode] overrides the next-up episode, e.g. for Shuffle), once the title
-     * and its IMDb id are loaded. `null` when the title couldn't be loaded.
+     * and its IMDb id are loaded. [shuffle] starts a shuffle session (`Shuffle` passes [ShuffleMode.Show])
+     * that Next Episode / Auto-Play Next Episode follow; `Play`/`Resume` stay sequential. `null` when
+     * the title couldn't be loaded.
      */
-    suspend fun awaitPlayTarget(episode: EpisodeRef? = null): PlaybackTarget? {
+    suspend fun awaitPlayTarget(episode: EpisodeRef? = null, shuffle: ShuffleMode = ShuffleMode.None): PlaybackTarget? {
         val ready = _state.first { it.content !is DetailsContent.Loading && it.imdbResolved || it.content.isTerminalFailure() }
         val details = ready.details ?: return null
         val profileId = ready.profileId ?: return null
         val chosen = if (ready.isShow) episode ?: ready.nextUpEpisode ?: return null else null
-        return PlaybackTarget(profileId, details, ready.imdbId, chosen)
+        val session = chosen?.let { ShuffleSession.start(shuffle, it) } ?: ShuffleSession.Sequential
+        return PlaybackTarget(profileId, details, ready.imdbId, chosen, shuffle = session)
     }
 
     /** A random aired episode for `Shuffle`; `null` for movies or before seasons are known. */
