@@ -54,15 +54,41 @@ enum class EdgeKeyAction {
 /** Auto-repeat events (`repeatCount > 0`) never wrap; only a fresh press (`repeatCount == 0`) does. */
 fun edgeKeyAction(repeatCount: Int): EdgeKeyAction = if (repeatCount > 0) EdgeKeyAction.HOLD else EdgeKeyAction.WRAP
 
+/** What [onDpadEdgeWrap] does with one key event. */
+enum class EdgeKeyResult {
+    /** Not this edge's key, or not a key-down: let it through untouched. */
+    PASS,
+
+    /** Held key at the edge: consume it so focus stays here. */
+    HOLD,
+
+    /** Fresh press at the edge: consume it and wrap. */
+    WRAP,
+}
+
+/** Pure decision behind [onDpadEdgeWrap], for an event that is ([matchesKey]) or isn't the edge key. */
+fun edgeKeyResult(matchesKey: Boolean, isKeyDown: Boolean, repeatCount: Int): EdgeKeyResult = when {
+    !matchesKey || !isKeyDown -> EdgeKeyResult.PASS
+    edgeKeyAction(repeatCount) == EdgeKeyAction.WRAP -> EdgeKeyResult.WRAP
+    else -> EdgeKeyResult.HOLD
+}
+
 /**
- * Edge-stop-then-wrap for the last element of a row (`Right`) or the bottom-most row of a page
- * (`Down`). Holding [key] stops focus here; a fresh press of [key] while already here runs [wrap].
- * Both cases consume the press, so focus never escapes past the edge.
+ * Bidirectional edge-stop-then-wrap (PRD §1). Put it on an edge element with that edge's outward
+ * [key]: the last element of a row (`Right`, wrap to the first) or of a page (`Down`, wrap to the
+ * top), and the first element (`Left`, wrap to the last; `Up`, wrap to the bottom-most element).
+ * Holding [key] stops focus here; a fresh press of [key] while already here runs [wrap]. Both cases
+ * consume the press, so focus never escapes past the edge. A single-element row takes both its
+ * `Left` and `Right` edges, so either press is consumed and focus stays put.
  */
 fun Modifier.onDpadEdgeWrap(key: Key, wrap: () -> Unit): Modifier = onPreviewKeyEvent { event ->
-    if (event.type != KeyEventType.KeyDown || event.key != key) return@onPreviewKeyEvent false
-    if (edgeKeyAction(event.nativeKeyEvent.repeatCount) == EdgeKeyAction.WRAP) wrap()
-    true
+    val result = edgeKeyResult(
+        matchesKey = event.key == key,
+        isKeyDown = event.type == KeyEventType.KeyDown,
+        repeatCount = event.nativeKeyEvent.repeatCount,
+    )
+    if (result == EdgeKeyResult.WRAP) wrap()
+    result != EdgeKeyResult.PASS
 }
 
 /** Minimum time between accepted steps while `Up`/`Down` is held (~3.5 rows per second). */
