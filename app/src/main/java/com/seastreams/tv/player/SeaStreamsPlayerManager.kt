@@ -29,6 +29,9 @@ import java.io.IOException
 sealed interface PlayerEvent {
     data object Ready : PlayerEvent
 
+    /** The current stream drew its first video frame: initial loading is over (PRD §9). */
+    data object FirstFrame : PlayerEvent
+
     data object Ended : PlayerEvent
 
     data class Failed(val error: PlaybackException) : PlayerEvent
@@ -79,6 +82,10 @@ class SeaStreamsPlayerManager(
                 Player.STATE_ENDED -> _events.tryEmit(PlayerEvent.Ended)
                 else -> Unit
             }
+        }
+
+        override fun onRenderedFirstFrame() {
+            _events.tryEmit(PlayerEvent.FirstFrame)
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
