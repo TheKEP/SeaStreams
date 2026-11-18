@@ -131,6 +131,8 @@ fun PlayerScreen(request: PlaybackRequest, viewModel: PlayerViewModel, onExit: (
             .onKeyEvent { event ->
                 // Only reached while the HUD is hidden: the root itself holds focus then.
                 if (event.type != KeyEventType.KeyDown || state.hudVisible) return@onKeyEvent false
+                // Initial loading screen: no HUD, pause or seek on a stream with no frame yet; Back still leaves.
+                if (state.initialLoading) return@onKeyEvent event.key in SelectKeys || event.key.nativeKeyCode in DpadKeyCodes
                 if (event.key in SelectKeys) {
                     hudFocus = HudFocus.PLAY
                     when (selectGate.onHiddenHudSelectDown(event.nativeKeyEvent.repeatCount, state.playing)) {
@@ -169,6 +171,9 @@ fun PlayerScreen(request: PlaybackRequest, viewModel: PlayerViewModel, onExit: (
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = HDR_DIM_ALPHA)))
             }
         }
+        val visual = loadingVisual(request is PlaybackRequest.Trailer, state.started, state.buffering)
+        // The session's current request: episode switches and auto-next replace the opening one.
+        ((state.request ?: request) as? PlaybackRequest.Media)?.let { media -> PlayerLoadingOverlay(media.artwork, visual) }
         cue?.let { text ->
             val bottom = if (state.hudVisible) SUBTITLE_RAISED else SUBTITLE_BOTTOM
             SubtitleCueText(
@@ -178,7 +183,7 @@ fun PlayerScreen(request: PlaybackRequest, viewModel: PlayerViewModel, onExit: (
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottom, start = 96.dp, end = 96.dp),
             )
         }
-        CenterIndicator(state, Modifier.align(Alignment.Center))
+        CenterIndicator(state, isTrailer = request is PlaybackRequest.Trailer, visual, Modifier.align(Alignment.Center))
         state.status?.let { StatusPill(it, Modifier.align(Alignment.TopCenter).padding(top = 28.dp)) }
         if (state.hudVisible) {
             PlayerOverlayControls(state = state, viewModel = viewModel, initialFocus = hudFocus)
@@ -229,11 +234,15 @@ private fun VideoSurface(player: ExoPlayer, aspect: Float) {
     }
 }
 
-/** Loading ring while buffering, a pause badge while paused (`player-settings.jpg`). */
+/**
+ * A trailer's loading ring while buffering, and a pause badge while paused (`player-settings.jpg`).
+ * Movies/episodes show [PlayerLoadingOverlay] instead of the ring, and no badge while it is up.
+ */
 @Composable
-private fun CenterIndicator(state: PlayerUiState, modifier: Modifier) {
+private fun CenterIndicator(state: PlayerUiState, isTrailer: Boolean, visual: LoadingVisual, modifier: Modifier) {
     when {
-        state.buffering -> BufferingRing(modifier.size(64.dp))
+        isTrailer && state.buffering -> BufferingRing(modifier.size(64.dp))
+        visual != LoadingVisual.NONE -> Unit
         !state.playing -> Box(
             modifier.size(72.dp).background(Color.Black.copy(alpha = 0.55f), CircleShape),
             contentAlignment = Alignment.Center,
@@ -272,6 +281,8 @@ private fun ExoPlayer.isHdr(): Boolean {
     val transfer = videoFormat?.colorInfo?.colorTransfer
     return transfer == C.COLOR_TRANSFER_ST2084 || transfer == C.COLOR_TRANSFER_HLG
 }
+
+private val DpadKeyCodes = setOf(KEYCODE_DPAD_UP, KEYCODE_DPAD_DOWN, KEYCODE_DPAD_LEFT, KEYCODE_DPAD_RIGHT)
 
 const val SEEK_STEP_MS = 10_000L
 private const val FAST_FORWARD_MS = 30_000L
