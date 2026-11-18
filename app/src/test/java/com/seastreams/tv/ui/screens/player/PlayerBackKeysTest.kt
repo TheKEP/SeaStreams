@@ -25,7 +25,8 @@ class PlayerBackKeysTest {
     private val episode = state(PlaybackRequest.Media(2, PlaybackTarget(1, show, "tt5", EpisodeRef(1, 3)), emptyList(), 0, emptyList(), 0))
     private val trailer = state(PlaybackRequest.Trailer(3, "Trailer", TrailerStream(TrailerSource("https://v"), audio = null, height = 1080)))
 
-    private fun state(request: PlaybackRequest) = PlayerUiState(request = request, hudVisible = true)
+    /** Playback has begun (first frame drawn) unless a test says otherwise. */
+    private fun state(request: PlaybackRequest) = PlayerUiState(request = request, hudVisible = true, started = true)
 
     // ---- Back decision: three tiers ----------------------------------------------------------------
 
@@ -53,6 +54,25 @@ class PlayerBackKeysTest {
         assertEquals(PlayerBackAction.EXIT, playerBackAction(movie.copy(hudVisible = false)))
         assertEquals(PlayerBackAction.EXIT, playerBackAction(episode.copy(hudVisible = false)))
         assertEquals(PlayerBackAction.EXIT, playerBackAction(trailer.copy(hudVisible = false)))
+    }
+
+    // ---- Initial loading screen ---------------------------------------------------------------------
+
+    @Test
+    fun `Back on the initial loading screen cancels at once, movie and episode`() {
+        assertEquals(PlayerBackAction.CANCEL_LOADING, playerBackAction(movie.copy(hudVisible = false, started = false)))
+        assertEquals(PlayerBackAction.CANCEL_LOADING, playerBackAction(episode.copy(hudVisible = false, started = false)))    }
+
+    @Test
+    fun `an open overlay or HUD still takes Back first while a switched stream loads`() {
+        val loading = episode.copy(started = false)
+        assertEquals(PlayerBackAction.CLOSE_PANEL, playerBackAction(loading.copy(panel = PlayerPanel.STREAMS)))
+        assertEquals(PlayerBackAction.HIDE_HUD, playerBackAction(loading))
+    }
+
+    @Test
+    fun `a trailer that hasn't started exits normally - it has no loading screen`() {
+        assertEquals(PlayerBackAction.EXIT, playerBackAction(trailer.copy(hudVisible = false, started = false)))
     }
 
     // ---- Key gate --------------------------------------------------------------------------------
@@ -86,7 +106,7 @@ class PlayerBackKeysTest {
                         current = when (action) {
                             PlayerBackAction.CLOSE_PANEL -> current.copy(panel = null)
                             PlayerBackAction.HIDE_HUD -> current.copy(hudVisible = false)
-                            PlayerBackAction.EXIT -> current
+                            PlayerBackAction.EXIT, PlayerBackAction.CANCEL_LOADING -> current
                         }
                     }
                 }

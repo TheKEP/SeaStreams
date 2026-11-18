@@ -43,6 +43,8 @@ data class PlayerUiState(
     val subtitle: String? = null,
     val playing: Boolean = false,
     val buffering: Boolean = true,
+    /** The current stream has rendered its first frame ([onFirstFrame]); reset by [onNewStream]. */
+    val started: Boolean = false,
     val hudVisible: Boolean = false,
     val panel: PlayerPanel? = null,
     val streams: List<StreamSource> = emptyList(),
@@ -62,6 +64,12 @@ data class PlayerUiState(
     val status: String? = null,
 ) {
     val isTrailer: Boolean get() = request is PlaybackRequest.Trailer
+
+    /** Initial-loading backdrop vs. rebuffering logo (PRD §9). */
+    val loadingVisual: LoadingVisual get() = loadingVisual(isTrailer, started, buffering)
+
+    /** A movie/episode whose current stream hasn't drawn a frame yet: only `Back` and media keys act. */
+    val initialLoading: Boolean get() = request is PlaybackRequest.Media && !started
 
     val isEpisode: Boolean get() = (request as? PlaybackRequest.Media)?.target?.episode != null
 

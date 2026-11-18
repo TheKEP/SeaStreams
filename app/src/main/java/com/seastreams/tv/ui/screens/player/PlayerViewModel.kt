@@ -3,7 +3,6 @@ package com.seastreams.tv.ui.screens.player
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.media3.common.Player
 import com.seastreams.tv.core.datastore.AppSettings
 import com.seastreams.tv.core.datastore.SettingsDataStore
 import com.seastreams.tv.core.util.MILLIS_PER_SECOND
@@ -169,7 +168,8 @@ class PlayerViewModel @Inject constructor(
             _state.update { it.copy(selectedSubtitleId = null) }
             initialSubtitleDone = false
         }
-        _state.update { it.copy(streamIndex = index) }
+        // Every new source (first start, fallback advance, stream/episode switch) shows the backdrop until its first frame.
+        _state.update { it.onNewStream(index) }
         manager.playStream(stream, positionMs)
         fallback.onStreamStarted(index, streams.size)
     }
@@ -188,6 +188,7 @@ class PlayerViewModel @Inject constructor(
                 fallback.onReady()
                 _state.update { it.copy(status = null) }
             }
+            PlayerEvent.FirstFrame -> _state.update { it.onFirstFrame() }
             is PlayerEvent.Failed -> if (_state.value.isTrailer) {
                 _messages.send("Trailer couldn't play")
                 exit()
@@ -222,43 +223,6 @@ class PlayerViewModel @Inject constructor(
 
     fun closePanel() = _state.update { it.copy(panel = null) }
 
-    fun togglePlayPause() {
-        val player = _manager.value?.player ?: return
-        if (player.isPlaying) pauseAndSave() else resume(player)
-    }
-
-    /** `Enter` while playing: pause and open the HUD (PRD §9). */
-    fun pauseAndShowHud() {
-        pauseAndSave()
-        showHud()
-    }
-
-    fun seekBy(deltaMs: Long) {
-        val player = _manager.value?.player ?: return
-        seekTo(player.currentPosition + deltaMs)
-    }
-
-    fun seekTo(positionMs: Long) {
-        val player = _manager.value?.player ?: return
-        val duration = player.duration.knownOrZero()
-        player.seekTo(if (duration > 0) positionMs.coerceIn(0, duration) else positionMs.coerceAtLeast(0))
-        _progress.update { it.copy(positionMs = player.currentPosition) }
-    }
-
-    /** The app went to the background: pause and keep the position. */
-    fun onHostPaused() = pauseAndSave()
-
-    private fun resume(player: Player) {
-        if (player.playbackState == Player.STATE_ENDED) player.seekTo(0)
-        player.play()
-    }
-
-    private fun pauseAndSave() {
-        val player = _manager.value?.player ?: return
-        player.pause()
-        saveNow()
-    }
-
     internal fun saveNow() {
         val manager = _manager.value ?: return
         val request = _state.value.request ?: return
@@ -275,6 +239,7 @@ class PlayerViewModel @Inject constructor(
             PlayerBackAction.CLOSE_PANEL -> closePanel()
             PlayerBackAction.HIDE_HUD -> hideHud()
             PlayerBackAction.EXIT -> userExit()
+            PlayerBackAction.CANCEL_LOADING -> exit()
         }
     }
 

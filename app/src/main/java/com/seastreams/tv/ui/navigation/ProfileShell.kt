@@ -149,14 +149,15 @@ fun ProfileShell(profileId: Long, homeViewModel: HomeViewModel, onSwitchProfile:
         LocalInlineTrailers provides inlineTrailers,
     ) {
         // Previews stop the moment anything covers the rows (Details, Search, the player…) or the app pauses.
-        val rowsCovered = covers.isNotEmpty() || overlays.isNotEmpty() || playbackState.picker != null || playbackState.player != null
+        val rowsCovered = covers.isNotEmpty() || overlays.isNotEmpty() || playbackState.picker != null ||
+            playbackState.player != null || playbackState.loading != null
         LaunchedEffect(rowsCovered) { if (rowsCovered) inlineTrailers.cancel() }
         LaunchedEffect(tab) { inlineTrailers.cancel() }
         ReleaseOnBackground(inlineTrailers)
         Box(Modifier.fillMaxSize()) {
             val pickerOpen = playbackState.picker != null
-            // The built-in player covers everything; nothing beneath it is drawn or focusable.
-            val playerOpen = playbackState.player != null
+            // The built-in player and its stream-lookup loading screen cover everything; nothing beneath is drawn or focusable.
+            val playerOpen = playbackState.player != null || playbackState.loading != null
             val playbackOpen = pickerOpen || playerOpen
             CoverableLayer(covered = covers.isNotEmpty() || playbackOpen, trapFocus = false, visible = covers.isEmpty() && !playerOpen) {
                 when (val top = overlays.lastOrNull()) {

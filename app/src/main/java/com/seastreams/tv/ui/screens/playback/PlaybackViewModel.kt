@@ -8,7 +8,9 @@ import com.seastreams.tv.core.datastore.SettingsDataStore
 import com.seastreams.tv.core.util.orNullUnlessCancelled
 import com.seastreams.tv.domain.model.ContinueWatchingItem
 import com.seastreams.tv.domain.model.EpisodeRef
+import com.seastreams.tv.domain.model.PlaybackArtwork
 import com.seastreams.tv.domain.model.PlaybackRequest
+import com.seastreams.tv.domain.model.playbackArtwork
 import com.seastreams.tv.domain.model.StreamSource
 import com.seastreams.tv.domain.model.SubtitleTrack
 import com.seastreams.tv.domain.playback.AutoNextPolicy
@@ -57,6 +59,11 @@ data class PlaybackUiState(
     val busyLabel: String? = null,
     /** The built-in player's current request; `null` while it is closed. */
     val player: PlaybackRequest? = null,
+    /**
+     * Full-screen loading branding while auto-play looks up streams, before the player opens (PRD §9
+     * Player Loading & Buffering UI); `null` otherwise. Cleared in the same update that opens the player.
+     */
+    val loading: PlaybackArtwork? = null,
 )
 
 sealed interface PlaybackEvent {
@@ -117,16 +124,17 @@ class PlaybackViewModel @Inject constructor(
     fun playContinueWatching(profileId: Long, item: ContinueWatchingItem) {
         lookup?.cancel()
         lookup = viewModelScope.launch {
-            _state.update { it.copy(busyLabel = FINDING_STREAMS) }
+            _state.update { it.copy(busyLabel = FINDING_STREAMS, loading = cardArtwork(item)) }
             val resolved = try {
                 resolveContinueWatching(profileId, item)
             } finally {
                 _state.update { it.copy(busyLabel = null) }
             }
+            // `loading` stays up into lookUp so the layer (and focus) never flickers between the steps.
             when (resolved) {
                 is ContinueWatchingTarget.Ready -> lookUp(resolved.target, forcePicker = false, forceAutoPlay = true)
-                ContinueWatchingTarget.Restricted -> message(RESTRICTED_TITLE)
-                ContinueWatchingTarget.Unavailable -> message(UNAVAILABLE_TITLE)
+                ContinueWatchingTarget.Restricted -> stopLoading(RESTRICTED_TITLE)
+                ContinueWatchingTarget.Unavailable -> stopLoading(UNAVAILABLE_TITLE)
             }
         }
     }
@@ -135,14 +143,14 @@ class PlaybackViewModel @Inject constructor(
         val current = settings.settings.first()
         val autoPlay = !forcePicker && (forceAutoPlay || current.player.autoPlayTopStream)
         if (autoPlay) {
-            _state.update { it.copy(busyLabel = FINDING_STREAMS) }
+            _state.update { it.copy(busyLabel = FINDING_STREAMS, loading = target.details.media.playbackArtwork()) }
         } else {
             _state.update { it.copy(picker = StreamPickerState(target.title(), target.subtitle(), loading = true)) }
         }
         val resolved = streams.resolve(target, current.player.preferredAutoPlayAddonUrl)
         if (autoPlay) {
             _state.update { it.copy(busyLabel = null) }
-            if (resolved.top == null) message(noStreamsMessage(resolved)) else start(resolved, resolved.topIndex, current)
+            if (resolved.top == null) stopLoading(noStreamsMessage(resolved)) else start(resolved, resolved.topIndex, current)
         } else {
             pickerContext = resolved
             val resolution = resolved.resolution
@@ -165,6 +173,12 @@ class PlaybackViewModel @Inject constructor(
         pickerContext = null
         val index = context.resolution.streams.indexOf(stream).coerceAtLeast(0)
         viewModelScope.launch { start(context, index, settings.settings.first()) }
+    }
+
+    /** `Back` on the stream-lookup loading screen: stop looking and close it (focus returns to the opener). */
+    fun cancelLoading() {
+        lookup?.cancel()
+        _state.update { it.copy(busyLabel = null, loading = null) }
     }
 
     fun dismissPicker() {
@@ -214,15 +228,15 @@ class PlaybackViewModel @Inject constructor(
     private suspend fun start(resolved: ResolvedPlayback, index: Int, current: AppSettings) {
         val target = resolved.target
         val resolution = resolved.resolution
-        val stream = resolution.streams.getOrNull(index) ?: return
+        val stream = resolution.streams.getOrNull(index) ?: return _state.update { it.copy(loading = null) }
         val startPosition = recorder.resumePositionMs(target)
         val choice = current.player.playerChoice
         if (choice == PlayerChoice.BuiltIn) {
             val request = PlaybackRequest.Media(nextSessionId++, target, resolution.streams, index, resolution.subtitles, startPosition)
-            _state.update { it.copy(picker = null, player = request) }
+            _state.update { it.copy(picker = null, player = request, loading = null) }
             return
         }
-        _state.update { it.copy(picker = null) }
+        _state.update { it.copy(picker = null, loading = null) }
         val prefs = current.subtitles
         val options = resolution.subtitles.map { SubtitleOption(it.url, it.addonName, it.language, SubtitleSource.EXTERNAL) }
         val ordered = TrackOrdering.subtitles(options, prefs.preferredLanguage, prefs.hideNonPreferredLanguages).take(MAX_SUBTITLES)
@@ -235,21 +249,27 @@ class PlaybackViewModel @Inject constructor(
     }
 
     private suspend fun playNextEpisode(finished: PlaybackTarget, current: AppSettings) {
-        _state.update { it.copy(busyLabel = FINDING_STREAMS) }
+        _state.update { it.copy(busyLabel = FINDING_STREAMS, loading = finished.details.media.playbackArtwork()) }
         val next = streams.next(finished, current.player.preferredAutoPlayAddonUrl)
         _state.update { it.copy(busyLabel = null) }
         when (next) {
-            NextEpisode.CaughtUp -> message("You're all caught up on ${finished.details.media.title}")
+            NextEpisode.CaughtUp -> stopLoading("You're all caught up on ${finished.details.media.title}")
             is NextEpisode.Found -> {
                 val resolved = next.playback
                 message("Up next: ${resolved.target.subtitle()}")
-                if (resolved.top == null) message(noStreamsMessage(resolved)) else start(resolved, resolved.topIndex, current)
+                if (resolved.top == null) stopLoading(noStreamsMessage(resolved)) else start(resolved, resolved.topIndex, current)
             }
         }
     }
 
     private suspend fun message(text: String) {
         _events.send(PlaybackEvent.Message(text))
+    }
+
+    /** Auto-play found nothing to play: close the loading screen and say why. */
+    private suspend fun stopLoading(text: String) {
+        _state.update { it.copy(loading = null) }
+        message(text)
     }
 
     private class ActivePlayback(val target: PlaybackTarget, val launch: ExternalPlaybackLaunch)
@@ -263,6 +283,16 @@ class PlaybackViewModel @Inject constructor(
 }
 
 private fun PlaybackTarget.title(): String = details.media.title
+
+/**
+ * A Continue Watching card's artwork before its details load. Stored progress rows carry no logo, so
+ * without one only the backdrop shows (blank title) until the details' logo arrives — never title
+ * text that then swaps to a logo.
+ */
+internal fun cardArtwork(item: ContinueWatchingItem): PlaybackArtwork {
+    val artwork = item.media.playbackArtwork()
+    return if (artwork.logoUrl != null) artwork else artwork.copy(title = "")
+}
 
 /** `S1:E2 · Pilot` for episodes, `null` for movies. */
 private fun PlaybackTarget.subtitle(): String? {

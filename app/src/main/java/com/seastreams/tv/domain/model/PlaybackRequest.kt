@@ -20,6 +20,9 @@ sealed interface PlaybackRequest {
         val startPositionMs: Long,
     ) : PlaybackRequest {
         override val title: String get() = target.details.media.title
+
+        /** Loading-screen branding, derived from [target] so stream/episode switches and auto-next always match. */
+        val artwork: PlaybackArtwork get() = target.details.media.playbackArtwork()
     }
 
     /**
@@ -32,6 +35,15 @@ sealed interface PlaybackRequest {
         val stream: TrailerStream,
     ) : PlaybackRequest
 }
+
+/**
+ * Movie/show loading-screen branding (PRD §9 Player Loading & Buffering UI): the full-screen
+ * [backdropUrl] with [logoUrl] centred, or [title] as text when there is no logo. A blank [title] with
+ * no logo shows the backdrop alone (a Continue Watching card before its title details have loaded).
+ */
+data class PlaybackArtwork(val backdropUrl: String?, val logoUrl: String?, val title: String)
+
+fun MediaItem.playbackArtwork(): PlaybackArtwork = PlaybackArtwork(heroBackdropUrl ?: backdropUrl, logoUrl, title)
 
 /**
  * One playable part of a YouTube trailer. [dashManifest] is set when the extractor built a DASH

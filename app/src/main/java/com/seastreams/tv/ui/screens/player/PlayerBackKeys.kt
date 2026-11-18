@@ -19,11 +19,18 @@ enum class PlayerBackAction {
 
     /** Tier 3, the HUD is hidden: leave playback. */
     EXIT,
+
+    /**
+     * A movie/episode still on its initial-loading screen (no frame yet): leave at once, without a
+     * progress save or Auto-Play Next Episode, so focus goes straight back to the opener.
+     */
+    CANCEL_LOADING,
 }
 
 fun playerBackAction(state: PlayerUiState): PlayerBackAction = when {
     state.panel != null -> PlayerBackAction.CLOSE_PANEL
     state.hudVisible -> PlayerBackAction.HIDE_HUD
+    state.initialLoading -> PlayerBackAction.CANCEL_LOADING
     else -> PlayerBackAction.EXIT
 }
 
