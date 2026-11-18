@@ -72,6 +72,7 @@ class PlaybackPickerDismissTest {
         streams = resolver,
         recorder = PlaybackProgressRecorder(FakeWatchProgressDao(), Clock.systemUTC()),
         resolveTrailer = mockk<ResolveTrailerStreamUseCase>(),
+        resolveContinueWatching = mockk(),
         clock = Clock.systemUTC(),
     )
 

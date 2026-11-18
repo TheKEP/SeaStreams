@@ -16,7 +16,7 @@ SeaStreams is a high-performance, native Kotlin Android TV streaming client comp
 2. **File Size Limit:** Keep Kotlin files under 350 lines. Split large screens into cohesive sub-composables (`HeroSection.kt`, `ExpandingCatalogRow.kt`, `TopNavBar.kt`).
 3. **Zero Unapproved Libraries:** Do not add third-party dependencies outside `ARCHITECTURE.md` without explicit approval.
 4. **D-Pad First & Key-Up Safety:** Every interactive element must be D-pad focusable, show clear visual focus indicators, and handle Up/Down/Left/Right/Back deterministically. Never trap focus, and ensure overlays/modals opened via `KeyDown` or `onLongClick` ignore the trailing `KeyUp` so newly focused buttons do not fire phantom clicks.
-5. **Respect TMDB Rate Limits:** Never fetch `/external_ids` in batch loops on home/catalog screens. Only fetch `/external_ids` lazily when opening an item's Details screen.
+5. **Respect TMDB Rate Limits:** Never fetch `/external_ids` in batch loops on home/catalog screens. Only fetch `/external_ids` lazily for the single title the user opened: its Details screen, or a `Continue Watching` card played directly (*Auto-play from Continue Watching*).
 6. **Strict Age Enforcement & Child-Safe Profile Gate:** Age restrictions are enforced at the Repository/UseCase layer *before* data reaches any ViewModel or UI component. Featured backdrop artwork on `ProfileSelectScreen` must also be filtered at the UseCase/Repository layer to strip Horror (`27`), Romance (`10749`), Thriller (`53`), Crime (`80`), unrated items, and anything above `PG`/`TV-PG` when any Kids profile exists (or above `PG-13`/`TV-14` otherwise).
 
 ## Mandatory Build & Verification Commands
