@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -66,7 +67,8 @@ class SettingsViewModel @Inject constructor(
 
     val state: StateFlow<SettingsUiState> = combine(
         settingsStore.settings,
-        addonDao.observeAll(),
+        // Only the active profile's addons (Manage Addons + Preferred Auto-Play Addon).
+        settingsStore.activeProfileId.flatMapLatest { id -> if (id == null) flowOf(emptyList()) else addonDao.observeAll(id) },
         players,
         library.pendingClear,
         portalVisible.flatMapLatest { visible -> if (visible) portalLinks.observe() else flowOf(null) },
@@ -95,11 +97,12 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settingsStore.updateSubtitles(transform) }
     }
 
-    fun setAddonEnabled(manifestUrl: String, enabled: Boolean) = addonAction { it.setEnabled(manifestUrl, enabled) }
+    fun setAddonEnabled(manifestUrl: String, enabled: Boolean) =
+        addonAction { repo, profileId -> repo.setEnabled(profileId, manifestUrl, enabled) }
 
-    fun moveAddon(manifestUrl: String, offset: Int) = addonAction { it.move(manifestUrl, offset) }
+    fun moveAddon(manifestUrl: String, offset: Int) = addonAction { repo, profileId -> repo.move(profileId, manifestUrl, offset) }
 
-    fun removeAddon(manifestUrl: String) = addonAction { it.remove(manifestUrl) }
+    fun removeAddon(manifestUrl: String) = addonAction { repo, profileId -> repo.remove(profileId, manifestUrl) }
 
     fun setPortalVisible(visible: Boolean) {
         portalVisible.value = visible
@@ -114,10 +117,12 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { if (library.undoClear()) _messages.send("Library kept") }
     }
 
-    private fun addonAction(block: suspend (AddonRepository) -> Unit) {
+    /** Runs [block] against the active profile's addon list; does nothing when no profile is active. */
+    private fun addonAction(block: suspend (AddonRepository, Long) -> Unit) {
         viewModelScope.launch {
+            val profileId = settingsStore.activeProfileId.first() ?: return@launch
             try {
-                block(withContext(Dispatchers.IO) { addonRepository.get() })
+                block(withContext(Dispatchers.IO) { addonRepository.get() }, profileId)
             } catch (e: UserFacingException) {
                 _messages.send(e.message ?: "That didn't work")
             }

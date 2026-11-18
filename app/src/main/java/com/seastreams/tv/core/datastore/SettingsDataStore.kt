@@ -72,11 +72,6 @@ class SettingsDataStore @Inject constructor(
         if (trimmed.isNullOrEmpty()) prefs.remove(Keys.TMDB_API_KEY) else prefs[Keys.TMDB_API_KEY] = trimmed
     }
 
-    /** Whether first-launch defaults (built-in addons) have been written; see `FirstLaunchSeeder`. */
-    suspend fun isDefaultsSeeded(): Boolean = preferences.first()[Keys.DEFAULTS_SEEDED] ?: false
-
-    suspend fun markDefaultsSeeded() = edit { prefs -> prefs[Keys.DEFAULTS_SEEDED] = true }
-
     suspend fun setActiveProfileId(profileId: Long?) = edit { prefs ->
         if (profileId == null) prefs.remove(Keys.ACTIVE_PROFILE_ID) else prefs[Keys.ACTIVE_PROFILE_ID] = profileId
     }
@@ -136,7 +131,6 @@ class SettingsDataStore @Inject constructor(
     private object Keys {
         val TMDB_API_KEY = stringPreferencesKey("tmdb_api_key")
         val ACTIVE_PROFILE_ID = longPreferencesKey("active_profile_id")
-        val DEFAULTS_SEEDED = booleanPreferencesKey("defaults_seeded_v1")
         val DISABLED_PROVIDERS = stringSetPreferencesKey("catalog_disabled_providers")
         val LEGACY_SETTINGS_MIGRATED = booleanPreferencesKey("legacy_settings_migrated_v1")
     }

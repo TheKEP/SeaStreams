@@ -21,7 +21,8 @@ import com.seastreams.tv.core.database.entity.WatchProgressEntity
         WatchProgressEntity::class,
         AddonEntity::class,
     ],
-    version = 4,
+    // v5 scopes addons per profile: manual ProfileAddonsMigration (registered in DatabaseModule).
+    version = 5,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2, spec = SeaStreamsDatabase.DropCustomCatalogs::class),

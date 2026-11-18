@@ -1,10 +1,12 @@
 package com.seastreams.tv.data.profile
 
+import com.seastreams.tv.core.database.dao.AddonDao
 import com.seastreams.tv.core.database.dao.ProfileDao
 import com.seastreams.tv.core.database.entity.ProfileEntity
 import com.seastreams.tv.core.datastore.SettingsDataStore
 import com.seastreams.tv.core.network.TmdbApiKeyProvider
 import com.seastreams.tv.data.UserFacingException
+import com.seastreams.tv.data.addon.BuiltInAddons
 import com.seastreams.tv.data.catalog.DiscoverSnapshotStore
 import com.seastreams.tv.data.catalog.LoadedCatalogStore
 import com.seastreams.tv.domain.model.MovieCertification
@@ -52,6 +54,8 @@ object KidsCeilings {
 @Singleton
 class ProfileRepository @Inject constructor(
     private val profileDao: ProfileDao,
+    /** The DAO, not `AddonRepository`: profile writes must not pull the addon HTTP client into the graph. */
+    private val addonDao: AddonDao,
     private val apiKeyProvider: TmdbApiKeyProvider,
     private val settings: SettingsDataStore,
     private val clock: Clock,
@@ -69,15 +73,18 @@ class ProfileRepository @Inject constructor(
 
     /**
      * Creates a profile. Profiles require a saved TMDB key (PRD §2 onboarding gate) and are capped
-     * at [MAX_PROFILES].
+     * at [MAX_PROFILES]. The new profile gets its own copy of the default addons ([BuiltInAddons]).
      */
     suspend fun create(draft: ProfileDraft): ProfileEntity = writeLock.withLock {
         if (apiKeyProvider.currentApiKey().isNullOrBlank()) {
             throw UserFacingException("Save a valid TMDB API key before creating a profile")
         }
         if (profileDao.count() >= MAX_PROFILES) throw UserFacingException("You can have at most $MAX_PROFILES profiles")
-        val entity = draft.validated().toEntity(id = 0, createdAtMillis = clock.millis())
-        entity.copy(id = profileDao.insert(entity))
+        val now = clock.millis()
+        val entity = draft.validated().toEntity(id = 0, createdAtMillis = now)
+        val created = entity.copy(id = profileDao.insert(entity))
+        addonDao.insertIfAbsent(BuiltInAddons.defaults(created.id, now))
+        created
     }
 
     suspend fun update(profileId: Long, draft: ProfileDraft): ProfileEntity = writeLock.withLock {
@@ -93,6 +100,8 @@ class ProfileRepository @Inject constructor(
     suspend fun delete(profileId: Long) = writeLock.withLock {
         val existing = profileDao.getById(profileId) ?: throw UserFacingException("Profile not found")
         profileDao.delete(existing)
+        // The foreign key cascades too; explicit so the profile's addon list is gone either way.
+        addonDao.deleteAllForProfile(profileId)
         discoverSnapshots.forget(profileId)
         loadedCatalogs.forget(profileId)
         // Drops the profile's General Settings and, if it was active, the active selection.

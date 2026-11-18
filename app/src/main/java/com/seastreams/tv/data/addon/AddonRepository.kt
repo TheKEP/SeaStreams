@@ -1,6 +1,7 @@
 package com.seastreams.tv.data.addon
 
 import com.seastreams.tv.core.database.dao.AddonDao
+import com.seastreams.tv.core.database.dao.ProfileDao
 import com.seastreams.tv.core.database.entity.AddonEntity
 import com.seastreams.tv.core.network.InvalidManifestException
 import com.seastreams.tv.core.network.StremioAddonClient
@@ -16,29 +17,41 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Installed Stremio addons. Every mutation that touches sort order runs under [orderLock] so that
- * concurrent portal requests (two phones, double taps) cannot interleave and corrupt the order.
+ * Installed Stremio addons, one independent list per profile: every operation takes the profile
+ * whose list it reads or changes and never touches another profile's addons.
+ *
+ * Every mutation that touches sort order runs under [orderLock] so that concurrent portal requests
+ * (two phones, double taps) cannot interleave and corrupt the order.
  */
 @Singleton
 class AddonRepository @Inject constructor(
     private val addonDao: AddonDao,
+    private val profileDao: ProfileDao,
     private val addonClient: StremioAddonClient,
     private val clock: Clock,
 ) {
     private val orderLock = Mutex()
 
-    fun observeAddons(): Flow<List<AddonEntity>> = addonDao.observeAll()
+    fun observeAddons(profileId: Long): Flow<List<AddonEntity>> = addonDao.observeAll(profileId)
 
-    /** Seeds [BuiltInAddons] on first launch. Already-present URLs are left untouched. */
-    suspend fun seedDefaults() = orderLock.withLock {
-        addonDao.insertIfAbsent(BuiltInAddons.defaults(clock.millis()))
+    /** Seeds [BuiltInAddons] for [profileId]. Already-present URLs are left untouched. */
+    suspend fun seedDefaults(profileId: Long) = orderLock.withLock {
+        addonDao.insertIfAbsent(BuiltInAddons.defaults(profileId, clock.millis()))
     }
 
-    /** Fetches, validates and installs the addon at [rawUrl] at the bottom of the list. */
-    suspend fun install(rawUrl: String): AddonEntity {
+    /** Re-adds the protected TMDB provider (at the bottom) to any profile that lacks it. */
+    suspend fun ensureBuiltIns() = orderLock.withLock {
+        addonDao.profileIdsMissing(BuiltInAddons.TMDB_URL).forEach { profileId ->
+            addonDao.insertIfAbsent(listOf(BuiltInAddons.tmdb(profileId, addonDao.nextSortOrder(profileId), clock.millis())))
+        }
+    }
+
+    /** Fetches, validates and installs the addon at [rawUrl] at the bottom of [profileId]'s list. */
+    suspend fun install(profileId: Long, rawUrl: String): AddonEntity {
+        requireProfile(profileId)
         val manifestUrl = StremioAddonUrl.normalize(rawUrl)
             ?: throw UserFacingException("That doesn't look like an addon manifest URL")
-        if (addonDao.getByUrl(manifestUrl) != null) throw UserFacingException("That addon is already installed")
+        if (addonDao.getByUrl(profileId, manifestUrl) != null) throw UserFacingException("That addon is already installed")
         val fetched = try {
             addonClient.fetchManifest(manifestUrl)
         } catch (e: InvalidManifestException) {
@@ -49,14 +62,16 @@ class AddonRepository @Inject constructor(
             throw UserFacingException("Couldn't reach the addon server")
         }
         return orderLock.withLock {
-            if (addonDao.getByUrl(manifestUrl) != null) throw UserFacingException("That addon is already installed")
+            requireProfile(profileId)
+            if (addonDao.getByUrl(profileId, manifestUrl) != null) throw UserFacingException("That addon is already installed")
             val entity = AddonEntity(
+                profileId = profileId,
                 manifestUrl = manifestUrl,
                 manifestId = fetched.manifest.id,
                 name = fetched.manifest.name,
                 customName = null,
                 enabled = true,
-                sortOrder = addonDao.nextSortOrder(),
+                sortOrder = addonDao.nextSortOrder(profileId),
                 manifestJson = fetched.rawJson,
                 installedAtMillis = clock.millis(),
             )
@@ -65,45 +80,53 @@ class AddonRepository @Inject constructor(
         }
     }
 
-    suspend fun remove(manifestUrl: String) = orderLock.withLock {
-        requireExisting(manifestUrl)
+    suspend fun remove(profileId: Long, manifestUrl: String) = orderLock.withLock {
+        requireExisting(profileId, manifestUrl)
         if (BuiltInAddons.isProtected(manifestUrl)) throw UserFacingException("Built-in addons can't be removed")
-        addonDao.delete(manifestUrl)
+        addonDao.delete(profileId, manifestUrl)
         // Close the gap so sort orders stay dense.
-        addonDao.reorder(addonDao.getAll().map { it.manifestUrl })
+        addonDao.reorder(profileId, addonDao.getAll(profileId).map { it.manifestUrl })
     }
 
     /** Sets a display name; a blank [name] restores the manifest's own name. */
-    suspend fun rename(manifestUrl: String, name: String) {
-        requireExisting(manifestUrl)
+    suspend fun rename(profileId: Long, manifestUrl: String, name: String) {
+        requireExisting(profileId, manifestUrl)
         val trimmed = name.trim()
         if (trimmed.length > MAX_NAME_LENGTH) throw UserFacingException("Names can be at most $MAX_NAME_LENGTH characters")
-        addonDao.rename(manifestUrl, trimmed.ifEmpty { null })
+        addonDao.rename(profileId, manifestUrl, trimmed.ifEmpty { null })
     }
 
-    suspend fun setEnabled(manifestUrl: String, enabled: Boolean) {
-        requireExisting(manifestUrl)
+    suspend fun setEnabled(profileId: Long, manifestUrl: String, enabled: Boolean) {
+        requireExisting(profileId, manifestUrl)
         if (!enabled && BuiltInAddons.isProtected(manifestUrl)) {
             throw UserFacingException("Built-in addons can't be disabled")
         }
-        addonDao.setEnabled(manifestUrl, enabled)
+        addonDao.setEnabled(profileId, manifestUrl, enabled)
     }
 
-    /** Moves one addon up (negative [offset]) or down (positive [offset]). */
-    suspend fun move(manifestUrl: String, offset: Int) = orderLock.withLock {
-        val current = addonDao.getAll().map { it.manifestUrl }
+    /** Moves one addon up (negative [offset]) or down (positive [offset]) within [profileId]'s list. */
+    suspend fun move(profileId: Long, manifestUrl: String, offset: Int) = orderLock.withLock {
+        requireProfile(profileId)
+        val current = addonDao.getAll(profileId).map { it.manifestUrl }
         if (manifestUrl !in current) throw UserFacingException("Addon not found")
-        addonDao.reorder(AddonOrdering.move(current, manifestUrl, offset))
+        addonDao.reorder(profileId, AddonOrdering.move(current, manifestUrl, offset))
     }
 
     /** Applies a full client-side order (e.g. after drag-and-drop), reconciled with what exists. */
-    suspend fun reorder(requestedOrder: List<String>) = orderLock.withLock {
-        val current = addonDao.getAll().map { it.manifestUrl }
-        addonDao.reorder(AddonOrdering.reconcile(current, requestedOrder))
+    suspend fun reorder(profileId: Long, requestedOrder: List<String>) = orderLock.withLock {
+        requireProfile(profileId)
+        val current = addonDao.getAll(profileId).map { it.manifestUrl }
+        addonDao.reorder(profileId, AddonOrdering.reconcile(current, requestedOrder))
     }
 
-    private suspend fun requireExisting(manifestUrl: String): AddonEntity =
-        addonDao.getByUrl(manifestUrl) ?: throw UserFacingException("Addon not found")
+    private suspend fun requireProfile(profileId: Long) {
+        if (profileDao.getById(profileId) == null) throw UserFacingException("Profile not found")
+    }
+
+    private suspend fun requireExisting(profileId: Long, manifestUrl: String): AddonEntity {
+        requireProfile(profileId)
+        return addonDao.getByUrl(profileId, manifestUrl) ?: throw UserFacingException("Addon not found")
+    }
 
     companion object {
         const val MAX_NAME_LENGTH = 40

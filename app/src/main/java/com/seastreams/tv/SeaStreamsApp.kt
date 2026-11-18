@@ -3,9 +3,9 @@ package com.seastreams.tv
 import android.app.Application
 import android.util.Log
 import com.seastreams.tv.core.util.ApplicationScope
+import com.seastreams.tv.data.setup.BuiltInAddonGuard
 import com.seastreams.tv.data.setup.DebugProfileSeeder
 import com.seastreams.tv.data.trailer.NewPipeInitializer
-import com.seastreams.tv.data.setup.FirstLaunchSeeder
 import com.seastreams.tv.data.setup.ProfileSettingsMigrator
 import dagger.Lazy
 import dagger.hilt.android.HiltAndroidApp
@@ -18,7 +18,7 @@ class SeaStreamsApp : Application() {
 
     /** Lazy: its graph includes the OkHttp disk cache, which must not be built on the main thread. */
     @Inject
-    lateinit var firstLaunchSeeder: Lazy<FirstLaunchSeeder>
+    lateinit var builtInAddonGuard: Lazy<BuiltInAddonGuard>
 
     /** Debug builds only: a ready-made `Test` profile + developer TMDB key on a fresh install. */
     @Inject
@@ -46,8 +46,9 @@ class SeaStreamsApp : Application() {
             // NewPipe.init(OkHttpDownloader(okHttpClient)); trailer extraction also ensures it lazily.
             runCatching { newPipe.get().ensureInitialized() }
                 .onFailure { Log.e("SeaStreamsApp", "NewPipe init failed", it) }
-            runCatching { firstLaunchSeeder.get().seedIfNeeded() }
-                .onFailure { Log.e("SeaStreamsApp", "Seeding default addons failed", it) }
+            // Profiles get their default addons when created; this only repairs a missing TMDB entry.
+            runCatching { builtInAddonGuard.get().ensureBuiltIns() }
+                .onFailure { Log.e("SeaStreamsApp", "Checking built-in addons failed", it) }
             if (BuildConfig.DEBUG) {
                 runCatching { debugProfileSeeder.get().seedIfNeeded() }
                     .onFailure { Log.e("SeaStreamsApp", "Seeding the debug profile failed", it) }
