@@ -1,18 +1,15 @@
 package com.seastreams.tv.ui.screens.player
 
-import android.view.KeyEvent.KEYCODE_DPAD_CENTER
 import android.view.KeyEvent.KEYCODE_DPAD_DOWN
 import android.view.KeyEvent.KEYCODE_DPAD_LEFT
 import android.view.KeyEvent.KEYCODE_DPAD_RIGHT
 import android.view.KeyEvent.KEYCODE_DPAD_UP
-import android.view.KeyEvent.KEYCODE_ENTER
 import android.view.KeyEvent.KEYCODE_MEDIA_FAST_FORWARD
 import android.view.KeyEvent.KEYCODE_MEDIA_NEXT
 import android.view.KeyEvent.KEYCODE_MEDIA_PAUSE
 import android.view.KeyEvent.KEYCODE_MEDIA_PLAY
 import android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
 import android.view.KeyEvent.KEYCODE_MEDIA_REWIND
-import android.view.KeyEvent.KEYCODE_NUMPAD_ENTER
 import android.view.SurfaceView
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -61,6 +58,7 @@ import com.seastreams.tv.domain.model.PlaybackRequest
 import com.seastreams.tv.ui.components.LocalTransientMessages
 import com.seastreams.tv.ui.components.SeaIcons
 import com.seastreams.tv.ui.components.SubtitleCueText
+import com.seastreams.tv.ui.theme.SelectKeys
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
 import kotlinx.coroutines.delay
 
@@ -90,6 +88,7 @@ fun PlayerScreen(request: PlaybackRequest, viewModel: PlayerViewModel, onExit: (
     val root = remember { FocusRequester() }
     var hudFocus by remember { mutableStateOf(HudFocus.PLAY) }
     var keyPresses by remember { mutableIntStateOf(0) }
+    val selectGate = remember { PlayerSelectKeyGate() }
     LaunchedEffect(state.hudVisible) { if (!state.hudVisible) root.requestFocusAfterFrame() }
     LaunchedEffect(state.hudVisible, state.panel, state.playing, keyPresses) {
         if (state.hudVisible && state.panel == null && state.playing) {
@@ -107,6 +106,12 @@ fun PlayerScreen(request: PlaybackRequest, viewModel: PlayerViewModel, onExit: (
             .fillMaxSize()
             .background(Color.Black)
             .onPreviewKeyEvent { event ->
+                // Runs before whichever HUD control now has focus: swallow the HUD-opening press.
+                if (event.key in SelectKeys &&
+                    selectGate.consumeHeldPress(event.type == KeyEventType.KeyDown, event.nativeKeyEvent.repeatCount)
+                ) {
+                    return@onPreviewKeyEvent true
+                }
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 keyPresses++
                 handleMediaKey(event.key.nativeKeyCode, viewModel, state)
@@ -115,12 +120,16 @@ fun PlayerScreen(request: PlaybackRequest, viewModel: PlayerViewModel, onExit: (
             .onKeyEvent { event ->
                 // Only reached while the HUD is hidden: the root itself holds focus then.
                 if (event.type != KeyEventType.KeyDown || state.hudVisible) return@onKeyEvent false
-                when (event.key.nativeKeyCode) {
-                    KEYCODE_DPAD_CENTER, KEYCODE_ENTER, KEYCODE_NUMPAD_ENTER -> {
-                        if (state.playing) viewModel.pauseAndShowHud() else openHud(HudFocus.PLAY)
-                        hudFocus = HudFocus.PLAY
-                        true
+                if (event.key in SelectKeys) {
+                    hudFocus = HudFocus.PLAY
+                    when (selectGate.onHiddenHudSelectDown(event.nativeKeyEvent.repeatCount, state.playing)) {
+                        HiddenHudSelect.PAUSE_AND_SHOW -> viewModel.pauseAndShowHud()
+                        HiddenHudSelect.SHOW -> openHud(HudFocus.PLAY)
+                        null -> Unit
                     }
+                    return@onKeyEvent true
+                }
+                when (event.key.nativeKeyCode) {
                     KEYCODE_DPAD_UP, KEYCODE_DPAD_DOWN -> {
                         openHud(HudFocus.PLAY)
                         true

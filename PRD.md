@@ -10,6 +10,7 @@
   - **Held key (`KeyEvent.nativeKeyEvent.repeatCount > 0`):** Focus stops and stays on the last item of a horizontal row (`Right`) or the bottom-most row/element of a page (`Down`). Auto-repeat events at the edge are consumed so focus neither wraps nor escapes elsewhere.
   - **Fresh press at the edge (`repeatCount == 0`):** Only when focus is *already* on the last item of a row (or the bottom-most row of a page) and the user presses that same direction again as a new key press does focus wrap: `Right` → item #1 of the row; `Down` → the top of the page.
   - Implementation: shared `Modifier.onDpadEdgeWrap(key, wrap)` in `ui/theme/FocusModifiers.kt`; new rows/grids/pages must use it rather than hand-rolled wrap handlers.
+  - **Key-Up / Phantom Click Guard (Global):** Opening any overlay, HUD, or modal via `DPAD_CENTER`/`Enter` (`KeyDown` or `onLongClick`) must consume or ignore the trailing `KeyUp` event from that same physical press so newly focused controls (e.g., the Player HUD `Play/Pause` button or the 1st item in a stream selection modal) never fire an accidental click on key release. Shared via `Modifier.ignoreInitialKeyUp()` in `ui/theme/FocusModifiers.kt`.
 - **Watched Artwork Indicator (Global):** Whenever a movie, TV show, or episode is marked as watched (`>= 90%` progress or manually marked watched), display a crisp white checkmark (`Icons.Rounded.Check` / `#FFFFFF`) inside a subtle dark translucent circular pill at the **top-right corner** of its artwork (with uniform `6dp–8dp` corner padding so it remains legible over bright posters/stills). Do **not** render a bottom progress line for completed/watched items (reserve bottom progress bars strictly for active, in-progress items `< 90%` in `Continue Watching` or partially watched episodes).
 
 ## 2. Onboarding & Profiles (Max 5 Profiles)
@@ -74,7 +75,7 @@
   - Left column displays: Title/Logo, rating %, release year, up to 2 genres, age certification badge, duration, 3-line synopsis, and cast list.
   - Vertical action button stack: `Play` (high-contrast white pill), `Trailer` (ignores all inline catalog trailer auto-play, mute, and delay settings; resolves the official YouTube trailer stream via `NewPipeExtractor` and plays full-screen with audio enabled inside the built-in Media3 ExoPlayer without recording watch progress, falling back silently to external YouTube only if stream extraction fails), `More episodes` (TV shows only), `Shuffle` (TV shows only — plays a random episode across available seasons), and `Add to library` / `Remove from library`.
   - **Library Button State & Duplicate Guard:** When an item is already saved in the active profile's library, the action button dynamically displays `Remove from library` instead of `Add to library`, and clicking it removes the item from the library. Library insertion at the repository/DAO layer must be idempotent (`OnConflictStrategy.IGNORE` / existence check) so attempting to add an already-saved item never inserts duplicates or causes UI glitches, and displays a brief `"Already in library"` toast/snackbar.
-  - **Play Button Long-Press:** When *Auto-play top stream* is enabled, a normal `OK`/`Enter` click on `Play` auto-plays the top stream, whereas pressing and holding (`onLongClick`) on `Play` bypasses auto-play and opens the stream selection modal.
+  - **Play / Resume Button Long-Press:** When *Auto-play top stream* is enabled, a normal `OK`/`Enter` click on `Play` (or `Resume`) auto-plays the top stream, whereas pressing and holding (`onLongClick`) bypasses auto-play and opens the stream selection modal with initial focus on the 1st stream result. Releasing the held `OK`/`Enter` button must never trigger an accidental click on that 1st stream result.
   - **Exact Focus Restoration on Back:** Pressing Remote `Back` to exit `DetailsScreen` must return D-pad focus to the exact originating item/card/button from which `DetailsScreen` was opened (`Home` hero or catalog row item, `Movies`, `TV Shows`, `View More`, `Search`, or `Library`).
   - Opening this screen triggers the lazy fetch of `/external_ids` (IMDb ID) so Stremio stream addons can be queried.
 - **Episodes Screen (`EpisodesScreen.kt`):**
@@ -142,7 +143,7 @@
   - **HDR White Dimming:** Optional overlay/tone-map luminance cap to dim bright specular whites during HDR10/Dolby Vision playback.
 - **Player HUD / OSD Controls & Remote Behavior (`PlayerScreen.kt` & `PlayerOverlayControls.kt`):**
   - **Remote Invocation & Back Behavior:**
-    - Pressing `Enter`/`DPAD_CENTER` while media is playing pauses playback and opens the Player HUD.
+    - Pressing `Enter`/`DPAD_CENTER` while media is playing pauses playback and opens the Player HUD without triggering the newly focused `Play/Pause` button when the key is released.
     - Pressing `Up` or `Down` while media is playing keeps playback running and opens the Player HUD.
     - Pressing `Back` while the Player HUD (or any sub-overlay) is visible dismisses the overlay/HUD without stopping playback; pressing `Back` while the Player HUD is hidden exits playback and returns to the previous screen.
   - **Bottom Action Bar Items (Left to Right):**
