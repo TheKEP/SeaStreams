@@ -119,7 +119,48 @@ class FocusModifiersTest {
         assertEquals(EdgeKeyAction.WRAP, edgeKeyAction(repeatCount = 0))
     }
 
+    @Test
+    fun `fresh press of the edge key wraps`() {
+        // Direction-agnostic: the same decision serves Left/Up (to last) and Right/Down (to first) edges.
+        assertEquals(EdgeKeyResult.WRAP, edgeKeyResult(matchesKey = true, isKeyDown = true, repeatCount = 0))
+    }
+
+    @Test
+    fun `held edge key stops at the edge without wrapping`() {
+        listOf(1, 2, 10, 50).forEach { repeats ->
+            assertEquals(EdgeKeyResult.HOLD, edgeKeyResult(matchesKey = true, isKeyDown = true, repeatCount = repeats), "repeat=$repeats")
+        }
+    }
+
+    @Test
+    fun `edge key release and other keys pass through untouched`() {
+        assertEquals(EdgeKeyResult.PASS, edgeKeyResult(matchesKey = true, isKeyDown = false, repeatCount = 0))
+        assertEquals(EdgeKeyResult.PASS, edgeKeyResult(matchesKey = false, isKeyDown = true, repeatCount = 0))
+        assertEquals(EdgeKeyResult.PASS, edgeKeyResult(matchesKey = false, isKeyDown = true, repeatCount = 5))
+    }
+
+    @Test
+    fun `held Left throttling still hands the first item a hold, and a fresh press there wraps to the last`() {
+        val throttle = DpadRepeatThrottle(minIntervalMs = HORIZONTAL_REPEAT_INTERVAL_MS)
+        assertTrue(throttle.accept(repeatCount = 0, eventTimeMs = 0L, direction = LEFT))
+        // A Left repeat the throttle lets through reaches the left-most item: it must hold.
+        assertTrue(throttle.accept(repeatCount = 3, eventTimeMs = 150L, direction = LEFT))
+        assertEquals(EdgeKeyResult.HOLD, edgeKeyResult(matchesKey = true, isKeyDown = true, repeatCount = 3))
+        // A fresh Left is never throttled and is the only thing that wraps.
+        assertTrue(throttle.accept(repeatCount = 0, eventTimeMs = 160L, direction = LEFT))
+        assertEquals(EdgeKeyResult.WRAP, edgeKeyResult(matchesKey = true, isKeyDown = true, repeatCount = 0))
+    }
+
+    @Test
+    fun `held Up throttling still hands the top item a hold`() {
+        val throttle = DpadRepeatThrottle(minIntervalMs = VERTICAL_REPEAT_INTERVAL_MS)
+        assertTrue(throttle.accept(repeatCount = 0, eventTimeMs = 0L, direction = UP))
+        assertTrue(throttle.accept(repeatCount = 6, eventTimeMs = 300L, direction = UP))
+        assertEquals(EdgeKeyResult.HOLD, edgeKeyResult(matchesKey = true, isKeyDown = true, repeatCount = 6))
+    }
+
     private companion object {
+        const val UP = 19
         // android.view.KeyEvent key codes, as the throttle node passes them.
         const val LEFT = 21
         const val RIGHT = 22

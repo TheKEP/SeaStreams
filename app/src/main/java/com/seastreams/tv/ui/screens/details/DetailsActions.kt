@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -84,11 +85,13 @@ fun detailsActions(
 /**
  * Vertical button stack (`movie-page.jpg`): plain icon + label rows that turn into a light pill while
  * focused. Every button records itself as the focus origin when pressed, so closing what it opened
- * (stream list, Episodes) lands back on it. A fresh `Down` on the last button wraps to the first.
+ * (stream list, Episodes) lands back on it. Edge-stop-then-wrap both ways (PRD §6): a fresh `Down`
+ * on the last button wraps to the first, a fresh `Up` on the first wraps to the last; held keys stop.
  */
 @Composable
 fun DetailsActionStack(actions: List<DetailsAction>, firstButton: FocusRequester, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
+    val lastButton = remember { FocusRequester() }
     Column(modifier.width(StackWidth), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         actions.forEachIndexed { index, action ->
             key(action.key) {
@@ -97,10 +100,20 @@ fun DetailsActionStack(actions: List<DetailsAction>, firstButton: FocusRequester
                     action = action,
                     origin = origin,
                     modifier = Modifier
-                        .then(if (index == 0) Modifier.focusRequester(firstButton) else Modifier)
+                        .then(
+                            if (index == 0) {
+                                Modifier
+                                    .focusRequester(firstButton)
+                                    .onDpadEdgeWrap(Key.DirectionUp) { scope.launch { lastButton.requestFocus() } }
+                            } else {
+                                Modifier
+                            },
+                        )
                         .then(
                             if (index == actions.lastIndex) {
-                                Modifier.onDpadEdgeWrap(Key.DirectionDown) { scope.launch { firstButton.requestFocus() } }
+                                Modifier
+                                    .focusRequester(lastButton)
+                                    .onDpadEdgeWrap(Key.DirectionDown) { scope.launch { firstButton.requestFocus() } }
                             } else {
                                 Modifier
                             },
