@@ -32,23 +32,28 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.seastreams.tv.ui.components.MetadataFormat
+import com.seastreams.tv.ui.screens.playback.StreamResultCard
 import com.seastreams.tv.ui.theme.SurfaceCard
 import com.seastreams.tv.ui.theme.TextSecondary
 import com.seastreams.tv.ui.theme.focusPillColors
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
 
-/** Streams overlay: the resolved stream list; picking one hot-swaps it at the current position. */
+/**
+ * Streams overlay: the resolved stream list as full, uncapped [StreamResultCard]s (rank + a check on
+ * the playing stream); picking one hot-swaps it at the current position.
+ */
 internal fun LazyListScope.streamItems(state: PlayerUiState, viewModel: PlayerViewModel, first: FocusRequester) {
     if (state.streams.isEmpty()) {
         item(key = "none") { OptionRow("No other streams", null, selected = false, onClick = {}, modifier = Modifier.focusRequester(first)) }
     }
     state.streams.forEachIndexed { index, stream ->
         item(key = "stream-$index-${stream.url}") {
-            val detail = listOf(stream.addonName, stream.description.lines().firstOrNull { it.isNotBlank() }.orEmpty())
-                .filter { it.isNotBlank() }.joinToString(" · ")
-            OptionRow(
-                "#${index + 1}  ${stream.label}", detail, index == state.streamIndex, { viewModel.selectStream(index) },
-                if (index == 0) Modifier.focusRequester(first) else Modifier,
+            StreamResultCard(
+                stream = stream,
+                onClick = { viewModel.selectStream(index) },
+                modifier = if (index == 0) Modifier.focusRequester(first) else Modifier,
+                rank = index + 1,
+                selected = index == state.streamIndex,
             )
         }
     }
