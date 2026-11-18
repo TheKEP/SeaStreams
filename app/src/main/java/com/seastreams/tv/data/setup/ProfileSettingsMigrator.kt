@@ -17,5 +17,6 @@ class ProfileSettingsMigrator @Inject constructor(
 ) {
     suspend fun migrateIfNeeded() {
         settings.migrateLegacySettings(profileDao.observeAll().first().map { it.id })
+        settings.purgeRetiredSettings()
     }
 }

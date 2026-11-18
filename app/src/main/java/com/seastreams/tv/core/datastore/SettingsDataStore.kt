@@ -86,10 +86,6 @@ class SettingsDataStore @Inject constructor(
         editActiveProfile { prefs, id -> ProfileSettingsWriter(prefs, id)[ProfileSettingsKeys.BACKGROUND_COLOR] = argb }
     }
 
-    suspend fun setCatalogRowScrollSpeed(speed: CatalogRowScrollSpeed) = editActiveProfile { prefs, id ->
-        ProfileSettingsWriter(prefs, id)[ProfileSettingsKeys.CATALOG_ROW_SCROLL_SPEED] = speed.name
-    }
-
     suspend fun updateAudio(transform: (AudioSettings) -> AudioSettings) = editActiveProfile { prefs, id ->
         ProfileSettingsWriter(prefs, id).audio(transform(ProfileSettingsReader(prefs, id).audio()))
     }
@@ -117,6 +113,14 @@ class SettingsDataStore @Inject constructor(
         if (prefs[Keys.LEGACY_SETTINGS_MIGRATED] == true) return@edit
         ProfileSettingsKeys.ALL.forEach { it.migrateLegacy(prefs, profileIds) }
         prefs[Keys.LEGACY_SETTINGS_MIGRATED] = true
+    }
+
+    /**
+     * Deletes values of settings that no longer exist ([RETIRED_SETTING_NAMES]), both the legacy
+     * app-wide key and every profile's copy. Idempotent; a no-op once they are gone.
+     */
+    suspend fun purgeRetiredSettings() = edit { prefs ->
+        prefs.asMap().keys.filter { isRetiredSettingKey(it.name) }.forEach { prefs.remove(it) }
     }
 
     /** Edits the active profile's settings atomically; a no-op while no profile is active. */

@@ -200,11 +200,10 @@ private fun keyFor(panel: SettingsPanel): String = when (panel) {
     SettingsPanel.SubtitleStyle -> "subs-style"
     is SettingsPanel.Choice -> when (panel.kind) {
         ChoiceKind.PREFERRED_ADDON -> "autoplay-addon"
-        ChoiceKind.EXTERNAL_PLAYER -> "player"
+        ChoiceKind.PLAYER -> "player"
         ChoiceKind.DIALOGUE_BOOST -> "dialogue"
         ChoiceKind.AUDIO_LANGUAGE -> "audio-lang"
         ChoiceKind.SUBTITLE_LANGUAGE -> "subs-lang"
-        ChoiceKind.CATALOG_ROW_SCROLL_SPEED -> ROW_SPEED_ROW_KEY
         ChoiceKind.BUFFER_PROFILE -> "buffer"
         ChoiceKind.PARALLEL_CONNECTIONS -> "parallel"
     }

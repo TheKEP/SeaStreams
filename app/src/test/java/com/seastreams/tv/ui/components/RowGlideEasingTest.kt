@@ -2,8 +2,6 @@ package com.seastreams.tv.ui.components
 
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
-import com.seastreams.tv.core.datastore.CatalogRowScrollSpeed
-import com.seastreams.tv.ui.screens.settings.scrollSpeedOptionLabel
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -34,18 +32,20 @@ class RowGlideEasingTest {
     }
 
     @Test
-    fun `progress at each speed reaches the end only after its scroll duration`() {
-        CatalogRowScrollSpeed.entries.forEach { speed ->
-            val duration = speed.scrollDurationMs
-            assertTrue(glideProgress((duration / 2f) / duration) < 1f, "$speed half way")
-            assertEquals(1f, glideProgress(duration.toFloat() / duration), "$speed at the end")
-        }
+    fun `rows always use the slow glide timing`() {
+        assertEquals(480, CATALOG_ROW_GLIDE_MS)
+        assertEquals(450, CARD_EXPAND_MS)
     }
 
     @Test
-    fun `the default speed is marked in the picker`() {
-        assertEquals("Slow (default)", scrollSpeedOptionLabel(CatalogRowScrollSpeed.SLOW))
-        assertEquals("Medium", scrollSpeedOptionLabel(CatalogRowScrollSpeed.MEDIUM))
-        assertEquals("Fast", scrollSpeedOptionLabel(CatalogRowScrollSpeed.FAST))
+    fun `progress reaches the end only after the glide duration`() {
+        val duration = CATALOG_ROW_GLIDE_MS.toFloat()
+        assertTrue(glideProgress((duration / 2f) / duration) < 1f)
+        assertEquals(1f, glideProgress(duration / duration))
+    }
+
+    @Test
+    fun `a card finishes widening before its row's glide settles`() {
+        assertTrue(CARD_EXPAND_MS in 1..CATALOG_ROW_GLIDE_MS)
     }
 }

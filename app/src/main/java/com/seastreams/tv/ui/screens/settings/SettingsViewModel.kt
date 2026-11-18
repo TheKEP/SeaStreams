@@ -6,7 +6,6 @@ import com.seastreams.tv.core.database.dao.AddonDao
 import com.seastreams.tv.core.database.entity.AddonEntity
 import com.seastreams.tv.core.datastore.AppSettings
 import com.seastreams.tv.core.datastore.AudioSettings
-import com.seastreams.tv.core.datastore.CatalogRowScrollSpeed
 import com.seastreams.tv.core.datastore.PlayerSettings
 import com.seastreams.tv.core.datastore.SettingsDataStore
 import com.seastreams.tv.core.datastore.SubtitleSettings
@@ -87,10 +86,6 @@ class SettingsViewModel @Inject constructor(
 
     fun updateAudio(transform: (AudioSettings) -> AudioSettings) {
         viewModelScope.launch { settingsStore.updateAudio(transform) }
-    }
-
-    fun setCatalogRowScrollSpeed(speed: CatalogRowScrollSpeed) {
-        viewModelScope.launch { settingsStore.setCatalogRowScrollSpeed(speed) }
     }
 
     fun updateSubtitles(transform: (SubtitleSettings) -> SubtitleSettings) {

@@ -18,7 +18,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.unit.dp
-import com.seastreams.tv.core.datastore.CatalogRowScrollSpeed
 import com.seastreams.tv.domain.model.RowContent
 import com.seastreams.tv.ui.components.ExpandingCatalogRow
 import com.seastreams.tv.ui.components.FailedRow
@@ -59,7 +58,6 @@ internal fun HomeContent(
     onNavigate: (HomeDestination) -> Unit,
     returnFocus: ReturnRowFocus,
     rowFocus: RowFocus,
-    scrollSpeed: CatalogRowScrollSpeed,
 ) {
     val scope = rememberCoroutineScope()
     val lastFocusable = sections.indexOfLast { it.focusable }
@@ -78,7 +76,7 @@ internal fun HomeContent(
                         .onFocusChanged { if (it.hasFocus) scope.launch { listState.snapItemToTop(index) } }
                         .then(if (index == lastFocusable) Modifier.onDpadEdgeWrap(Key.DirectionDown, wrapToTop) else Modifier),
                 ) {
-                    HomeSectionContent(section, state, heroCarousel, heroButton, rowFocus, onNavigate, returnFocus, scrollSpeed)
+                    HomeSectionContent(section, state, heroCarousel, heroButton, rowFocus, onNavigate, returnFocus)
                 }
             }
         }
@@ -94,7 +92,6 @@ private fun HomeSectionContent(
     rowFocus: RowFocus,
     onNavigate: (HomeDestination) -> Unit,
     returnFocus: ReturnRowFocus,
-    scrollSpeed: CatalogRowScrollSpeed,
 ) {
     when (section) {
         // Extra gap under the hero so, while it is focused, only the first row's title and the top
@@ -124,7 +121,6 @@ private fun HomeSectionContent(
             holdInfo = rowFocus.continueWatchingMenuOpen,
             focusedIndexState = rowFocus.memory.stateFor(section.key, section.items.map { it.media.key }),
             activeCard = rowFocus.cards.of(section.key),
-            scrollSpeed = scrollSpeed,
         )
         is HomeSection.Catalog -> when (val content = section.content) {
             RowContent.Loading -> LoadingRow(section.spec.title)
@@ -139,7 +135,6 @@ private fun HomeSectionContent(
                 onFocusReturned = returnFocus.consume,
                 focusedIndexState = rowFocus.memory.stateFor(section.key, content.row.items.map { it.key }),
                 activeCard = rowFocus.cards.of(section.key),
-                scrollSpeed = scrollSpeed,
                 trailerRowKey = "home/${section.key}",
             )
         }
