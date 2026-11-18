@@ -23,7 +23,6 @@ import com.seastreams.tv.domain.playback.SubtitleOption
 import com.seastreams.tv.domain.playback.SubtitleSource
 import com.seastreams.tv.domain.playback.TrackOrdering
 import com.seastreams.tv.domain.usecase.ResolveTrailerStreamUseCase
-import com.seastreams.tv.domain.usecase.StreamResolution
 import com.seastreams.tv.player.external.ExternalLaunchSpec
 import com.seastreams.tv.ui.components.MetadataFormat
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -113,7 +112,7 @@ class PlaybackViewModel @Inject constructor(
             val resolved = streams.resolve(target, current.player.preferredAutoPlayAddonUrl)
             if (autoPlay) {
                 _state.update { it.copy(busyLabel = null) }
-                if (resolved.top == null) message(noStreamsText(resolved.resolution)) else start(resolved, resolved.topIndex, current)
+                if (resolved.top == null) message(noStreamsMessage(resolved)) else start(resolved, resolved.topIndex, current)
             } else {
                 pickerContext = resolved
                 val resolution = resolved.resolution
@@ -215,7 +214,7 @@ class PlaybackViewModel @Inject constructor(
             is NextEpisode.Found -> {
                 val resolved = next.playback
                 message("Up next: ${resolved.target.subtitle()}")
-                if (resolved.top == null) message(noStreamsText(resolved.resolution)) else start(resolved, resolved.topIndex, current)
+                if (resolved.top == null) message(noStreamsMessage(resolved)) else start(resolved, resolved.topIndex, current)
             }
         }
     }
@@ -239,6 +238,3 @@ private fun PlaybackTarget.subtitle(): String? {
     val badge = MetadataFormat.episodeBadge(ref.season, ref.episode) ?: return null
     return listOfNotNull(badge, episodeTitle).joinToString(" · ")
 }
-
-private fun noStreamsText(resolution: StreamResolution): String =
-    if (resolution.failedAddons.isEmpty()) "No streams found" else "No streams found (${resolution.failedAddons.joinToString()} didn't respond)"

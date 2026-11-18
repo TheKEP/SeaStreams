@@ -8,6 +8,7 @@ import com.seastreams.tv.domain.playback.PlaybackProgressRecorder
 import com.seastreams.tv.domain.playback.PlaybackStreamResolver
 import com.seastreams.tv.domain.playback.ResolvedPlayback
 import com.seastreams.tv.ui.components.MetadataFormat
+import com.seastreams.tv.ui.screens.playback.noStreamsMessage
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -114,11 +115,11 @@ class PlayerSwitching @Inject constructor(
         vm._progress.update { PlayerProgress(request.startPositionMs, request.target.knownDurationMs, 0) }
     }
 
-    private fun noStreamsMessage(playback: ResolvedPlayback): String {
-        val ref = playback.target.episode
-        val badge = ref?.let { MetadataFormat.episodeBadge(it.season, it.episode) }
-        val failed = playback.resolution.failedAddons
-        val base = if (badge == null) "No streams found" else "No streams found for $badge"
-        return if (failed.isEmpty()) base else "$base (${failed.joinToString()} didn't respond)"
+    /** The session ended: drop any in-flight switch so it can't land in the next session. */
+    fun cancel() {
+        switchJob?.cancel()
+        switchJob = null
+        episodesJob?.cancel()
+        episodesJob = null
     }
 }

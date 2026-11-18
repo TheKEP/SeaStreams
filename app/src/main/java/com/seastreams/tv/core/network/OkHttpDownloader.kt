@@ -14,7 +14,7 @@ import org.schabi.newpipe.extractor.exceptions.ReCaptchaException
  */
 class OkHttpDownloader(client: OkHttpClient) : Downloader() {
 
-    private val client: OkHttpClient = client.newBuilder().cache(null).build()
+    private val client: OkHttpClient = client.withoutDiskCache()
 
     override fun execute(request: Request): Response {
         val body = request.dataToSend()?.toRequestBody()

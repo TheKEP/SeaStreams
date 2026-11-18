@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.media3.common.Player
 import com.seastreams.tv.core.datastore.AppSettings
 import com.seastreams.tv.core.datastore.SettingsDataStore
+import com.seastreams.tv.core.util.MILLIS_PER_SECOND
 import com.seastreams.tv.domain.model.EpisodeRef
 import com.seastreams.tv.domain.model.PlaybackRequest
 import com.seastreams.tv.domain.playback.AutoNextPolicy
@@ -80,7 +81,9 @@ class PlayerViewModel @Inject constructor(
     internal var lastSaveAtPosition = 0L
     private var exiting = false
 
-    internal val subtitles = PlayerSubtitles(viewModelScope) { ExternalSubtitleLoader(okHttp.get()) }
+    internal val subtitles = PlayerSubtitles(viewModelScope) {
+        ExternalSubtitleLoader(withContext(Dispatchers.IO) { okHttp.get() })
+    }
 
     internal val fallback = StreamFallbackController(
         scope = viewModelScope,
@@ -314,6 +317,7 @@ class PlayerViewModel @Inject constructor(
     private fun releaseManager() {
         sessionJob?.cancel()
         sessionJob = null
+        switching.cancel()
         fallback.cancel()
         subtitles.clear()
         _manager.value?.release()
@@ -331,8 +335,4 @@ class PlayerViewModel @Inject constructor(
     fun playEpisode(ref: EpisodeRef) = switching.playEpisode(this, ref)
 
     internal fun currentManager(): SeaStreamsPlayerManager? = _manager.value
-
-    private companion object {
-        const val MILLIS_PER_SECOND = 1_000L
-    }
 }

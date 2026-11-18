@@ -11,6 +11,7 @@ import androidx.media3.common.text.CueGroup
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import com.seastreams.tv.core.network.withoutDiskCache
 import com.seastreams.tv.domain.model.StreamSource
 import com.seastreams.tv.domain.model.TrailerStream
 import com.seastreams.tv.player.audio.AudioDspConfig
@@ -48,7 +49,7 @@ class SeaStreamsPlayerManager(
     val config: PlayerEngineConfig,
 ) {
     /** Shared client without the 100 MB disk cache: video bytes must never be cached there. */
-    private val client: OkHttpClient = okHttpClient.newBuilder().cache(null).build()
+    private val client: OkHttpClient = okHttpClient.withoutDiskCache()
     private val engine = PlayerEngineFactory.create(context.applicationContext, config)
     val player get() = engine.player
     val trackSelector get() = engine.trackSelector

@@ -3,6 +3,7 @@ package com.seastreams.tv.player.audio
 import androidx.media3.common.C
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.BaseAudioProcessor
+import com.seastreams.tv.core.util.MILLIS_PER_SECOND
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.math.roundToInt
@@ -155,6 +156,5 @@ class DialogueNightAudioProcessor(initial: AudioDspConfig = AudioDspConfig()) : 
         private const val SHORT_BYTES = 2
         private const val FLOAT_BYTES = 4
         private const val HALF = 0.5f
-        private const val MILLIS_PER_SECOND = 1_000L
     }
 }

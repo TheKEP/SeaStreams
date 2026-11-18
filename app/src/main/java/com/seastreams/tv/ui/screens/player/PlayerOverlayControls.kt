@@ -46,6 +46,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import com.seastreams.tv.core.util.MILLIS_PER_SECOND
 import com.seastreams.tv.player.PlayerTracks
 import com.seastreams.tv.player.SeaStreamsPlayerManager
 import com.seastreams.tv.ui.theme.FocusPill
@@ -91,7 +92,7 @@ fun PlayerOverlayControls(state: PlayerUiState, viewModel: PlayerViewModel, init
         Column(Modifier.align(Alignment.TopEnd).padding(end = 48.dp, top = 32.dp), horizontalAlignment = Alignment.End) {
             val remaining = (progress.durationMs - progress.positionMs).coerceAtLeast(0)
             if (progress.durationMs > 0) {
-                Text("Ends at ${LocalTime.now().plusSeconds(remaining / MS_PER_SECOND).format(CLOCK)}", style = MaterialTheme.typography.titleSmall, color = Color.White)
+                Text("Ends at ${LocalTime.now().plusSeconds(remaining / MILLIS_PER_SECOND).format(CLOCK)}", style = MaterialTheme.typography.titleSmall, color = Color.White)
             }
             manager?.let { formatSummary(it) }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.8f)) }
         }
@@ -196,7 +197,6 @@ fun BufferingRing(modifier: Modifier) {
 }
 
 private val CLOCK = DateTimeFormatter.ofPattern("h:mm a", Locale.US)
-private const val MS_PER_SECOND = 1_000L
 private const val SCRUB_COMMIT_MS = 650L
 private const val MEDIUM_REPEATS = 5
 private const val FAST_REPEATS = 15
