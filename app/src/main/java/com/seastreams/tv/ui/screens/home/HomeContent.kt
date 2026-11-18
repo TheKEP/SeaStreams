@@ -35,11 +35,15 @@ import com.seastreams.tv.ui.theme.onDpadEdgeWrap
 import com.seastreams.tv.ui.theme.throttleVerticalDpadRepeat
 import kotlinx.coroutines.launch
 
-/** Home's per-row focus state, plus the Continue Watching long-press handler. */
+/**
+ * Home's per-row focus state, plus the Continue Watching long-press handler. While
+ * [continueWatchingMenuOpen], the Continue Watching row keeps its card's description shown.
+ */
 internal class RowFocus(
     val memory: RowFocusMemory,
     val cards: SectionCardRequesters,
     val onContinueWatchingLongPress: (index: Int) -> Unit,
+    val continueWatchingMenuOpen: Boolean,
 )
 
 /** Home's scrolling page below the nav bar: each section snaps to the top when it takes focus. */
@@ -117,6 +121,7 @@ private fun HomeSectionContent(
             onViewMore = {},
             cardOverlay = { index, _ -> ContinueWatchingOverlay(section.items[index]) },
             onItemLongClick = rowFocus.onContinueWatchingLongPress,
+            holdInfo = rowFocus.continueWatchingMenuOpen,
             focusedIndexState = rowFocus.memory.stateFor(section.key, section.items.map { it.media.key }),
             activeCard = rowFocus.cards.of(section.key),
             scrollSpeed = scrollSpeed,

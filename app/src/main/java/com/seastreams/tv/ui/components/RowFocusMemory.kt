@@ -81,6 +81,13 @@ fun expandedCardIndex(lastFocused: Int, itemCount: Int, viewMoreFocused: Boolean
     else -> lastFocused.coerceIn(0, itemCount - 1)
 }
 
+/**
+ * Whether a row shows the info panel (title, metadata line, synopsis) under its wide card: while the
+ * row holds D-pad focus, or while an overlay opened from it ([holdInfo], e.g. Continue Watching's
+ * long-press menu) has taken focus away.
+ */
+fun rowInfoVisible(rowFocused: Boolean, holdInfo: Boolean): Boolean = rowFocused || holdInfo
+
 /** How a catalog card is drawn: [wide] = 16:9 backdrop instead of a 2:3 poster; [focusRing] = active D-pad highlight. */
 data class CardAppearance(val wide: Boolean, val focusRing: Boolean)
 
