@@ -42,8 +42,8 @@ fun backgroundName(argb: Int): String = when (BackgroundSwatches.ALL.indexOf(arg
     2 -> "Plum"
     3 -> "Oxblood"
     4 -> "Deep teal"
-    5 -> "Navy"
-    6 -> "Ochre"
+    5 -> "Deep navy"
+    6 -> "Espresso"
     else -> "Black"
 }
 

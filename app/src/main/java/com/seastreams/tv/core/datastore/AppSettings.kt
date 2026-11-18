@@ -145,8 +145,8 @@ object BackgroundSwatches {
         0xFF351529.toInt(),
         0xFF351515.toInt(),
         0xFF153535.toInt(),
-        0xFF151F35.toInt(),
-        0xFF916405.toInt(),
+        0xFF090B34.toInt(),
+        0xFF472A11.toInt(),
     )
 }
 

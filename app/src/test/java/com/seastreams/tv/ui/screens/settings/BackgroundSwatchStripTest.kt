@@ -10,11 +10,11 @@ import org.junit.jupiter.api.Test
 class BackgroundSwatchStripTest {
 
     private val last = BackgroundSwatches.ALL.lastIndex
-    private val ochre = 0xFF916405.toInt()
+    private val espresso = 0xFF472A11.toInt()
 
     @Test
     fun `right on the last swatch wraps to black`() {
-        assertEquals(ochre, BackgroundSwatches.ALL[last])
+        assertEquals(espresso, BackgroundSwatches.ALL[last])
         val target = swatchWrapTarget(last, last, towardsEnd = true)
         assertEquals(0, target)
         assertEquals(BackgroundSwatches.DEFAULT, BackgroundSwatches.ALL[requireNotNull(target)])
@@ -24,7 +24,7 @@ class BackgroundSwatchStripTest {
     fun `left on black wraps to the last swatch`() {
         val target = swatchWrapTarget(0, last, towardsEnd = false)
         assertEquals(last, target)
-        assertEquals(ochre, BackgroundSwatches.ALL[requireNotNull(target)])
+        assertEquals(espresso, BackgroundSwatches.ALL[requireNotNull(target)])
     }
 
     @Test
