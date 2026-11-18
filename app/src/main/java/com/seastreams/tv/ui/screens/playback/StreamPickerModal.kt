@@ -40,13 +40,15 @@ import com.seastreams.tv.domain.model.StreamSource
 import com.seastreams.tv.ui.theme.SurfaceCard
 import com.seastreams.tv.ui.theme.TextSecondary
 import com.seastreams.tv.ui.theme.focusPillColors
+import com.seastreams.tv.ui.theme.ignoreInitialKeyUp
 import com.seastreams.tv.ui.theme.onDpadEdgeWrap
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
 import kotlinx.coroutines.launch
 
 /**
  * Stream selection modal: a right-hand panel over a dimmed screen listing every stream the enabled
- * addons returned, in addon order. Focus stays inside the panel; `Back` closes it.
+ * addons returned, in addon order. Focus stays inside the panel; `Back` closes it. Every entry
+ * ignores a held `OK` that started before it was focused ([ignoreInitialKeyUp]).
  */
 @Composable
 fun StreamPickerModal(state: StreamPickerState, onChoose: (StreamSource) -> Unit, onDismiss: () -> Unit) {
@@ -150,7 +152,8 @@ private fun StatusEntry(text: String, onClick: () -> Unit, modifier: Modifier) {
 private fun EntrySurface(onClick: () -> Unit, modifier: Modifier, content: @Composable () -> Unit) {
     Surface(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth(),
+        // Long-pressing Play opens this list while OK is still held: its release must not pick a stream.
+        modifier = modifier.ignoreInitialKeyUp().fillMaxWidth(),
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(14.dp)),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
         colors = focusPillColors(containerColor = Color.White.copy(alpha = 0.08f)),
