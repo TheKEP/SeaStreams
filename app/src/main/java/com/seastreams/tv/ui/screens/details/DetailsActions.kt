@@ -34,6 +34,8 @@ import com.seastreams.tv.ui.components.SeaIcons
 import com.seastreams.tv.ui.components.rememberFocusOrigin
 import com.seastreams.tv.ui.theme.focusPillColors
 import com.seastreams.tv.ui.theme.onDpadEdgeWrap
+import com.seastreams.tv.ui.theme.rememberSelectLongPress
+import com.seastreams.tv.ui.theme.selectLongPress
 import kotlinx.coroutines.launch
 
 /** One entry of the Details action stack. [onLongClick] is only set on `Play` (PRD §6). */
@@ -111,19 +113,27 @@ fun DetailsActionStack(actions: List<DetailsAction>, firstButton: FocusRequester
 
 @Composable
 private fun DetailsActionButton(action: DetailsAction, origin: FocusOrigin, modifier: Modifier) {
-    val longClick = action.onLongClick
+    // Not the Surface's own onLongClick: its flag outlives the stream list taking focus and would
+    // swallow the first click back on `Play` (PRD §6).
+    val longPress = rememberSelectLongPress()
+    val longClick = action.onLongClick?.let {
+        {
+            origin.mark()
+            it()
+        }
+    }
     Surface(
         onClick = {
-            origin.mark()
-            action.onClick()
-        },
-        onLongClick = longClick?.let {
-            {
+            if (!longPress.consumeClick()) {
                 origin.mark()
-                it()
+                action.onClick()
             }
         },
-        modifier = modifier.focusRequester(origin.requester).fillMaxWidth().height(ButtonHeight),
+        modifier = modifier
+            .focusRequester(origin.requester)
+            .selectLongPress(longPress, longClick)
+            .fillMaxWidth()
+            .height(ButtonHeight),
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(10.dp)),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
         colors = focusPillColors(),
