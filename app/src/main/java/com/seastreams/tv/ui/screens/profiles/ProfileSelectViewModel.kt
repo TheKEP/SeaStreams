@@ -67,8 +67,15 @@ class ProfileSelectViewModel @Inject constructor(
         loadBackdrop()
     }
 
-    fun selectProfile(profileId: Long) {
-        viewModelScope.launch { settings.setActiveProfileId(profileId) }
+    /**
+     * Makes [profileId] active, then calls [onSelected]. Opening the profile only after the write
+     * lands means its per-profile settings (background, playback, audio…) are in place on frame 1.
+     */
+    fun selectProfile(profileId: Long, onSelected: () -> Unit) {
+        viewModelScope.launch {
+            settings.setActiveProfileId(profileId)
+            onSelected()
+        }
     }
 
     /**

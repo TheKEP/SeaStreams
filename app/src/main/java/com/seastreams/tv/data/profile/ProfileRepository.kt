@@ -11,7 +11,6 @@ import com.seastreams.tv.domain.model.MovieCertification
 import com.seastreams.tv.domain.model.ProfileAvatar
 import com.seastreams.tv.domain.model.TvCertification
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.time.Clock
@@ -96,7 +95,8 @@ class ProfileRepository @Inject constructor(
         profileDao.delete(existing)
         discoverSnapshots.forget(profileId)
         loadedCatalogs.forget(profileId)
-        if (settings.activeProfileId.first() == profileId) settings.setActiveProfileId(null)
+        // Drops the profile's General Settings and, if it was active, the active selection.
+        settings.clearProfile(profileId)
     }
 
     private fun ProfileDraft.validated(): ProfileDraft {

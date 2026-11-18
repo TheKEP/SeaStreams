@@ -84,8 +84,7 @@ fun ProfileSelectScreen(
                     isActive = profile.id == state.activeProfileId,
                     tileModifier = if (index == initialIndex) Modifier.focusRequester(initialFocus) else Modifier,
                     onSelect = {
-                        viewModel.selectProfile(profile.id)
-                        onProfileSelected(profile.id)
+                        viewModel.selectProfile(profile.id) { onProfileSelected(profile.id) }
                     },
                     onEdit = { onEditProfile(profile.id) },
                     onFocused = { viewModel.prefetchHome(profile) },

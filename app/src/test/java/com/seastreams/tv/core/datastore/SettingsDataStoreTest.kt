@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -37,13 +38,15 @@ class SettingsDataStoreTest {
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         rawStore = PreferenceDataStoreFactory.create(scope = scope) { File(dir, "test.preferences_pb") }
         settings = SettingsDataStore(rawStore)
+        // General Settings are per profile: the round-trip tests below run inside one profile.
+        runBlocking { settings.setActiveProfileId(PROFILE_ID) }
     }
 
     @AfterEach
     fun tearDown() = scope.cancel()
 
     @Test
-    fun `fresh install emits PRD defaults`() = runTest {
+    fun `a fresh profile emits PRD defaults`() = runTest {
         val defaults = settings.settings.first()
 
         assertEquals(AppSettings(), defaults)
@@ -52,7 +55,7 @@ class SettingsDataStoreTest {
         assertEquals(DialogueBoost.OFF, defaults.audio.dialogueBoost)
         assertEquals(0, defaults.audio.audioDelayMs)
         assertNull(settings.tmdbApiKey.first())
-        assertNull(settings.activeProfileId.first())
+        assertEquals(PROFILE_ID, settings.activeProfileId.first())
     }
 
     @Test
@@ -72,7 +75,7 @@ class SettingsDataStoreTest {
     @Test
     fun `active profile id can be set and cleared`() = runTest {
         settings.activeProfileId.test {
-            assertNull(awaitItem())
+            assertEquals(PROFILE_ID, awaitItem())
             settings.setActiveProfileId(3L)
             assertEquals(3L, awaitItem())
             settings.setActiveProfileId(null)
@@ -136,8 +139,8 @@ class SettingsDataStoreTest {
     @Test
     fun `unknown enum values written by an older or newer build fall back to defaults`() = runTest {
         rawStore.edit {
-            it[stringPreferencesKey("audio_dialogue_boost")] = "PLUS_99"
-            it[stringPreferencesKey("player_external")] = "WINAMP"
+            it[stringPreferencesKey("${SCOPE}audio_dialogue_boost")] = "PLUS_99"
+            it[stringPreferencesKey("${SCOPE}player_external")] = "WINAMP"
         }
 
         val loaded = settings.settings.first()
@@ -193,7 +196,7 @@ class SettingsDataStoreTest {
 
     @Test
     fun `a stored colour that is no longer a swatch falls back to black`() = runTest {
-        rawStore.edit { it[intPreferencesKey("ui_background_color")] = 0xFF00FF00.toInt() }
+        rawStore.edit { it[intPreferencesKey("${SCOPE}ui_background_color")] = 0xFF00FF00.toInt() }
 
         assertEquals(BackgroundSwatches.DEFAULT, settings.settings.first().appearance.backgroundArgb)
     }
@@ -208,10 +211,10 @@ class SettingsDataStoreTest {
 
     @Test
     fun `Milestone 1 external player values map to their packages`() = runTest {
-        rawStore.edit { it[stringPreferencesKey("player_external")] = "MX_PLAYER" }
+        rawStore.edit { it[stringPreferencesKey("${SCOPE}player_external")] = "MX_PLAYER" }
         assertEquals(PlayerChoice.App("com.mxtech.videoplayer.ad"), settings.settings.first().player.playerChoice)
 
-        rawStore.edit { it[stringPreferencesKey("player_external")] = "NONE" }
+        rawStore.edit { it[stringPreferencesKey("${SCOPE}player_external")] = "NONE" }
         assertEquals(PlayerChoice.BuiltIn, settings.settings.first().player.playerChoice)
     }
 
@@ -234,7 +237,7 @@ class SettingsDataStoreTest {
 
     @Test
     fun `an unknown stored catalog row scroll speed falls back to slow`() = runTest {
-        rawStore.edit { it[stringPreferencesKey("ui_catalog_row_scroll_speed")] = "LUDICROUS" }
+        rawStore.edit { it[stringPreferencesKey("${SCOPE}ui_catalog_row_scroll_speed")] = "LUDICROUS" }
         assertEquals(CatalogRowScrollSpeed.SLOW, settings.settings.first().appearance.catalogRowScrollSpeed)
     }
 
@@ -246,5 +249,10 @@ class SettingsDataStoreTest {
         val appearance = settings.settings.first().appearance
         assertEquals(color, appearance.backgroundArgb)
         assertEquals(CatalogRowScrollSpeed.MEDIUM, appearance.catalogRowScrollSpeed)
+    }
+
+    private companion object {
+        const val PROFILE_ID = 1L
+        const val SCOPE = "p$PROFILE_ID/"
     }
 }

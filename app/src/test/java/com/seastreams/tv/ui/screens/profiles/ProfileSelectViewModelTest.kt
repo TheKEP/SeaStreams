@@ -22,7 +22,9 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
@@ -140,6 +142,21 @@ class ProfileSelectViewModelTest {
             assertEquals(ADULT_ART, awaitItem().backdropUrl)
         }
         coVerify(exactly = 1) { useCase(any(), any()) }
+    }
+
+    @Test
+    fun `selecting a profile opens it only after it is the active profile`() = runTest(UnconfinedTestDispatcher()) {
+        coEvery { useCase(any(), any()) } returns ADULT_ART
+        val written = CompletableDeferred<Unit>()
+        coEvery { settings.setActiveProfileId(adult.id) } coAnswers { written.await() }
+        var opened = false
+
+        viewModel().selectProfile(adult.id) { opened = true }
+        assertFalse(opened, "the profile's per-profile settings are not active yet")
+
+        written.complete(Unit)
+        assertTrue(opened)
+        coVerify(exactly = 1) { settings.setActiveProfileId(adult.id) }
     }
 
     private companion object {
