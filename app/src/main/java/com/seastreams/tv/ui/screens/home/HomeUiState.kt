@@ -26,6 +26,7 @@ data class HomeUiState(
 /** Where a click on Home leads; the nav graph maps these to screens. */
 sealed interface HomeDestination {
     data class Details(val item: MediaItem) : HomeDestination
+    /** Continue Watching with auto-play on: straight to playback, never through Details. */
     data class Play(val item: ContinueWatchingItem) : HomeDestination
     data class ViewMore(val row: CatalogRowSpec) : HomeDestination
 }

@@ -62,6 +62,7 @@ class PlaybackTrailerTest {
         streams = mockk<PlaybackStreamResolver>(),
         recorder = PlaybackProgressRecorder(dao, Clock.systemUTC()),
         resolveTrailer = resolveTrailer,
+        resolveContinueWatching = mockk(),
         clock = Clock.systemUTC(),
     )
 

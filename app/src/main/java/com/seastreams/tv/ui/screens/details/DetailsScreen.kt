@@ -58,17 +58,15 @@ import kotlinx.coroutines.launch
  * that opened this screen.
  *
  * `Play` auto-plays the top stream when *Auto-play top stream* is on; a long-press always opens the
- * stream list. [autoPlay] (Continue Watching with auto-play on) starts playback as soon as it can.
+ * stream list.
  */
 @Composable
 fun DetailsScreen(
     profileId: Long,
     item: MediaItem,
-    autoPlay: Boolean,
     viewModel: DetailsViewModel,
     playback: PlaybackViewModel,
     onOpenEpisodes: (details: TitleDetails, imdbId: String?) -> Unit,
-    onAutoPlayHandled: () -> Unit,
     onBack: () -> Unit,
 ) {
     LaunchedEffect(profileId, item.ref) { viewModel.open(profileId, item) }
@@ -90,7 +88,7 @@ fun DetailsScreen(
     }
     // Focus the first button on entry, and again when Retry/Go back replace the stack.
     LaunchedEffect(state.content::class) { firstButton.requestFocusAfterFrame() }
-    // Playback closing without a usable mark (e.g. Continue Watching auto-play) lands on Play/Resume.
+    // Playback closing without a usable mark lands on Play/Resume.
     val origins = LocalFocusOrigins.current
     DisposableEffect(origins, firstButton) {
         val token = origins?.registerFallback(firstButton)
@@ -104,11 +102,6 @@ fun DetailsScreen(
         if (covered) return@LaunchedEffect
         repeat(RESTORE_FRAMES + 2) { awaitNextFrame() }
         if (!pageHasFocus) firstButton.tryRequestFocus()
-    }
-    LaunchedEffect(autoPlay) {
-        if (!autoPlay) return@LaunchedEffect
-        viewModel.awaitPlayTarget()?.let { playback.play(it, forcePicker = false) }
-        onAutoPlayHandled()
     }
 
     val play: (Boolean) -> Unit = { forcePicker ->

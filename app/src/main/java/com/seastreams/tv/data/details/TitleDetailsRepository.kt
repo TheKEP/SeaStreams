@@ -54,7 +54,8 @@ class TitleDetailsRepository @Inject constructor(
 
     /**
      * The title's IMDb id (`tt…`) for Stremio addons, or `null` when TMDB has none. This is the app's
-     * only `/external_ids` caller and runs only when a Details screen opens (CLAUDE.md rule 5).
+     * only `/external_ids` caller and runs only for the single title the user opened — its Details
+     * screen, or a Continue Watching card played directly (CLAUDE.md rule 5).
      */
     suspend fun imdbIdForDetails(ref: MediaRef): String? {
         imdbIds[ref]?.let { return it }
