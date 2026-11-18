@@ -27,8 +27,9 @@ class TabChrome(
 /**
  * Movies, TV Shows and Library: the [TopNavBar] with [tab] selected above the tab's content.
  *
- * `Back` from the content moves focus to the tab's pill; `Back` while the pill (or any nav pill
- * restored to it) is focused returns to Home, mirroring Home's own `Back` → nav bar rule (PRD §1).
+ * `Back` from the content always moves focus to this tab's own pill, never a previously focused pill
+ * such as the Settings gear (see [navBarEntry]); `Back` while the pill is focused returns to Home,
+ * mirroring Home's own `Back` → nav bar rule (PRD §1).
  */
 @Composable
 fun TabScaffold(
