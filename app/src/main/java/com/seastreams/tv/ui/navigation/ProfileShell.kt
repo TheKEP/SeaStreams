@@ -22,6 +22,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.seastreams.tv.domain.model.CatalogRowSpec
 import com.seastreams.tv.domain.model.CatalogSource
+import com.seastreams.tv.domain.model.ContinueWatchingItem
 import com.seastreams.tv.domain.model.MediaItem
 import com.seastreams.tv.ui.components.CoverableLayer
 import com.seastreams.tv.ui.components.FocusOriginTracker
@@ -66,6 +67,23 @@ internal fun tabFor(selected: NavTab): NavTab? = when (selected) {
 }
 
 /**
+ * Where a Home click goes. [HomeDestination.Play] (Continue Watching with *Auto-play from Continue
+ * Watching* on) goes straight to playback and never opens Details (PRD §3).
+ */
+internal fun routeHomeDestination(
+    destination: HomeDestination,
+    openDetails: (MediaItem) -> Unit,
+    viewMore: (CatalogRowSpec) -> Unit,
+    play: (ContinueWatchingItem) -> Unit,
+) {
+    when (destination) {
+        is HomeDestination.ViewMore -> viewMore(destination.row)
+        is HomeDestination.Details -> openDetails(destination.item)
+        is HomeDestination.Play -> play(destination.item)
+    }
+}
+
+/**
  * Everything after a profile is chosen: the Home / Movies / TV Shows / Library tabs, Search and View
  * More pages stacked over them, and on top of whichever page is showing the [Cover] layers (Details,
  * Episodes, Settings).
@@ -105,9 +123,6 @@ fun ProfileShell(profileId: Long, homeViewModel: HomeViewModel, onSwitchProfile:
             top.origin?.let { origin -> scope.launch { retryEachFrame(RESTORE_FRAMES) { origin.tryRequestFocus() } } }
         }
     }
-    val updateCover: (Long, Cover) -> Unit = { id, cover ->
-        covers = covers.map { if (it.id == id) it.copy(cover = cover) else it }
-    }
     val onTabSelected: (NavTab) -> Unit = { selected ->
         when (selected) {
             NavTab.SEARCH -> push(Overlay.Search)
@@ -118,7 +133,7 @@ fun ProfileShell(profileId: Long, homeViewModel: HomeViewModel, onSwitchProfile:
             }
         }
     }
-    val openDetails: (MediaItem) -> Unit = { pushCover(Cover.Details(it, autoPlay = false)) }
+    val openDetails: (MediaItem) -> Unit = { pushCover(Cover.Details(it)) }
     val viewMore: (NavTab, CatalogRowSpec) -> Unit = { origin, row ->
         rowReturn = RowReturnTarget(origin, row.id)
         push(Overlay.ViewMore(row.title, row.source))
@@ -180,12 +195,12 @@ fun ProfileShell(profileId: Long, homeViewModel: HomeViewModel, onSwitchProfile:
                                 profileId = profileId,
                                 viewModel = homeViewModel,
                                 onNavigate = { destination ->
-                                    when (destination) {
-                                        is HomeDestination.ViewMore -> viewMore(NavTab.HOME, destination.row)
-                                        is HomeDestination.Details -> openDetails(destination.item)
-                                        // Auto-play from Continue Watching: Details opens and starts playing.
-                                        is HomeDestination.Play -> pushCover(Cover.Details(destination.item.media, autoPlay = true))
-                                    }
+                                    routeHomeDestination(
+                                        destination = destination,
+                                        openDetails = openDetails,
+                                        viewMore = { viewMore(NavTab.HOME, it) },
+                                        play = { playback.playContinueWatching(profileId, it) },
+                                    )
                                 },
                                 onTabSelected = onTabSelected,
                                 onSwitchProfile = onSwitchProfile,
@@ -206,7 +221,6 @@ fun ProfileShell(profileId: Long, homeViewModel: HomeViewModel, onSwitchProfile:
                             profileId = profileId,
                             playback = playback,
                             onPush = pushCover,
-                            onUpdate = updateCover,
                             onClose = popCover,
                         )
                     }

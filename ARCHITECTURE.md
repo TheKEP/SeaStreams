@@ -27,7 +27,7 @@ app/src/main/java/com/seastreams/tv/
 │   ├── filter/
 │   │   ├── AgeRestrictionEngine.kt   # Pure Kotlin certification + genre safety evaluator (Kids profiles & Profile Gate artwork)
 │   │   └── SdhSubtitleCleaner.kt     # Pure Kotlin SDH cue stripper
-│   └── usecase/                      # GetHomeCatalogsUseCase, ResolveStreamsUseCase, ResolveTrailerStreamUseCase, ImportMdbListUseCase
+│   └── usecase/                      # GetHomeCatalogsUseCase, ResolveStreamsUseCase, ResolveTrailerStreamUseCase, ResolveContinueWatchingTargetUseCase (CW card -> age-checked PlaybackTarget, single-title /external_ids), ImportMdbListUseCase
 ├── player/
 │   ├── SeaStreamsPlayerManager.kt    # ExoPlayer wrapper + LoadControl buffer profiles + Stream Fallback Timer (1s-10s) + MergingMediaSource trailers
 │   ├── ParallelRangeDataSource.kt    # Multi-connection HTTP Byte-Range DataSource wrapper (1-4 concurrent chunks) + live throughput tracker

@@ -6,6 +6,7 @@ import com.seastreams.tv.core.datastore.AppSettings
 import com.seastreams.tv.core.datastore.PlayerChoice
 import com.seastreams.tv.core.datastore.SettingsDataStore
 import com.seastreams.tv.core.util.orNullUnlessCancelled
+import com.seastreams.tv.domain.model.ContinueWatchingItem
 import com.seastreams.tv.domain.model.EpisodeRef
 import com.seastreams.tv.domain.model.PlaybackRequest
 import com.seastreams.tv.domain.model.StreamSource
@@ -22,6 +23,8 @@ import com.seastreams.tv.domain.playback.ResolvedPlayback
 import com.seastreams.tv.domain.playback.SubtitleOption
 import com.seastreams.tv.domain.playback.SubtitleSource
 import com.seastreams.tv.domain.playback.TrackOrdering
+import com.seastreams.tv.domain.usecase.ContinueWatchingTarget
+import com.seastreams.tv.domain.usecase.ResolveContinueWatchingTargetUseCase
 import com.seastreams.tv.domain.usecase.ResolveTrailerStreamUseCase
 import com.seastreams.tv.player.external.ExternalLaunchSpec
 import com.seastreams.tv.ui.components.MetadataFormat
@@ -66,8 +69,8 @@ sealed interface PlaybackEvent {
 }
 
 /**
- * Starts playback for Details and Episodes (PRD §9): looks up streams from every enabled addon, then
- * auto-plays the top one (preferred addon first) or opens the stream list; a long-press on `Play`
+ * Starts playback for Details, Episodes and Continue Watching auto-play (PRD §3, §9): looks up
+ * streams from every enabled addon, then auto-plays the top one (preferred addon first) or opens the stream list; a long-press on `Play`
  * always opens the list. Streams open in the built-in player ([PlaybackUiState.player]) or go to the
  * configured external player; when that returns, its result is saved as watch progress and, for a
  * finished episode, Auto-Play Next Episode starts the next one. Details trailers always use the
@@ -79,6 +82,7 @@ class PlaybackViewModel @Inject constructor(
     private val streams: PlaybackStreamResolver,
     private val recorder: PlaybackProgressRecorder,
     private val resolveTrailer: ResolveTrailerStreamUseCase,
+    private val resolveContinueWatching: ResolveContinueWatchingTargetUseCase,
     private val clock: Clock,
 ) : ViewModel() {
 
@@ -101,32 +105,57 @@ class PlaybackViewModel @Inject constructor(
      */
     fun play(target: PlaybackTarget, forcePicker: Boolean, forceAutoPlay: Boolean = false) {
         lookup?.cancel()
+        lookup = viewModelScope.launch { lookUp(target, forcePicker, forceAutoPlay) }
+    }
+
+    /**
+     * A Continue Watching card with *Auto-play from Continue Watching* on (PRD §3): straight from Home
+     * to the card's movie or episode — the top stream (preferred addon first, whatever *Auto-play top
+     * stream* says) at its saved position — without opening Details. On failure only a message shows,
+     * so focus stays on the card.
+     */
+    fun playContinueWatching(profileId: Long, item: ContinueWatchingItem) {
+        lookup?.cancel()
         lookup = viewModelScope.launch {
-            val current = settings.settings.first()
-            val autoPlay = !forcePicker && (forceAutoPlay || current.player.autoPlayTopStream)
-            if (autoPlay) {
-                _state.update { it.copy(busyLabel = "Finding streams…") }
-            } else {
-                _state.update { it.copy(picker = StreamPickerState(target.title(), target.subtitle(), loading = true)) }
-            }
-            val resolved = streams.resolve(target, current.player.preferredAutoPlayAddonUrl)
-            if (autoPlay) {
+            _state.update { it.copy(busyLabel = FINDING_STREAMS) }
+            val resolved = try {
+                resolveContinueWatching(profileId, item)
+            } finally {
                 _state.update { it.copy(busyLabel = null) }
-                if (resolved.top == null) message(noStreamsMessage(resolved)) else start(resolved, resolved.topIndex, current)
-            } else {
-                pickerContext = resolved
-                val resolution = resolved.resolution
-                _state.update {
-                    it.copy(
-                        picker = it.picker?.copy(
-                            title = resolved.target.title(),
-                            subtitle = resolved.target.subtitle(),
-                            loading = false,
-                            streams = resolution.streams,
-                            failedAddons = resolution.failedAddons,
-                        ),
-                    )
-                }
+            }
+            when (resolved) {
+                is ContinueWatchingTarget.Ready -> lookUp(resolved.target, forcePicker = false, forceAutoPlay = true)
+                ContinueWatchingTarget.Restricted -> message(RESTRICTED_TITLE)
+                ContinueWatchingTarget.Unavailable -> message(UNAVAILABLE_TITLE)
+            }
+        }
+    }
+
+    private suspend fun lookUp(target: PlaybackTarget, forcePicker: Boolean, forceAutoPlay: Boolean) {
+        val current = settings.settings.first()
+        val autoPlay = !forcePicker && (forceAutoPlay || current.player.autoPlayTopStream)
+        if (autoPlay) {
+            _state.update { it.copy(busyLabel = FINDING_STREAMS) }
+        } else {
+            _state.update { it.copy(picker = StreamPickerState(target.title(), target.subtitle(), loading = true)) }
+        }
+        val resolved = streams.resolve(target, current.player.preferredAutoPlayAddonUrl)
+        if (autoPlay) {
+            _state.update { it.copy(busyLabel = null) }
+            if (resolved.top == null) message(noStreamsMessage(resolved)) else start(resolved, resolved.topIndex, current)
+        } else {
+            pickerContext = resolved
+            val resolution = resolved.resolution
+            _state.update {
+                it.copy(
+                    picker = it.picker?.copy(
+                        title = resolved.target.title(),
+                        subtitle = resolved.target.subtitle(),
+                        loading = false,
+                        streams = resolution.streams,
+                        failedAddons = resolution.failedAddons,
+                    ),
+                )
             }
         }
     }
@@ -206,7 +235,7 @@ class PlaybackViewModel @Inject constructor(
     }
 
     private suspend fun playNextEpisode(finished: PlaybackTarget, current: AppSettings) {
-        _state.update { it.copy(busyLabel = "Finding streams…") }
+        _state.update { it.copy(busyLabel = FINDING_STREAMS) }
         val next = streams.next(finished, current.player.preferredAutoPlayAddonUrl)
         _state.update { it.copy(busyLabel = null) }
         when (next) {
@@ -227,6 +256,9 @@ class PlaybackViewModel @Inject constructor(
 
     private companion object {
         const val MAX_SUBTITLES = 12
+        const val FINDING_STREAMS = "Finding streams…"
+        const val RESTRICTED_TITLE = "This title isn't available on this profile."
+        const val UNAVAILABLE_TITLE = "Couldn't load this title. Check the connection and try again."
     }
 }
 

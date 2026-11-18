@@ -23,6 +23,7 @@ import com.seastreams.tv.core.datastore.CatalogRowScrollSpeed
 import com.seastreams.tv.ui.components.ActionMenu
 import com.seastreams.tv.ui.components.ActionMenuRequest
 import com.seastreams.tv.ui.components.HeroAutoCycleEffect
+import com.seastreams.tv.ui.components.LocalFocusOrigins
 import com.seastreams.tv.ui.components.NavTab
 import com.seastreams.tv.ui.components.RestoreRowFocusEffect
 import com.seastreams.tv.ui.components.ReturnRowFocus
@@ -44,8 +45,10 @@ import kotlinx.coroutines.launch
  * - Edge-stop-then-wrap: holding `Down` stops on the bottom-most row; a fresh `Down` press while
  *   already there wraps to the top of the page (the hero, else the `Home` pill).
  * - The focused section snaps to the top of the viewport.
- * - Long-press on a Continue Watching card opens its `Remove` / `Clear progress` menu; afterwards focus
- *   moves to the card that took its place ([ContinueWatchingRemovalFocusEffect]).
+ * - Clicking a Continue Watching card plays it straight away when *Auto-play from Continue Watching*
+ *   is on ([HomeDestination.Play]; Details is never opened), else opens Details.
+ * - Long-press on a Continue Watching card opens its `View details` / `Remove` / `Clear progress` menu;
+ *   after a removal focus moves to the card that took its place ([ContinueWatchingRemovalFocusEffect]).
  */
 @Composable
 fun HomeScreen(
@@ -94,12 +97,18 @@ fun HomeScreen(
     var menu by remember { mutableStateOf<ActionMenuRequest?>(null) }
     var removal by remember { mutableStateOf<ContinueWatchingRemoval?>(null) }
     val continueWatchingCard = cards.of(HomeSection.ContinueWatching.KEY)
+    val origins = LocalFocusOrigins.current
     val onContinueWatchingLongPress: (Int) -> Unit = { index ->
         state.continueWatching.getOrNull(index)?.let { item ->
             val removing = ContinueWatchingRemoval(item.continueWatchingKey, index)
             menu = continueWatchingMenu(
                 item = item,
                 returnFocus = continueWatchingCard,
+                onViewDetails = { details ->
+                    // The menu has just refocused the card; mark it so Back from Details lands there.
+                    origins?.mark(continueWatchingCard)
+                    onNavigate(details)
+                },
                 onRemove = {
                     removal = removing
                     viewModel.removeFromContinueWatching(profileId, item)

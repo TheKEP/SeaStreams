@@ -10,22 +10,27 @@ import com.seastreams.tv.ui.components.MenuAction
 import com.seastreams.tv.ui.components.MetadataFormat
 import kotlinx.coroutines.launch
 
+const val CONTINUE_WATCHING_VIEW_DETAILS = "View details"
 const val CONTINUE_WATCHING_REMOVE = "Remove"
 const val CONTINUE_WATCHING_CLEAR_PROGRESS = "Clear progress"
 
 /**
- * Continue Watching card long-press menu (PRD §1). [returnFocus] is the row's active-card requester,
- * which sits on the long-pressed card, so `Back` lands exactly where the menu was opened.
+ * Continue Watching card long-press menu (PRD §3): `View details`, `Remove`, `Clear progress`.
+ * [returnFocus] is the row's active-card requester, which sits on the long-pressed card, so `Back`
+ * lands exactly where the menu was opened. `View details` always opens Details, whatever *Auto-play
+ * from Continue Watching* is set to.
  */
 fun continueWatchingMenu(
     item: ContinueWatchingItem,
     returnFocus: FocusRequester,
+    onViewDetails: (HomeDestination.Details) -> Unit,
     onRemove: () -> Unit,
     onClearProgress: () -> Unit,
 ): ActionMenuRequest = ActionMenuRequest(
     title = item.media.title,
     subtitle = MetadataFormat.episodeBadge(item.seasonNumber, item.episodeNumber),
     actions = listOf(
+        MenuAction(CONTINUE_WATCHING_VIEW_DETAILS) { onViewDetails(HomeDestination.Details(item.media)) },
         MenuAction(CONTINUE_WATCHING_REMOVE, onRemove),
         MenuAction(CONTINUE_WATCHING_CLEAR_PROGRESS, onClearProgress),
     ),
