@@ -46,6 +46,7 @@ import com.seastreams.tv.ui.theme.tryRequestFocus
  * it as the live page background ([onPreview]); `Enter` saves it ([onConfirm]); `Back`, or moving
  * focus out of the strip without confirming, restores the saved colour ([onCancel]). Its argument says
  * whether focus should go back to the picker's row (`Back`) or already went elsewhere (moved away).
+ * `Left`/`Right` follow edge-stop-then-wrap at both ends ([swatchWrapTarget]).
  */
 @Composable
 fun BackgroundSwatchStrip(
@@ -79,7 +80,10 @@ fun BackgroundSwatchStrip(
         horizontalArrangement = Arrangement.spacedBy(18.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        val lastIndex = BackgroundSwatches.ALL.lastIndex
         BackgroundSwatches.ALL.forEachIndexed { index, argb ->
+            val wrapRight = swatchWrapTarget(index, lastIndex, towardsEnd = true)
+            val wrapLeft = swatchWrapTarget(index, lastIndex, towardsEnd = false)
             ColorSwatch(
                 color = Color(argb),
                 name = backgroundName(argb),
@@ -91,16 +95,24 @@ fun BackgroundSwatchStrip(
                 },
                 modifier = Modifier
                     .focusRequester(requesters[index])
-                    .then(
-                        if (index == BackgroundSwatches.ALL.lastIndex) {
-                            Modifier.onDpadEdgeWrap(Key.DirectionRight) { requesters.first().tryRequestFocus() }
-                        } else {
-                            Modifier
-                        },
-                    ),
+                    // Edge-stop-then-wrap both ways (PRD §1): last ↔ first.
+                    .then(wrapRight?.let { Modifier.onDpadEdgeWrap(Key.DirectionRight) { requesters[it].tryRequestFocus() } } ?: Modifier)
+                    .then(wrapLeft?.let { Modifier.onDpadEdgeWrap(Key.DirectionLeft) { requesters[it].tryRequestFocus() } } ?: Modifier),
             )
         }
     }
+}
+
+/**
+ * Swatch that a fresh outward press on swatch [index] wraps to, in a strip ending at [lastIndex]:
+ * `Right` ([towardsEnd]) on the last swatch → the first; `Left` on the first → the last. `null` when
+ * [index] is not that edge, so the key moves focus normally. Held keys stop at the edge
+ * ([com.seastreams.tv.ui.theme.onDpadEdgeWrap]).
+ */
+fun swatchWrapTarget(index: Int, lastIndex: Int, towardsEnd: Boolean): Int? = when {
+    towardsEnd && index == lastIndex -> 0
+    !towardsEnd && index == 0 -> lastIndex
+    else -> null
 }
 
 /** A round colour swatch; [saved] shows a check mark. Shared with the subtitle colour picker. */

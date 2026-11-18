@@ -48,7 +48,6 @@ import com.seastreams.tv.ui.screens.playback.PlaybackHost
 import com.seastreams.tv.ui.screens.playback.PlaybackViewModel
 import com.seastreams.tv.ui.screens.playback.RESTORE_FRAMES
 import com.seastreams.tv.ui.screens.search.SearchScreen
-import com.seastreams.tv.ui.theme.AppearanceViewModel
 import com.seastreams.tv.ui.theme.retryEachFrame
 import com.seastreams.tv.ui.theme.tryRequestFocus
 import kotlinx.coroutines.launch
@@ -109,8 +108,6 @@ fun ProfileShell(profileId: Long, homeViewModel: HomeViewModel, onSwitchProfile:
     LaunchedEffect(profileId) { watchedTitles.open(profileId) }
     val watched by watchedTitles.watched.collectAsState()
     val inlineTrailers: InlineTrailerViewModel = activityViewModel()
-    val appearance: AppearanceViewModel = activityViewModel()
-    val rowScrollSpeed by appearance.catalogRowScrollSpeed.collectAsState()
 
     val push: (Overlay) -> Unit = { overlays = overlays + it }
     val pop: () -> Unit = { overlays = overlays.dropLast(1) }
@@ -185,11 +182,11 @@ fun ProfileShell(profileId: Long, homeViewModel: HomeViewModel, onSwitchProfile:
                         when (tab) {
                             NavTab.MOVIES -> MoviesScreen(
                                 profileId, onTabSelected, onSwitchProfile, openDetails,
-                                { viewMore(NavTab.MOVIES, it) }, returnFocusFor(NavTab.MOVIES), rowScrollSpeed,
+                                { viewMore(NavTab.MOVIES, it) }, returnFocusFor(NavTab.MOVIES),
                             )
                             NavTab.TV_SHOWS -> TvShowsScreen(
                                 profileId, onTabSelected, onSwitchProfile, openDetails,
-                                { viewMore(NavTab.TV_SHOWS, it) }, returnFocusFor(NavTab.TV_SHOWS), rowScrollSpeed,
+                                { viewMore(NavTab.TV_SHOWS, it) }, returnFocusFor(NavTab.TV_SHOWS),
                             )
                             NavTab.LIBRARY -> LibraryScreen(profileId, activityViewModel(), onTabSelected, onSwitchProfile, openDetails)
                             else -> HomeScreen(
@@ -206,7 +203,6 @@ fun ProfileShell(profileId: Long, homeViewModel: HomeViewModel, onSwitchProfile:
                                 onTabSelected = onTabSelected,
                                 onSwitchProfile = onSwitchProfile,
                                 returnFocus = returnFocusFor(NavTab.HOME),
-                                scrollSpeed = rowScrollSpeed,
                             )
                         }
                     }

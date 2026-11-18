@@ -45,7 +45,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import com.seastreams.tv.core.datastore.CatalogRowScrollSpeed
 import com.seastreams.tv.domain.model.MediaItem
 import com.seastreams.tv.player.InlineTrailerSlot
 import com.seastreams.tv.ui.theme.ManualBringIntoViewSpec
@@ -88,7 +87,7 @@ private const val INFO_ANIM_MILLIS = 130
  * - Edge-stop-then-wrap (PRD §1): holding `Right` stops on the last card (or `View More`); a fresh
  *   `Right` press while already there wraps focus back to the first card.
  * - Focus moves glide the row so the focused card lands on the left gutter, and cards widen, at the
- *   [scrollSpeed] timing (Catalog row scroll speed setting). Fast taps and held keys retarget the
+ *   fixed slow timing ([CATALOG_ROW_GLIDE_MS] glide, [CARD_EXPAND_MS] widen). Fast taps and held keys retarget the
  *   glide mid-flight without losing momentum ([rowGlideEasing]).
  * - Held `Left`/`Right` is paced to [com.seastreams.tv.ui.theme.HORIZONTAL_REPEAT_INTERVAL_MS]; fresh
  *   taps are never throttled. The throttle sits on the row container, ahead of the edge-wrap cards.
@@ -116,8 +115,6 @@ fun ExpandingCatalogRow(
     focusedIndexState: MutableIntState = remember { mutableIntStateOf(0) },
     /** Attached to the active (expanded) card, i.e. [focusedIndexState]'s card; lets the page focus it directly. */
     activeCard: FocusRequester = remember { FocusRequester() },
-    /** Catalog row scroll speed setting: horizontal glide and card widen timing. */
-    scrollSpeed: CatalogRowScrollSpeed,
     /**
      * This row instance's unique id (across tabs) when hovering a card plays its trailer inside it
      * (Home/Movies/TV rows); `null` (Continue Watching) means no previews.
@@ -153,7 +150,7 @@ fun ExpandingCatalogRow(
     val glideTo: (Int) -> Unit = { index ->
         scope.launch {
             val easing = rowGlideEasing(interruptsGlide = listState.isScrollInProgress)
-            listState.glideItemToStart(index, scrollSpeed.scrollDurationMs, easing)
+            listState.glideItemToStart(index, CATALOG_ROW_GLIDE_MS, easing)
         }
     }
     KeepFocusedCardInView(listState, focusedIndex, rowFocused)
@@ -212,7 +209,6 @@ fun ExpandingCatalogRow(
                             trailers?.onFocusLeft(slot)
                         },
                         onLongClick = onItemLongClick?.let { { it(index) } },
-                        expandDurationMs = scrollSpeed.expandDurationMs,
                         modifier = Modifier
                             .then(if (index == 0) Modifier.focusRequester(firstCard) else Modifier)
                             .then(if (index == focusedIndex) Modifier.focusRequester(lastFocusedCard) else Modifier)
@@ -234,7 +230,6 @@ fun ExpandingCatalogRow(
                                     glideTo(items.size)
                                 }
                             },
-                            expandDurationMs = scrollSpeed.expandDurationMs,
                             modifier = Modifier
                                 .then(if (focusedIndex == items.size) Modifier.focusRequester(lastFocusedCard) else Modifier)
                                 .onDpadEdgeWrap(Key.DirectionRight, wrapToStart),
