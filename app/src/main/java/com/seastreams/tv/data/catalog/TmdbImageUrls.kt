@@ -19,6 +19,9 @@ class TmdbImageUrls @Inject constructor(private val endpoints: ApiEndpoints) {
     /** 16:9 episode still for the Episodes list. */
     fun still(path: String?): String? = build(STILL_SIZE, path)
 
+    /** Person headshot for the Details cast grid's circular portraits. */
+    fun profile(path: String?): String? = build(PROFILE_SIZE, path)
+
     private fun build(size: String, path: String?): String? =
         path?.takeIf { it.isNotBlank() }?.let { "${endpoints.tmdbImageBaseUrl.trimEnd('/')}/$size$it" }
 
@@ -28,5 +31,6 @@ class TmdbImageUrls @Inject constructor(private val endpoints: ApiEndpoints) {
         const val HERO_BACKDROP_SIZE = "w1280"
         const val LOGO_SIZE = "w500"
         const val STILL_SIZE = "w300"
+        const val PROFILE_SIZE = "w185"
     }
 }

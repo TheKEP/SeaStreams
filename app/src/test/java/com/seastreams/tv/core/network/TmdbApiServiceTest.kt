@@ -253,6 +253,7 @@ class TmdbApiServiceTest {
 
         assertEquals("R", details.usCertification())
         assertEquals(139, details.runtime)
+        assertEquals(TmdbCrewMember(7467, "David Fincher", "Director", "/df.jpg"), details.credits?.crew?.single())
         assertEquals("release_dates,credits,images", server.requests.single().queryParam("append_to_response"))
     }
 
@@ -261,6 +262,7 @@ class TmdbApiServiceTest {
         val details = service.getTvDetails(1399)
 
         assertEquals("TV-MA", details.usCertification())
+        assertEquals(listOf(TmdbCreator(9813, "David Benioff", null)), details.createdBy)
         assertEquals("content_ratings,credits,images", server.requests.single().queryParam("append_to_response"))
     }
 
@@ -279,9 +281,11 @@ class TmdbApiServiceTest {
                 {"certification":"","type":1},
                 {"certification":"NR","type":4},
                 {"certification":"R","type":3}]}]},
-            "credits":{"cast":[{"id":287,"name":"Brad Pitt","character":"Tyler Durden","order":0}]}}"""
+            "credits":{"cast":[{"id":287,"name":"Brad Pitt","character":"Tyler Durden","order":0}],
+              "crew":[{"id":7467,"name":"David Fincher","job":"Director","department":"Directing","profile_path":"/df.jpg"}]}}"""
 
         const val TV_DETAILS_JSON = """{"id":1399,"name":"Game of Thrones","number_of_seasons":8,
+            "created_by":[{"id":9813,"name":"David Benioff","profile_path":null}],
             "content_ratings":{"results":[{"iso_3166_1":"GB","rating":"18"},{"iso_3166_1":"US","rating":"TV-MA"}]}}"""
     }
 }
