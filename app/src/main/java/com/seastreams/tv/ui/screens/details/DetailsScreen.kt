@@ -1,6 +1,7 @@
 package com.seastreams.tv.ui.screens.details
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,13 +14,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -31,14 +36,19 @@ import androidx.tv.material3.Text
 import com.seastreams.tv.core.util.MILLIS_PER_MINUTE
 import com.seastreams.tv.domain.model.MediaItem
 import com.seastreams.tv.domain.model.TitleDetails
+import com.seastreams.tv.ui.components.LocalFocusOrigins
+import com.seastreams.tv.ui.components.LocalLayerCovered
 import com.seastreams.tv.ui.components.LocalTransientMessages
 import com.seastreams.tv.ui.components.MediaMetadataLine
 import com.seastreams.tv.ui.components.MetadataFormat
 import com.seastreams.tv.ui.components.SizedImage
 import com.seastreams.tv.ui.components.TitleArt
 import com.seastreams.tv.ui.screens.playback.PlaybackViewModel
+import com.seastreams.tv.ui.screens.playback.RESTORE_FRAMES
 import com.seastreams.tv.ui.theme.TextSecondary
+import com.seastreams.tv.ui.theme.awaitNextFrame
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
+import com.seastreams.tv.ui.theme.tryRequestFocus
 import kotlinx.coroutines.launch
 
 /**
@@ -80,6 +90,21 @@ fun DetailsScreen(
     }
     // Focus the first button on entry, and again when Retry/Go back replace the stack.
     LaunchedEffect(state.content::class) { firstButton.requestFocusAfterFrame() }
+    // Playback closing without a usable mark (e.g. Continue Watching auto-play) lands on Play/Resume.
+    val origins = LocalFocusOrigins.current
+    DisposableEffect(origins, firstButton) {
+        val token = origins?.registerFallback(firstButton)
+        onDispose { token?.let { origins.unregisterFallback(it) } }
+    }
+    // Uncovered (player, stream list or Episodes closed) with nothing focused here: never leave focus
+    // on nothing. Runs only after the shell's exact-origin restore has had its frames.
+    var pageHasFocus by remember { mutableStateOf(false) }
+    val covered = LocalLayerCovered.current
+    LaunchedEffect(covered) {
+        if (covered) return@LaunchedEffect
+        repeat(RESTORE_FRAMES + 2) { awaitNextFrame() }
+        if (!pageHasFocus) firstButton.tryRequestFocus()
+    }
     LaunchedEffect(autoPlay) {
         if (!autoPlay) return@LaunchedEffect
         viewModel.awaitPlayTarget()?.let { playback.play(it, forcePicker = false) }
@@ -109,7 +134,7 @@ fun DetailsScreen(
 
     val background = MaterialTheme.colorScheme.background
     val media = state.media ?: item
-    Box(Modifier.fillMaxSize().background(background)) {
+    Box(Modifier.fillMaxSize().background(background).onFocusChanged { pageHasFocus = it.hasFocus }.focusGroup()) {
         SizedImage(url = media.heroBackdropUrl ?: media.backdropUrl, size = BackdropSize, contentDescription = null, modifier = Modifier.fillMaxSize())
         Box(
             Modifier.fillMaxSize().background(

@@ -59,7 +59,9 @@ import com.seastreams.tv.ui.components.LocalTransientMessages
 import com.seastreams.tv.ui.components.SeaIcons
 import com.seastreams.tv.ui.components.SubtitleCueText
 import com.seastreams.tv.ui.theme.SelectKeys
-import com.seastreams.tv.ui.theme.requestFocusAfterFrame
+import com.seastreams.tv.ui.screens.playback.RESTORE_FRAMES
+import com.seastreams.tv.ui.theme.retryEachFrame
+import com.seastreams.tv.ui.theme.tryRequestFocus
 import kotlinx.coroutines.delay
 
 /** Where focus lands when the HUD opens. */
@@ -67,9 +69,9 @@ enum class HudFocus { PLAY, SEEK }
 
 /**
  * Full-screen built-in player (PRD §9). With the HUD hidden: `Enter` pauses and opens the HUD,
- * `Up`/`Down` open it while playback continues, `Left`/`Right` seek 10 s, and `Back` leaves playback.
- * With the HUD (or an overlay) open, `Back` only closes the top overlay / the HUD. The HUD hides after
- * [HUD_TIMEOUT_MS] without a key press while playing.
+ * `Up`/`Down` open it while playback continues, and `Left`/`Right` seek 10 s. Each `Back` press does
+ * one thing: close an open sub-overlay (focus returns to its bar button), else hide the HUD (playback
+ * continues), else leave playback. The HUD hides after [HUD_TIMEOUT_MS] without a key press while playing.
  */
 @Composable
 fun PlayerScreen(request: PlaybackRequest, viewModel: PlayerViewModel, onExit: () -> Unit) {
@@ -83,13 +85,16 @@ fun PlayerScreen(request: PlaybackRequest, viewModel: PlayerViewModel, onExit: (
     LaunchedEffect(viewModel) { viewModel.messages.collect { messages?.show(it) } }
     KeepScreenOn()
     PauseWhenBackgrounded(viewModel)
+    // Fallback only: with Compose focus anywhere in the player, the root preview pass below handles Back.
     BackHandler { viewModel.back() }
 
     val root = remember { FocusRequester() }
     var hudFocus by remember { mutableStateOf(HudFocus.PLAY) }
     var keyPresses by remember { mutableIntStateOf(0) }
     val selectGate = remember { PlayerSelectKeyGate() }
-    LaunchedEffect(state.hudVisible) { if (!state.hudVisible) root.requestFocusAfterFrame() }
+    val backGate = remember { PlayerBackKeyGate() }
+    // The hidden-HUD state must keep a focused root, or the next Back / Enter would have nowhere to land.
+    LaunchedEffect(state.hudVisible) { if (!state.hudVisible) retryEachFrame(RESTORE_FRAMES) { root.tryRequestFocus() } }
     LaunchedEffect(state.hudVisible, state.panel, state.playing, keyPresses) {
         if (state.hudVisible && state.panel == null && state.playing) {
             delay(HUD_TIMEOUT_MS)
@@ -106,6 +111,12 @@ fun PlayerScreen(request: PlaybackRequest, viewModel: PlayerViewModel, onExit: (
             .fillMaxSize()
             .background(Color.Black)
             .onPreviewKeyEvent { event ->
+                // Consume every Back event so Compose never moves focus "out" to this root (a dead,
+                // unfocused-looking state) and the release never leaks to the screen underneath.
+                if (event.key in PlayerBackKeys) {
+                    if (backGate.onBackKey(event.type == KeyEventType.KeyDown, event.nativeKeyEvent.repeatCount)) viewModel.back()
+                    return@onPreviewKeyEvent true
+                }
                 // Runs before whichever HUD control now has focus: swallow the HUD-opening press.
                 if (event.key in SelectKeys &&
                     selectGate.consumeHeldPress(event.type == KeyEventType.KeyDown, event.nativeKeyEvent.repeatCount)
