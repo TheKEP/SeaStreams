@@ -28,10 +28,11 @@ import androidx.tv.material3.Text
 import com.seastreams.tv.player.external.ExternalPlayerIntents
 import com.seastreams.tv.ui.components.FocusOriginTracker
 import com.seastreams.tv.ui.components.TransientMessages
+import com.seastreams.tv.ui.components.restoreFocus
 import com.seastreams.tv.ui.navigation.activityViewModel
 import com.seastreams.tv.ui.screens.player.PlayerScreen
 import com.seastreams.tv.ui.theme.SurfaceRaised
-import com.seastreams.tv.ui.theme.retryEachFrame
+import com.seastreams.tv.ui.theme.awaitNextFrame
 import com.seastreams.tv.ui.theme.tryRequestFocus
 
 /**
@@ -77,7 +78,9 @@ fun PlaybackHost(viewModel: PlaybackViewModel, messages: TransientMessages, orig
         if (layerOpen) {
             origin = origins.take() ?: origin
         } else {
-            origin?.let { target -> retryEachFrame(RESTORE_FRAMES) { target.tryRequestFocus() } }
+            // The exact opener first; Details' primary button if there was no mark or it is gone.
+            val targets = listOfNotNull(origin, origins.fallback()).distinct()
+            restoreFocus(RESTORE_FRAMES, ::awaitNextFrame, targets.map { target -> { target.tryRequestFocus() } })
             origin = null
         }
     }

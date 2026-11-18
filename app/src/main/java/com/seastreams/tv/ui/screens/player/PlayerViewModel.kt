@@ -80,6 +80,7 @@ class PlayerViewModel @Inject constructor(
     internal var initialSubtitleDone = false
     internal var lastSaveAtPosition = 0L
     private var exiting = false
+    private var userExitPending = false
 
     internal val subtitles = PlayerSubtitles(viewModelScope) {
         ExternalSubtitleLoader(withContext(Dispatchers.IO) { okHttp.get() })
@@ -268,17 +269,18 @@ class PlayerViewModel @Inject constructor(
 
     // ---- Back & exit ------------------------------------------------------------------------------
 
-    /** `Back`: closes an overlay, then the HUD, then leaves playback (auto-next when finished). */
+    /** `Back`: closes an open overlay, else hides the HUD, else leaves playback (auto-next when finished). */
     fun back() {
-        val state = _state.value
-        when {
-            state.panel != null -> closePanel()
-            state.hudVisible -> hideHud()
-            else -> userExit()
+        when (playerBackAction(_state.value)) {
+            PlayerBackAction.CLOSE_PANEL -> closePanel()
+            PlayerBackAction.HIDE_HUD -> hideHud()
+            PlayerBackAction.EXIT -> userExit()
         }
     }
 
     private fun userExit() {
+        // A second press while the exit's progress save runs must not save or auto-advance twice.
+        if (exiting || userExitPending) return
         val manager = _manager.value
         val request = _state.value.request
         if (manager == null || request == null) {
@@ -287,12 +289,17 @@ class PlayerViewModel @Inject constructor(
         }
         val position = manager.player.currentPosition
         val duration = manager.player.duration.knownOrZero()
+        userExitPending = true
         viewModelScope.launch {
-            progressTracker.save(request, position, duration)
-            if (AutoNextPolicy.afterBuiltInStop(request, PlayerStop.USER_EXIT, position, duration, settings.player.autoPlayNextEpisode)) {
-                switching.playNextEpisode(this@PlayerViewModel, auto = true)
-            } else {
-                exit()
+            try {
+                progressTracker.save(request, position, duration)
+                if (AutoNextPolicy.afterBuiltInStop(request, PlayerStop.USER_EXIT, position, duration, settings.player.autoPlayNextEpisode)) {
+                    switching.playNextEpisode(this@PlayerViewModel, auto = true)
+                } else {
+                    exit()
+                }
+            } finally {
+                userExitPending = false
             }
         }
     }
