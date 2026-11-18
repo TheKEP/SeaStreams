@@ -5,7 +5,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusEventModifierNode
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.FocusState
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
@@ -139,6 +141,68 @@ private class DpadRepeatThrottleNode(var axis: DpadAxis, var throttle: DpadRepea
         val native = event.nativeKeyEvent
         return !throttle.accept(native.repeatCount, native.eventTime, native.keyCode)
     }
+
+    override fun onKeyEvent(event: KeyEvent): Boolean = false
+}
+
+/** The D-pad / keyboard keys that click a focused control. */
+val SelectKeys: Set<Key> = setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter)
+
+/**
+ * Key-up phantom-click guard (PRD §1). A control only lets a select key's repeats and release
+ * through once it has seen that press start (`KeyDown`, `repeatCount == 0`) while focused. A press
+ * that started on another control (the long-press that opened a modal, the `Enter` that opened the
+ * Player HUD) is swallowed until released. Any focus change forgets the press.
+ */
+class InitialKeyUpGuard {
+    private var pressSeen = false
+
+    fun onFocusChanged() {
+        pressSeen = false
+    }
+
+    /** Whether to consume this event so the control's own click handling never sees it. */
+    fun shouldConsume(isSelectKey: Boolean, isKeyDown: Boolean, repeatCount: Int): Boolean {
+        if (!isSelectKey) return false
+        if (isKeyDown && repeatCount == 0) {
+            pressSeen = true
+            return false
+        }
+        if (!pressSeen) return true
+        if (!isKeyDown) pressSeen = false
+        return false
+    }
+}
+
+/**
+ * Applies [InitialKeyUpGuard] to the focusable it wraps (e.g. a TV `Surface`). The guard runs in the
+ * preview pass, so the wrapped control never sees a release (or a held repeat) whose `KeyDown`
+ * landed on a different control.
+ */
+fun Modifier.ignoreInitialKeyUp(): Modifier = this then IgnoreInitialKeyUpElement
+
+private data object IgnoreInitialKeyUpElement : ModifierNodeElement<IgnoreInitialKeyUpNode>() {
+    override fun create() = IgnoreInitialKeyUpNode()
+
+    override fun update(node: IgnoreInitialKeyUpNode) = Unit
+}
+
+private class IgnoreInitialKeyUpNode : Modifier.Node(), KeyInputModifierNode, FocusEventModifierNode {
+    private val guard = InitialKeyUpGuard()
+    private var focused = false
+
+    override fun onFocusEvent(focusState: FocusState) {
+        if (focusState.isFocused != focused) {
+            focused = focusState.isFocused
+            guard.onFocusChanged()
+        }
+    }
+
+    override fun onPreKeyEvent(event: KeyEvent): Boolean = guard.shouldConsume(
+        isSelectKey = event.key in SelectKeys,
+        isKeyDown = event.type == KeyEventType.KeyDown,
+        repeatCount = event.nativeKeyEvent.repeatCount,
+    )
 
     override fun onKeyEvent(event: KeyEvent): Boolean = false
 }
