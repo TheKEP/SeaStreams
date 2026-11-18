@@ -11,6 +11,8 @@ import com.seastreams.tv.domain.model.MediaType
 import com.seastreams.tv.domain.model.SeasonInfo
 import com.seastreams.tv.domain.playback.EpisodeWatchMarker
 import com.seastreams.tv.domain.playback.PlaybackProgressRecorder
+import com.seastreams.tv.domain.playback.ShuffleMode
+import com.seastreams.tv.domain.playback.ShuffleSession
 import com.seastreams.tv.testutil.FakeWatchProgressDao
 import com.seastreams.tv.testutil.testDetails
 import io.mockk.coEvery
@@ -138,6 +140,16 @@ class EpisodesViewModelTest {
             assertEquals(PROFILE, target?.profileId)
         }
         assertEquals(season2.map { it.ref }.toSet(), picks.mapNotNull { it?.episode }.toSet())
+    }
+
+    @Test
+    fun `shuffle season starts a season-scoped shuffle, an episode click plays sequentially`() = runTest {
+        val vm = openViewModel()
+        val shuffled = vm.shuffleTarget(2)
+
+        assertEquals(ShuffleMode.Season(2), shuffled?.shuffle?.mode)
+        assertEquals(listOfNotNull(shuffled?.episode), shuffled?.shuffle?.played)
+        assertEquals(ShuffleSession.Sequential, vm.target(season1[0])?.shuffle)
     }
 
     private fun menuToggleLabel(vm: EpisodesViewModel, episode: Episode): String =

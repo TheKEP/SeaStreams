@@ -21,6 +21,11 @@ data class PlaybackTarget(
     val episode: EpisodeRef?,
     val episodeTitle: String? = null,
     val episodeRuntimeMinutes: Int? = null,
+    /**
+     * Shuffle state of this playback session: `Shuffle` / `Shuffle Season` start one, and Next Episode
+     * and Auto-Play Next Episode carry it forward. Every other entry point plays sequentially.
+     */
+    val shuffle: ShuffleSession = ShuffleSession.Sequential,
 ) {
     /** Runtime in ms from TMDB (episode runtime for shows); `0` when unknown. */
     val knownDurationMs: Long
