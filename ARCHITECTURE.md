@@ -23,7 +23,7 @@ app/src/main/java/com/seastreams/tv/
 │       ├── LocalPortalServer.kt      # Embedded Ktor CIO server on port 8765
 │       └── PortalHtmlTemplate.kt     # Mobile-responsive HTML/JS UI served to phone/PC browsers
 ├── domain/
-│   ├── model/                        # MediaItem, Episode, StreamSource, SubtitleTrack, UserProfile, AddonConfig, PlaybackRequest
+│   ├── model/                        # MediaItem, TitleDetails + CreditPerson (director/creator + top 9 cast), Episode, StreamSource, SubtitleTrack, UserProfile, AddonConfig, PlaybackRequest
 │   ├── filter/
 │   │   ├── AgeRestrictionEngine.kt   # Pure Kotlin certification + genre safety evaluator (Kids profiles & Profile Gate artwork)
 │   │   └── SdhSubtitleCleaner.kt     # Pure Kotlin SDH cue stripper
@@ -53,7 +53,7 @@ app/src/main/java/com/seastreams/tv/
         ├── profiles/                 # ProfileSelectScreen.kt, ProfileCreateScreen.kt (with QR code)
         ├── home/                     # HomeScreen.kt + HomeViewModel.kt
         ├── catalog/                  # MoviesScreen.kt, TvShowsScreen.kt, ViewMoreScreen.kt
-        ├── details/                  # DetailsScreen.kt, EpisodesScreen.kt
+        ├── details/                  # DetailsScreen.kt, DetailsCastGrid.kt (translucent rounded card, 2x5 Director + Cast portraits, non-focusable), EpisodesScreen.kt
         ├── search/                   # SearchScreen.kt (Voice mic + hover genre sidebar)
         ├── library/                  # LibraryScreen.kt (All/Movies/Shows + Sort + A-Z jump bar)
         ├── player/                   # PlayerScreen.kt + PlayerOverlayControls.kt

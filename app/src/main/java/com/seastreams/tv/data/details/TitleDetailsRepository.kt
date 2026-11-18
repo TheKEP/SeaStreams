@@ -83,7 +83,7 @@ class TitleDetailsRepository @Inject constructor(
 
     private fun TmdbMovieDetails.toTitleDetails() = TitleDetails(
         media = toMediaItem(imageUrls),
-        cast = castNames(credits?.cast?.sortedBy { it.order }?.map { it.name }),
+        credits = topCredits(credits?.cast.orEmpty(), credits?.crew.orEmpty(), creators = emptyList(), imageUrls),
         genreIds = genres.map { it.id },
         posterPath = posterPath,
         backdropPath = backdropPath,
@@ -93,7 +93,7 @@ class TitleDetailsRepository @Inject constructor(
 
     private fun TmdbTvDetails.toTitleDetails() = TitleDetails(
         media = toMediaItem(imageUrls),
-        cast = castNames(credits?.cast?.sortedBy { it.order }?.map { it.name }),
+        credits = topCredits(credits?.cast.orEmpty(), credits?.crew.orEmpty(), createdBy, imageUrls),
         genreIds = genres.map { it.id },
         posterPath = posterPath,
         backdropPath = backdropPath,
@@ -115,9 +115,6 @@ class TitleDetailsRepository @Inject constructor(
         const val IMDB_PREFIX = "tt"
     }
 }
-
-private fun castNames(names: List<String>?): List<String> =
-    names.orEmpty().filter { it.isNotBlank() }.take(TitleDetails.MAX_CAST)
 
 /**
  * Seasons the Episodes screen lists: numbered seasons with episodes, in order. Specials (season 0) are

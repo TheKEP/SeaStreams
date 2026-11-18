@@ -142,7 +142,7 @@ fun testDetails(
     runtimeMinutes: Int? = 100,
 ) = TitleDetails(
     media = testMedia(tmdbId, type, runtimeMinutes),
-    cast = listOf("Actor A", "Actor B"),
+    credits = emptyList(),
     genreIds = listOf(18, 35),
     posterPath = "/poster.jpg",
     backdropPath = "/backdrop.jpg",
