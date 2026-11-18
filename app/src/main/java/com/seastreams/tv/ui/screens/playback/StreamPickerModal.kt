@@ -29,10 +29,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ClickableSurfaceDefaults
-import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
@@ -71,7 +69,7 @@ fun StreamPickerModal(state: StreamPickerState, onChoose: (StreamSource) -> Unit
                 .fillMaxHeight()
                 .width(PanelWidth)
                 .background(SurfaceCard)
-                .padding(horizontal = 28.dp, vertical = 32.dp)
+                .padding(horizontal = 20.dp, vertical = 32.dp)
                 .focusProperties {
                     onExit = {
                         if (requestedFocusDirection != FocusDirection.Enter && requestedFocusDirection != FocusDirection.Exit) {
@@ -101,7 +99,7 @@ fun StreamPickerModal(state: StreamPickerState, onChoose: (StreamSource) -> Unit
                         StatusEntry("No streams found. Press OK to close.", onClick = onDismiss, Modifier.focusRequester(first))
                     }
                     else -> itemsIndexed(state.streams, key = { index, stream -> "$index-${stream.url}" }) { index, stream ->
-                        StreamEntry(
+                        StreamResultCard(
                             stream = stream,
                             onClick = { onChoose(stream) },
                             modifier = Modifier
@@ -123,19 +121,6 @@ fun StreamPickerModal(state: StreamPickerState, onChoose: (StreamSource) -> Unit
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary,
                 )
-            }
-        }
-    }
-}
-
-@Composable
-private fun StreamEntry(stream: StreamSource, onClick: () -> Unit, modifier: Modifier) {
-    EntrySurface(onClick, modifier) {
-        Column(Modifier.padding(horizontal = 18.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(stream.addonName, style = MaterialTheme.typography.labelMedium, color = LocalContentColor.current.copy(alpha = 0.7f))
-            Text(stream.label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (stream.description.isNotBlank()) {
-                Text(stream.description, style = MaterialTheme.typography.bodySmall, maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
         }
     }
