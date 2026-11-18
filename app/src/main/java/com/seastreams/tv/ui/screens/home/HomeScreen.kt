@@ -40,8 +40,9 @@ import kotlinx.coroutines.launch
  * vertically scrolling page of hero, Continue Watching and catalog rows.
  *
  * D-pad rules (PRD §1):
- * - `Back` from any content moves focus to the nav bar's `Home` pill (scrolling to the top); `Back`
- *   while already on `Home` leaves to the profile switcher.
+ * - `Back` from any content moves focus to the nav bar's `Home` pill (scrolling to the top), never a
+ *   previously focused pill such as the Settings gear; `Back` while already on `Home` leaves to the
+ *   profile switcher.
  * - Edge-stop-then-wrap: holding `Down` stops on the bottom-most row; a fresh `Down` press while
  *   already there wraps to the top of the page (the hero, else the `Home` pill).
  * - The focused section snaps to the top of the viewport.
