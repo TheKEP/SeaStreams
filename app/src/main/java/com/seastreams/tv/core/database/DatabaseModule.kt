@@ -20,7 +20,9 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): SeaStreamsDatabase =
-        Room.databaseBuilder(context, SeaStreamsDatabase::class.java, SeaStreamsDatabase.NAME).build()
+        Room.databaseBuilder(context, SeaStreamsDatabase::class.java, SeaStreamsDatabase.NAME)
+            .addMigrations(ProfileAddonsMigration)
+            .build()
 
     @Provides
     fun provideProfileDao(db: SeaStreamsDatabase): ProfileDao = db.profileDao()

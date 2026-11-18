@@ -13,15 +13,20 @@ app/src/main/java/com/seastreams/tv/
 │   │   ├── MdbListApiService.kt      # Fetches built-in Home chart JSONs & one-time Library import lists
 │   │   └── StremioAddonClient.kt     # Fetches manifest.json, /catalog (Home only), /stream, /subtitles
 │   ├── database/
-│   │   ├── SeaStreamsDatabase.kt     # Room DB (v1)
-│   │   ├── dao/                      # ProfileDao, LibraryDao, WatchProgressDao (tracks resume position + dismissedFromContinueWatching flag), AddonDao
-│   │   └── entity/                   # Room @Entity definitions
+│   │   ├── SeaStreamsDatabase.kt     # Room DB (v5; schemas exported to app/schemas/)
+│   │   ├── ProfileAddonsMigration.kt # Manual v4→v5 migration: rebuilds `addons` per profile and copies every legacy app-wide addon row into every existing profile in one SQL step (inside Room's migration transaction, before any read). Its SQL is unit-tested against real SQLite via test-only `org.xerial:sqlite-jdbc`.
+│   │   ├── dao/                      # ProfileDao, LibraryDao, WatchProgressDao (tracks resume position + dismissedFromContinueWatching flag), AddonDao (every query/mutation takes `profileId`; `deleteAllForProfile`, `profileIdsMissing` for built-in repair)
+│   │   └── entity/                   # Room @Entity definitions. `AddonEntity` is per profile: PK (`profileId`, `manifestUrl`), FK → `profiles.id` ON DELETE CASCADE, `sortOrder` dense within each profile (index on `profileId, sortOrder`)
 │   ├── datastore/
 │   │   ├── SettingsDataStore.kt      # Typed Preferences DataStore. General Settings (background color, UI scroll speed, buffer profile, parallel connections, audio, subtitles, player, inline trailers) are persisted per profile under `p{profileId}/…` keys and always reflect the active profile; the active profile id, TMDB key and Movies/TV provider rows stay global. Deleting a profile clears its keys; pre-per-profile app-wide values are copied once into every existing profile at startup by `data/setup/ProfileSettingsMigrator`.
 │   │   └── ProfileSettingsCodec.kt   # Per-profile key set + typed reader/writer (scoped value → legacy global fallback → default)
 │   └── webserver/
 │       ├── LocalPortalServer.kt      # Embedded Ktor CIO server on port 8765
-│       └── PortalHtmlTemplate.kt     # Mobile-responsive HTML/JS UI served to phone/PC browsers
+│       └── PortalHtmlTemplate.kt     # Mobile-responsive HTML/JS UI served to phone/PC browsers. The addon editor targets one selected profile (defaults to the TV's active profile); every addon request carries `profileId`, and `/api/state` returns `profileAddons` per profile.
+├── data/
+│   ├── addon/AddonRepository.kt      # Per-profile addon install/remove/rename/enable/reorder (all take `profileId`; unknown profiles rejected); BuiltInAddons = per-profile defaults (TMDB protected + OpenSubtitles)
+│   ├── profile/ProfileRepository.kt  # create() seeds the new profile's own default addons via AddonDao; delete() removes its addons (FK cascades too)
+│   └── setup/                        # ProfileSettingsMigrator (per-profile settings), BuiltInAddonGuard (startup: re-adds protected TMDB to any profile missing it), DebugProfileSeeder
 ├── domain/
 │   ├── model/                        # MediaItem, TitleDetails + CreditPerson (director/creator + top 9 cast), Episode, StreamSource, SubtitleTrack, UserProfile, AddonConfig, PlaybackRequest (`Media.artwork: PlaybackArtwork` = backdrop/logo/title for the loading screen, derived from `target.details.media` so every entry point and in-player switch carries it)
 │   ├── filter/

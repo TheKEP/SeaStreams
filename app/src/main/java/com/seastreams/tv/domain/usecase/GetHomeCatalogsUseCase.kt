@@ -56,7 +56,7 @@ class GetHomeCatalogsUseCase @Inject constructor(
     suspend fun prefetch(profile: ProfileEntity): HomePrefetch {
         val restriction = profile.toAgeRestriction()
         val hero = heroCache.start(profile.heroKey()) { loadHero(profile) }
-        val specs = rowSpecs(profile, addonDao.observeEnabled().first())
+        val specs = rowSpecs(profile, addonDao.observeEnabled(profile.id).first())
         val rows = specs.take(PREFETCH_ROW_COUNT).map { spec -> rowCache.start(spec, restriction) }
         return HomePrefetch(
             hero = orNullUnlessCancelled { hero.await() },
@@ -72,14 +72,14 @@ class GetHomeCatalogsUseCase @Inject constructor(
     suspend fun takeHero(profile: ProfileEntity): List<MediaItem> = heroCache.take(profile.heroKey()) { loadHero(profile) }
 
     /**
-     * The built-in rows for the profile type, then the catalogs of enabled Stremio addons in
-     * installed order (Home is the only screen that shows addon catalogs). Emits immediately with
+     * The built-in rows for the profile type, then the catalogs of the profile's enabled Stremio
+     * addons in its installed order (Home is the only screen that shows addon catalogs). Emits immediately with
      * every row loading, then again as each row finishes (rows load in parallel); enabling,
      * disabling or reordering addons re-emits.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
     fun observeRows(profile: ProfileEntity): Flow<List<CatalogRowState>> =
-        addonDao.observeEnabled()
+        addonDao.observeEnabled(profile.id)
             .map { addons -> rowSpecs(profile, addons) }
             .distinctUntilChanged()
             .flatMapLatest { specs -> rowCache.observe(profile.id, specs, profile.toAgeRestriction()) }

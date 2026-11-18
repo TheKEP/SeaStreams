@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.seastreams.tv.core.datastore.SettingsDataStore
 import com.seastreams.tv.data.profile.ProfileDraft
 import com.seastreams.tv.data.profile.ProfileRepository
+import com.seastreams.tv.testutil.FakeAddonDao
 import com.seastreams.tv.testutil.FakeProfileDao
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -40,7 +41,7 @@ class DebugProfileSeederTest {
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         settings = SettingsDataStore(PreferenceDataStoreFactory.create(scope = scope) { File(dir, "s.preferences_pb") })
         profileDao = FakeProfileDao()
-        profiles = ProfileRepository(profileDao, settings, settings, Clock.fixed(Instant.EPOCH, ZoneOffset.UTC), DiscoverSnapshotStore(), LoadedCatalogStore(Clock.systemUTC()))
+        profiles = ProfileRepository(profileDao, FakeAddonDao(), settings, settings, Clock.fixed(Instant.EPOCH, ZoneOffset.UTC), DiscoverSnapshotStore(), LoadedCatalogStore(Clock.systemUTC()))
     }
 
     @AfterEach

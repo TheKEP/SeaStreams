@@ -46,11 +46,23 @@ class AddonHomeCatalogsTest : HomeCatalogsTestBase() {
 
     @BeforeEach
     fun setUp() = runTest {
-        addonDao.insertIfAbsent(BuiltInAddons.defaults(0))
-        addonDao.upsert(alpha.copy(sortOrder = 2))
-        addonDao.upsert(beta.copy(sortOrder = 3))
-        addonDao.upsert(disabled.copy(sortOrder = 4))
+        // Both profiles start with the same addons, each in its own per-profile list.
+        listOf(adult.id, kids.id).forEach { profileId ->
+            addonDao.insertIfAbsent(BuiltInAddons.defaults(profileId, 0))
+            addonDao.upsert(alpha.copy(profileId = profileId, sortOrder = 2))
+            addonDao.upsert(beta.copy(profileId = profileId, sortOrder = 3))
+            addonDao.upsert(disabled.copy(profileId = profileId, sortOrder = 4))
+        }
         coEvery { tmdb.genres(any()) } returns emptyList()
+    }
+
+    @Test
+    fun `Home only shows the catalogs of the profile's own addons`() = runTest {
+        addonDao.setEnabled(adult.id, beta.manifestUrl, false)
+        addonDao.delete(kids.id, alpha.manifestUrl)
+
+        assertEquals(alphaIds, useCase.observeRows(adult).first().drop(2).map { it.spec.id })
+        assertEquals(listOf(betaId), useCase.observeRows(kids).first().drop(HomeCatalogSources.KIDS_ROWS.size).map { it.spec.id })
     }
 
     @Test
@@ -75,12 +87,12 @@ class AddonHomeCatalogsTest : HomeCatalogsTestBase() {
         useCase.observeRows(adult).test {
             assertEquals(alphaIds + betaId, awaitItem().drop(2).map { it.spec.id })
 
-            addonDao.reorder(listOf(beta.manifestUrl, alpha.manifestUrl, BuiltInAddons.TMDB_URL))
+            addonDao.reorder(adult.id, listOf(beta.manifestUrl, alpha.manifestUrl, BuiltInAddons.TMDB_URL))
             var rows = awaitItem()
             while (rows.size < 5 || rows[2].spec.id != betaId) rows = awaitItem()
             assertEquals(listOf(betaId) + alphaIds, rows.drop(2).map { it.spec.id })
 
-            addonDao.setEnabled(beta.manifestUrl, false)
+            addonDao.setEnabled(adult.id, beta.manifestUrl, false)
             while (rows.any { it.spec.id == betaId }) rows = awaitItem()
             assertEquals(alphaIds, rows.drop(2).map { it.spec.id })
             cancelAndIgnoreRemainingEvents()

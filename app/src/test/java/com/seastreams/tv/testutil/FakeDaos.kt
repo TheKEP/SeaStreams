@@ -10,30 +10,48 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 
-/** In-memory [AddonDao] mirroring the Room queries' semantics. */
-class FakeAddonDao(initial: List<AddonEntity> = emptyList()) : AddonDao {
-    val rows = MutableStateFlow(initial.associateBy { it.manifestUrl })
+/**
+ * In-memory [AddonDao] mirroring the Room queries' semantics: rows are keyed by
+ * `(profileId, manifestUrl)` and every query is scoped to one profile. [profileIds] stands in for
+ * the `profiles` table (only [profileIdsMissing] reads it).
+ */
+class FakeAddonDao(
+    initial: List<AddonEntity> = emptyList(),
+    private val profileIds: () -> List<Long> = { emptyList() },
+) : AddonDao {
+    val rows = MutableStateFlow(initial.associateBy { it.key })
 
-    val ordered: List<AddonEntity> get() = rows.value.values.sortedBy { it.sortOrder }
+    fun ordered(profileId: Long): List<AddonEntity> =
+        rows.value.values.filter { it.profileId == profileId }.sortedBy { it.sortOrder }
 
-    override fun observeAll(): Flow<List<AddonEntity>> = rows.map { m -> m.values.sortedBy { it.sortOrder } }
-    override fun observeEnabled(): Flow<List<AddonEntity>> = observeAll().map { list -> list.filter { it.enabled } }
-    override suspend fun getAll(): List<AddonEntity> = ordered
-    override suspend fun getByUrl(manifestUrl: String): AddonEntity? = rows.value[manifestUrl]
-    override suspend fun nextSortOrder(): Int = (rows.value.values.maxOfOrNull { it.sortOrder } ?: -1) + 1
-    override suspend fun upsert(addon: AddonEntity) = rows.update { it + (addon.manifestUrl to addon) }
+    override fun observeAll(profileId: Long): Flow<List<AddonEntity>> = rows.map { ordered(profileId) }
+    override fun observeEnabled(profileId: Long): Flow<List<AddonEntity>> =
+        observeAll(profileId).map { list -> list.filter { it.enabled } }
+    override suspend fun getAll(profileId: Long): List<AddonEntity> = ordered(profileId)
+    override suspend fun getByUrl(profileId: Long, manifestUrl: String): AddonEntity? = rows.value[profileId to manifestUrl]
+    override suspend fun nextSortOrder(profileId: Long): Int = (ordered(profileId).maxOfOrNull { it.sortOrder } ?: -1) + 1
+    override suspend fun profileIdsMissing(manifestUrl: String): List<Long> =
+        profileIds().filterNot { rows.value.containsKey(it to manifestUrl) }
+    override suspend fun upsert(addon: AddonEntity) = rows.update { it + (addon.key to addon) }
 
     override suspend fun insertIfAbsent(addons: List<AddonEntity>): List<Long> = addons.map { addon ->
-        if (rows.value.containsKey(addon.manifestUrl)) -1L else { upsert(addon); 1L }
+        if (rows.value.containsKey(addon.key)) -1L else { upsert(addon); 1L }
     }
 
-    override suspend fun setEnabled(manifestUrl: String, enabled: Boolean) = edit(manifestUrl) { copy(enabled = enabled) }
-    override suspend fun rename(manifestUrl: String, customName: String?) = edit(manifestUrl) { copy(customName = customName) }
-    override suspend fun updateSortOrder(manifestUrl: String, sortOrder: Int) = edit(manifestUrl) { copy(sortOrder = sortOrder) }
-    override suspend fun delete(manifestUrl: String) = rows.update { it - manifestUrl }
+    override suspend fun setEnabled(profileId: Long, manifestUrl: String, enabled: Boolean) =
+        edit(profileId, manifestUrl) { copy(enabled = enabled) }
+    override suspend fun rename(profileId: Long, manifestUrl: String, customName: String?) =
+        edit(profileId, manifestUrl) { copy(customName = customName) }
+    override suspend fun updateSortOrder(profileId: Long, manifestUrl: String, sortOrder: Int) =
+        edit(profileId, manifestUrl) { copy(sortOrder = sortOrder) }
+    override suspend fun delete(profileId: Long, manifestUrl: String) = rows.update { it - (profileId to manifestUrl) }
+    override suspend fun deleteAllForProfile(profileId: Long) =
+        rows.update { m -> m.filterValues { it.profileId != profileId } }
 
-    private fun edit(url: String, change: AddonEntity.() -> AddonEntity) =
-        rows.update { m -> m[url]?.let { m + (url to it.change()) } ?: m }
+    private fun edit(profileId: Long, url: String, change: AddonEntity.() -> AddonEntity) =
+        rows.update { m -> m[profileId to url]?.let { m + ((profileId to url) to it.change()) } ?: m }
+
+    private val AddonEntity.key get() = profileId to manifestUrl
 }
 
 class FakeProfileDao : ProfileDao {
