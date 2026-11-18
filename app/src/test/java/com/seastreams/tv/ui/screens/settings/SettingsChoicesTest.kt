@@ -18,8 +18,9 @@ class SettingsChoicesTest {
     }
 
     @Test
-    fun `the ochre swatch has its own name`() {
-        assertEquals("Ochre", backgroundName(0xFF916405.toInt()))
+    fun `the deep navy and espresso swatches have their own names`() {
+        assertEquals("Deep navy", backgroundName(0xFF090B34.toInt()))
+        assertEquals("Espresso", backgroundName(0xFF472A11.toInt()))
     }
 
     @Test

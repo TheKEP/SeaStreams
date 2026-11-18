@@ -219,28 +219,37 @@ class SettingsDataStoreTest {
     }
 
     @Test
-    fun `swatches are the seven picker colours in order, ending with ochre`() {
-        val expected = listOf(0xFF000000, 0xFF171535, 0xFF351529, 0xFF351515, 0xFF153535, 0xFF151F35, 0xFF916405)
+    fun `swatches are the seven picker colours in order, ending with espresso`() {
+        val expected = listOf(0xFF000000, 0xFF171535, 0xFF351529, 0xFF351515, 0xFF153535, 0xFF090B34, 0xFF472A11)
         assertEquals(expected.map { it.toInt() }, BackgroundSwatches.ALL)
     }
 
     @Test
-    fun `the ochre swatch persists across store instances`() = runTest {
-        val ochre = 0xFF916405.toInt()
-        settings.setBackgroundColor(ochre)
+    fun `the deep navy and espresso swatches persist across store instances`() = runTest {
+        listOf(0xFF090B34.toInt(), 0xFF472A11.toInt()).forEach { swatch ->
+            settings.setBackgroundColor(swatch)
+            assertEquals(swatch, SettingsDataStore(rawStore).settings.first().appearance.backgroundArgb)
+        }
+    }
 
-        assertEquals(ochre, SettingsDataStore(rawStore).settings.first().appearance.backgroundArgb)
+    @Test
+    fun `the replaced navy and ochre colours are no longer selectable`() = runTest {
+        listOf(0xFF151F35.toInt(), 0xFF916405.toInt()).forEach { old ->
+            assertFalse(old in BackgroundSwatches.ALL)
+            settings.setBackgroundColor(old)
+            assertEquals(BackgroundSwatches.DEFAULT, settings.settings.first().appearance.backgroundArgb)
+        }
     }
 
     @Test
     fun `a leftover scroll speed value is ignored and purged`() = runTest {
         rawStore.edit { it[stringPreferencesKey("${SCOPE}ui_catalog_row_scroll_speed")] = "FAST" }
-        settings.setBackgroundColor(0xFF916405.toInt())
+        settings.setBackgroundColor(0xFF472A11.toInt())
 
         settings.purgeRetiredSettings()
 
         assertNull(rawStore.data.first()[stringPreferencesKey("${SCOPE}ui_catalog_row_scroll_speed")])
-        assertEquals(0xFF916405.toInt(), settings.settings.first().appearance.backgroundArgb)
+        assertEquals(0xFF472A11.toInt(), settings.settings.first().appearance.backgroundArgb)
     }
 
     private companion object {
