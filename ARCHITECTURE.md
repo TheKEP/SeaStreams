@@ -66,3 +66,22 @@ app/src/main/java/com/seastreams/tv/
         ├── library/                  # LibraryScreen.kt (All/Movies/Shows + Sort + A-Z jump bar)
         ├── player/                   # PlayerScreen.kt + PlayerOverlayControls.kt; PlayerTransport.kt (play/pause/seek); PlayerLoading.kt (pure LoadingVisual state machine: `PlayerUiState.started` is reset by every new stream and set by `PlayerEvent.FirstFrame` [`onRenderedFirstFrame`]. Not started → BACKDROP_AND_LOGO; started + buffering → LOGO_ONLY; trailers → NONE); PlayerLoadingOverlay.kt (full-screen backdrop + pulsing logo/title, also drawn by playback/PlaybackHost.kt while `PlaybackUiState.loading` covers auto-play's stream lookup)
         └── settings/                 # SettingsScreen.kt (Addons, Providers, Playback, Audio, Subtitles, QR Portal)
+```
+
+## 2. Launcher Resources (App Icon & TV Banner)
+Generated from `docs/ui-references/tv_icon.png` (512x512) and `docs/ui-references/tv_banner.png` (1280x720) by `tools/launcher-assets/Generate-LauncherAssets.ps1` (PowerShell + built-in .NET `System.Drawing`, no Gradle dependency). Re-run it whenever either reference changes; never hand-edit the generated PNGs.
+```text
+app/src/main/res/
+├── mipmap-anydpi/ic_launcher.xml        # Adaptive icon: @color/ic_launcher_background + @mipmap/ic_launcher_foreground
+├── mipmap-anydpi/ic_launcher_round.xml  # Same layers (minSdk 26, so no -v26 qualifier); no <monochrome> layer (TV launchers don't theme icons)
+├── mipmap-{m,h,xh,xxh,xxxh}dpi/
+│   ├── ic_launcher_foreground.png       # 108dp opaque #000000 layer; every non-black pixel within a 31dp radius (66dp safe zone)
+│   ├── ic_launcher.png                  # 48dp legacy square fallback
+│   └── ic_launcher_round.png            # 48dp legacy circle-clipped fallback
+├── drawable-{m,h,xh,xxh,xxxh}dpi/
+│   └── tv_banner.png                    # 160x90dp Leanback banner (320x180 px at xhdpi; 160x90 .. 640x360 px), lockup at ~80% width on #000000
+├── values/ic_launcher_background.xml    # <color name="ic_launcher_background">#000000</color>
+└── drawable/ic_seastreams_icon.png      # Splash-only (SplashScreen.kt); unrelated to the launcher icon
+```
+- `AndroidManifest.xml`: `<application>` sets `android:icon="@mipmap/ic_launcher"`, `android:roundIcon="@mipmap/ic_launcher_round"`, `android:banner="@drawable/tv_banner"`; the `LEANBACK_LAUNCHER` `MainActivity` repeats `android:banner` (launchers read either `ActivityInfo.banner` or `ApplicationInfo.banner`) and inherits the icon.
+- The Android 12+ system splash never shows the launcher icon: `values-v31/themes.xml` pins `windowSplashScreenAnimatedIcon` to `@android:color/transparent`.
