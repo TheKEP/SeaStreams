@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -32,9 +31,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -44,7 +40,6 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
-import coil3.compose.AsyncImage
 import com.seastreams.tv.core.database.entity.ProfileEntity
 import com.seastreams.tv.ui.components.AvatarTile
 import com.seastreams.tv.ui.theme.FocusPill
@@ -73,7 +68,7 @@ fun ProfileSelectScreen(
     }
 
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Backdrop(state.backdropUrl, Modifier.align(Alignment.CenterEnd))
+        ProfileGateBackdrop(state.backdropUrl, Modifier.align(Alignment.CenterEnd))
         Column(
             Modifier.fillMaxHeight().padding(start = 40.dp, top = 40.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),
@@ -98,25 +93,6 @@ fun ProfileSelectScreen(
             }
             if (state.canAddProfile) AddProfileTile(onAddProfile)
         }
-    }
-}
-
-@Composable
-private fun Backdrop(url: String?, modifier: Modifier) {
-    Box(modifier.fillMaxHeight().fillMaxWidth(0.76f)) {
-        if (url != null) {
-            AsyncImage(
-                model = url,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
-        // Left vignette blending the artwork into the profile column.
-        Box(
-            Modifier.fillMaxHeight().width(360.dp)
-                .background(Brush.horizontalGradient(listOf(MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.background.copy(alpha = 0.6f), Color.Transparent))),
-        )
     }
 }
 

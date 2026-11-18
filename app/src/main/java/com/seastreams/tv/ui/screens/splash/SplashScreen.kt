@@ -21,9 +21,12 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
@@ -31,47 +34,125 @@ import com.seastreams.tv.R
 import com.seastreams.tv.ui.theme.FredokaFontFamily
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.isActive
 import kotlin.math.PI
-import kotlin.math.roundToInt
+import kotlin.math.cos
+import kotlin.math.exp
 import kotlin.math.sin
 
 private const val WORDMARK = "seastreams"
 
-/** Height of the crest (6dp up, 6dp down). */
-private const val WAVE_AMPLITUDE_DP = 6f
-
-/** One letter's full rise-and-fall, long enough that 6–7 letters roll together. */
-internal const val LETTER_BOUNCE_MS = 520
-
-/** The letter to the left starts this long after its right neighbour, giving an overlapping swell. */
-internal const val STAGGER_MS = 65
-
-/** Rest after the leftmost `s` settles, before the next sweep. */
-private const val PAUSE_MS = 1500L
-
-/** The splash never leaves before this, even if the profile gate has already loaded. */
-private const val MIN_HOLD_MS = 3000L
+/** One-shot motion length: every letter has popped in, bobbed, and is completely still by 2840ms. */
+internal const val ANIMATION_DURATION_MS = 2840f
 
 /**
- * Vertical offset in dp of the letter at [index] when the sweep is [sweepMs] in. The wave runs
- * right-to-left: the last letter starts at 0ms and each letter to its left [STAGGER_MS] later.
- * Within its [LETTER_BOUNCE_MS] window a letter rises (negative = up), dips, and settles, shaped
- * by a `sin(πt)` envelope; outside the window it is at rest.
+ * Black, motionless frames before the wave starts. On a cold start Android TV is still fading out
+ * the launcher and starting app services, and the first ~300ms of frames drop; waiting until the
+ * launch crossfade and startup work have finished lets frame 1 of the wave render smoothly.
  */
-internal fun waveOffsetDp(sweepMs: Float, index: Int, lastIndex: Int): Float {
-    val localElapsed = sweepMs - (lastIndex - index) * STAGGER_MS
-    if (localElapsed !in 0f..LETTER_BOUNCE_MS.toFloat()) return 0f
-    val t = localElapsed / LETTER_BOUNCE_MS
-    val envelope = sin(PI.toFloat() * t)
-    val wave = sin(2f * PI.toFloat() * t)
-    return -WAVE_AMPLITUDE_DP * envelope * wave
+private const val START_DELAY_MS = 420L
+
+/** 420ms start delay + 2840ms of motion + ~90ms of stillness; the splash never leaves before this. */
+private const val MIN_HOLD_MS = 3350L
+
+/** Each letter to the right starts this long after its left neighbour (9 × 110ms = 990ms). */
+internal const val STAGGER_IN_MS = 110f
+
+/** One letter's pop-in plus bobbing (990ms + 1850ms = 2840ms). */
+internal const val LETTER_LIFE_MS = 1850f
+
+/** Fraction of a letter's life spent popping in; the rest is bobbing and settling. */
+internal const val POP_IN_FRACTION = 0.26f
+
+/** Rotation phase lag of the bobbing rock, so the tilt trails the vertical bob slightly. */
+private const val ROCK_PHASE = 0.4f
+
+/** Peak crest height at the end of the pop-in, where the bobbing begins. */
+private const val CREST_DP = 13f
+
+/** Peak tilt at the crest. */
+private const val TILT_DEG = 11f
+
+/**
+ * Bobbing decay rate. 0.9 rather than the faster 1.55 first specified: the faster rate only gave
+ * ~6dp / ~1.7dp bobs, too small to read as buoyant at TV distance.
+ */
+private const val BOB_DECAY = 0.9f
+
+/**
+ * Icon size and a fixed downward shift, tuned against `docs/ui-references/1280x720.png`: the play
+ * button's top corner sits above the `s`, its bottom corner below, and its tip near the `s` waist.
+ * The all-x-height wordmark's ink sits below the centre of its line box, hence the shift.
+ */
+private val ICON_SIZE = 96.dp
+private val ICON_OFFSET_Y = 14.dp
+
+/** Wordmark letters. */
+private val WordmarkStyle = TextStyle(
+    color = Color.White,
+    fontSize = 64.sp,
+    fontWeight = FontWeight.SemiBold,
+    fontFamily = FredokaFontFamily,
+    platformStyle = PlatformTextStyle(includeFontPadding = false),
+)
+
+/** Per-letter draw transform at one instant of the splash animation. */
+internal data class LetterWaveState(
+    val alpha: Float,
+    val scale: Float,
+    val offsetYDp: Float,
+    val rotationDeg: Float,
+)
+
+private val HIDDEN = LetterWaveState(alpha = 0f, scale = 0.25f, offsetYDp = 18f, rotationDeg = -14f)
+private val AT_REST = LetterWaveState(alpha = 1f, scale = 1f, offsetYDp = 0f, rotationDeg = 0f)
+
+/**
+ * The transform of the letter at [index] when the animation is [sweepMs] in. Letters appear
+ * left-to-right: each rises boldly out of the water to a crest (pop-in), then bobs like a float on
+ * a slow swell (down, back up, ever smaller) with a slightly lagging side-to-side rock, and settles exactly
+ * flat [LETTER_LIFE_MS] after it started.
+ */
+internal fun letterWaveState(sweepMs: Float, index: Int, lastIndex: Int): LetterWaveState {
+    if (sweepMs >= ANIMATION_DURATION_MS) return AT_REST
+    val local = sweepMs - index * STAGGER_IN_MS
+    if (local < 0f) return HIDDEN
+    if (local >= LETTER_LIFE_MS) return AT_REST
+    val t = local / LETTER_LIFE_MS
+    return if (t < POP_IN_FRACTION) popInState(t / POP_IN_FRACTION) else bobState((t - POP_IN_FRACTION) / (1f - POP_IN_FRACTION))
+}
+
+/**
+ * Pop-in at progress [u] in 0..1: fades in and rises boldly out of the water, ending on the crest
+ * (1.12x, 13dp up, tilted right) exactly where [bobState] begins, so there is no jump between phases.
+ */
+private fun popInState(u: Float): LetterWaveState {
+    val easeOut = 1f - (1f - u) * (1f - u)
+    val toCrest = sin((PI / 2.0).toFloat() * u)
+    return LetterWaveState(
+        alpha = (u / 0.40f).coerceIn(0f, 1f),
+        scale = 0.25f + 0.87f * easeOut,
+        offsetYDp = 18f * (1f - easeOut) - CREST_DP * toCrest,
+        rotationDeg = -14f * (1f - easeOut) + TILT_DEG * cos(ROCK_PHASE) * toCrest,
+    )
+}
+
+/** Bobbing at progress [b] in 0..1: slow decaying swell that reaches exactly 0 at b = 1. */
+private fun bobState(b: Float): LetterWaveState {
+    val decay = exp(-BOB_DECAY * b) * (1f - b * b)
+    val bob = cos(2.5f * PI.toFloat() * b)
+    return LetterWaveState(
+        alpha = 1f,
+        scale = 1f + 0.12f * bob * decay,
+        offsetYDp = -CREST_DP * bob * decay,
+        rotationDeg = TILT_DEG * cos(2.5f * PI.toFloat() * b + ROCK_PHASE) * decay,
+    )
 }
 
 /**
  * Startup splash shown before the Profile Gate (PRD §2): the SeaStreams icon and a Fredoka
- * `seastreams` wordmark with a looping right-to-left ocean wave on pure black. It finishes once
- * at least [MIN_HOLD_MS] has passed *and* [isStartupReady] is true, whichever comes last.
+ * `seastreams` wordmark whose letters pop in left-to-right and bob in the water before settling
+ * still, on pure black. It finishes once at least [MIN_HOLD_MS] has passed *and* [isStartupReady]
+ * is true, whichever comes last.
  */
 @Composable
 fun SeaStreamsSplashScreen(
@@ -83,18 +164,16 @@ fun SeaStreamsSplashScreen(
 
     val letters = remember { WORDMARK.toList() }
     val lastIndex = letters.lastIndex
-    val totalSweepMs = LETTER_BOUNCE_MS + lastIndex * STAGGER_MS
     val sweepProgressMs = remember { Animatable(0f) }
+    val pxPerDp = LocalDensity.current.density
 
+    // One-shot: the motion plays once and comes to rest; nothing loops.
     LaunchedEffect(Unit) {
-        while (isActive) {
-            sweepProgressMs.snapTo(0f)
-            sweepProgressMs.animateTo(
-                targetValue = totalSweepMs.toFloat(),
-                animationSpec = tween(durationMillis = totalSweepMs, easing = LinearEasing),
-            )
-            delay(PAUSE_MS)
-        }
+        delay(START_DELAY_MS)
+        sweepProgressMs.animateTo(
+            targetValue = ANIMATION_DURATION_MS,
+            animationSpec = tween(durationMillis = ANIMATION_DURATION_MS.toInt(), easing = LinearEasing),
+        )
     }
 
     // Single timer from first frame: hold MIN_HOLD_MS, then wait (if still needed) for readiness.
@@ -117,20 +196,22 @@ fun SeaStreamsSplashScreen(
             Image(
                 painter = painterResource(id = R.drawable.ic_seastreams_icon),
                 contentDescription = "SeaStreams Logo",
-                modifier = Modifier.size(96.dp),
+                modifier = Modifier.size(ICON_SIZE).offset(y = ICON_OFFSET_Y),
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 letters.forEachIndexed { index, char ->
                     Text(
                         text = char.toString(),
-                        color = Color.White,
-                        fontSize = 64.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        fontFamily = FredokaFontFamily,
-                        // Read the animation in the layout phase so frames don't recompose the Texts.
-                        modifier = Modifier.offset {
-                            val dp = waveOffsetDp(sweepProgressMs.value, index, lastIndex)
-                            IntOffset(0, dp.dp.toPx().roundToInt())
+                        style = WordmarkStyle,
+                        // Read the animation in the draw-layer phase: frames neither recompose
+                        // nor re-layout the Texts.
+                        modifier = Modifier.graphicsLayer {
+                            val state = letterWaveState(sweepProgressMs.value, index, lastIndex)
+                            alpha = state.alpha
+                            scaleX = state.scale
+                            scaleY = state.scale
+                            translationY = state.offsetYDp * pxPerDp
+                            rotationZ = state.rotationDeg
                         },
                     )
                 }
