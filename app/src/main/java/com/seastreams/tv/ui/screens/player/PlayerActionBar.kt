@@ -33,6 +33,7 @@ import androidx.tv.material3.Text
 import com.seastreams.tv.player.subtitle.SubtitleOffset
 import com.seastreams.tv.ui.components.SeaIcons
 import com.seastreams.tv.ui.theme.focusPillColors
+import com.seastreams.tv.ui.theme.ignoreInitialKeyUp
 import com.seastreams.tv.ui.theme.onDpadEdgeWrap
 import kotlinx.coroutines.launch
 
@@ -56,7 +57,8 @@ fun PlayerActionBar(
                 icon = if (state.playing) SeaIcons.Pause else Icons.Filled.PlayArrow,
                 description = if (state.playing) "Pause" else "Play",
                 onClick = viewModel::togglePlayPause,
-                modifier = modifier.focusRequester(playButton),
+                // The HUD opens on Enter's KeyDown with focus here: its release must not un-pause.
+                modifier = modifier.focusRequester(playButton).ignoreInitialKeyUp(),
             )
         }
         if (state.isTrailer) return@buildList
