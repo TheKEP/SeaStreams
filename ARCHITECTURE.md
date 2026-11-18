@@ -38,7 +38,9 @@ app/src/main/java/com/seastreams/tv/
 │   └── subtitle/
 │       └── CleanSdhTextRenderer.kt   # Intercepts cues when Clean SDH is active + applies session/global styles
 └── ui/
-    ├── theme/                        # Color.kt, Type.kt (FredokaFontFamily from res/font/fredoka_semibold.ttf), FocusModifiers.kt
+    ├── theme/                        # Color.kt, Type.kt (FredokaFontFamily from res/font/fredoka_semibold.ttf), FocusModifiers.kt,
+    │                                 # SelectLongPress.kt (shared OK long-press, reset on focus change; never pass onLongClick
+    │                                 # to a tv Surface: its internal long-click flag survives focus loss and eats the next click)
     ├── navigation/                   # SeaStreamsNavGraph.kt (Splash -> AppGate: Onboarding | Profile Gate)
     ├── components/
     │   ├── TopNavBar.kt              # Avatar, Clock, Search, Home, Movies, TV Shows, Library, Settings
