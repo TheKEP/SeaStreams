@@ -49,7 +49,8 @@ import kotlinx.coroutines.launch
  * - Clicking a Continue Watching card plays it straight away when *Auto-play from Continue Watching*
  *   is on ([HomeDestination.Play]; Details is never opened), else opens Details.
  * - Long-press on a Continue Watching card opens its `View details` / `Remove` / `Clear progress` menu;
- *   after a removal focus moves to the card that took its place ([ContinueWatchingRemovalFocusEffect]).
+ *   while it is open the card's description stays shown beneath its artwork; after a removal focus
+ *   moves to the card that took its place ([ContinueWatchingRemovalFocusEffect]).
  */
 @Composable
 fun HomeScreen(
@@ -171,7 +172,7 @@ fun HomeScreen(
             )
             HomeContent(
                 state, sections, listState, heroCarousel, heroButton, wrapToTop, onNavigate, returnFocus,
-                RowFocus(rowFocus, cards, onContinueWatchingLongPress), scrollSpeed,
+                RowFocus(rowFocus, cards, onContinueWatchingLongPress, continueWatchingMenuOpen = menu != null), scrollSpeed,
             )
         }
         menu?.let { request -> ActionMenu(request, onClose = { menu = null }) }

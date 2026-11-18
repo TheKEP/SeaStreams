@@ -48,7 +48,7 @@ app/src/main/java/com/seastreams/tv/
     ├── components/
     │   ├── TopNavBar.kt              # Avatar, Clock, Search, Home, Movies, TV Shows, Library, Settings (Avatar ⇄ Settings edge wrap loop; no focusRestorer — navBarEntry sends D-pad Up/Down entry to the active pill and never redirects programmatic requests, so Back → active pill and Settings-close → gear land exactly)
     │   ├── HeroCarousel.kt           # Full-width hero card with horizontal D-pad cycling
-    │   ├── ExpandingCatalogRow.kt    # TvLazyRow with configurable scroll/expansion speed + 2:3 -> 16:9 transition + View More + wrap loop
+    │   ├── ExpandingCatalogRow.kt    # TvLazyRow with configurable scroll/expansion speed + 2:3 -> 16:9 transition + View More + wrap loop + `holdInfo` (keeps the info panel while the row's long-press menu holds focus)
     │   ├── InlineTrailerOverlay.kt   # 16:9 card PlayerView surface + top-right white muted speaker badge; attaches only when playsIn(slot, cardFocused) — the one focused card owning the playing slot, so a duplicate title on an unfocused row keeps its backdrop
     │   └── PosterGrid.kt             # 5-column TvLazyVerticalGrid
     └── screens/

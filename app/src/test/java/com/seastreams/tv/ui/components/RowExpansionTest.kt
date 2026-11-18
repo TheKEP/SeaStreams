@@ -1,6 +1,8 @@
 package com.seastreams.tv.ui.components
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 /**
@@ -49,6 +51,27 @@ class RowExpansionTest {
 
         assertEquals(4, memory.stateFor("a", rowA).intValue)
         assertEquals(0, memory.stateFor("a", rowA.reversed()).intValue)
+    }
+
+    @Test
+    fun `the info panel shows while the row holds focus and hides once focus leaves the row`() {
+        assertTrue(rowInfoVisible(rowFocused = true, holdInfo = false))
+        assertFalse(rowInfoVisible(rowFocused = false, holdInfo = false))
+    }
+
+    @Test
+    fun `a long-press menu opened from the row keeps the long-pressed card's info panel and wide card`() {
+        val memory = RowFocusMemory()
+        // Long-press card 3: it held focus, then the menu takes focus out of the row.
+        memory.stateFor("cw", rowA).intValue = 3
+
+        assertTrue(rowInfoVisible(rowFocused = false, holdInfo = true))
+        assertEquals(CardAppearance(wide = true, focusRing = false), appearance(memory, "cw", rowA, 3, focusedCard = null))
+
+        // `Back`: focus returns to card 3 before the hold is released, so the panel never blinks out.
+        assertTrue(rowInfoVisible(rowFocused = true, holdInfo = true))
+        assertTrue(rowInfoVisible(rowFocused = true, holdInfo = false))
+        assertEquals(CardAppearance(wide = true, focusRing = true), appearance(memory, "cw", rowA, 3, focusedCard = 3))
     }
 
     @Test
