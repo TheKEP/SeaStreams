@@ -196,13 +196,15 @@
 > Read `CLAUDE.md`, `PRD.md` (§2 Startup Splash Screen), and `ARCHITECTURE.md`. Add the native Compose startup splash before the Profile Gate:
 > 1. Verify `R.drawable.ic_seastreams_icon` and `res/font/fredoka_semibold.ttf`; define `FredokaFontFamily` (`Font(R.font.fredoka_semibold, FontWeight.SemiBold)`) in `ui/theme/Type.kt`.
 > 2. Make the launch window `#000000` with a transparent Android 12+ splash icon (`values-v31/themes.xml`) so no system icon flashes first.
-> 3. Build `ui/screens/splash/SplashScreen.kt` (`SeaStreamsSplashScreen(isStartupReady, onSplashFinished)`, under 350 lines) with the right-to-left ocean-wave wordmark, and show it in `SeaStreamsNavGraph` ahead of the `AppGate` routing, once per process.
+> 3. Build `ui/screens/splash/SplashScreen.kt` (`SeaStreamsSplashScreen(isStartupReady, onSplashFinished)`, under 350 lines) with the left-to-right spring-reveal wordmark, and show it in `SeaStreamsNavGraph` ahead of the `AppGate` routing, once per process.
 > 4. Unit-test the wave offset math. Run `./gradlew testDebugUnitTest` and `./gradlew assembleDebug`.
 
 **Acceptance Criteria:**
 - Cold launch shows a black window, then the icon + `seastreams` wordmark with no system splash icon before it on Android 12+.
-- The wave runs right-to-left (`520ms` per letter, `65ms` stagger, `6dp` amplitude) and repeats after a `1.5s` rest.
-- The splash stays for at least `3s` and until `AppGate` is no longer `Loading`, then shows `ProfileCreateScreen` (no profiles/key) or `ProfileSelectScreen`.
+- Letters pop in left-to-right and bob in the water, and every letter is fully visible and completely still by ~`3.26s` (`420ms` black start + `2840ms` motion); it does not loop.
+- The play icon (`96dp`, `14dp` down) brackets the lowercase `s` with its tip near the `s` waist, matching `docs/ui-references/1280x720.png`.
+- When profiles exist, `ProfileSelectScreen` opens with its backdrop already drawn (fetched and decoded during the splash).
+- The splash stays for at least `3.35s` (`0.42s` black + `2.84s` motion + ~`0.09s` stillness) and until `AppGate` is no longer `Loading`, then shows `ProfileCreateScreen` (no profiles/key) or `ProfileSelectScreen`.
 - `Back` during the splash does nothing; rotating/recreating the activity or returning from Home to the profile switcher does not replay the splash.
 
 ---

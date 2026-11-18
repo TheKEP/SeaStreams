@@ -18,6 +18,7 @@ import com.seastreams.tv.ui.screens.home.HomeViewModel
 import com.seastreams.tv.ui.screens.profiles.ProfileCreateScreen
 import com.seastreams.tv.ui.screens.profiles.ProfileEditorMode
 import com.seastreams.tv.ui.screens.profiles.ProfileSelectScreen
+import com.seastreams.tv.ui.screens.profiles.ProfileSelectViewModel
 import com.seastreams.tv.ui.screens.splash.SeaStreamsSplashScreen
 
 /** Editor overlay state: closed, creating a new profile, or editing the profile with that id. */
@@ -32,6 +33,10 @@ fun SeaStreamsNavGraph() {
     var splashDone by rememberSaveable { mutableStateOf(false) }
 
     if (!splashDone) {
+        // Creating the (activity-scoped) gate VM now starts its backdrop fetch + decode behind the
+        // splash. Only once profiles exist: the Kids-aware artwork filter (rule 6) reads the
+        // profile list when the fetch starts.
+        if (gate == AppGate.Ready) activityViewModel<ProfileSelectViewModel>()
         SeaStreamsSplashScreen(
             isStartupReady = gate != AppGate.Loading,
             onSplashFinished = { splashDone = true },

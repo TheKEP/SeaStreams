@@ -45,7 +45,7 @@ app/src/main/java/com/seastreams/tv/
     │   ├── InlineTrailerOverlay.kt   # 16:9 card PlayerView surface + top-right white muted speaker badge
     │   └── PosterGrid.kt             # 5-column TvLazyVerticalGrid
     └── screens/
-        ├── splash/                   # SplashScreen.kt (black hold screen, icon + Fredoka "seastreams" right-to-left wave; >= 3s AND AppGate loaded)
+        ├── splash/                   # SplashScreen.kt (black hold screen, icon + Fredoka "seastreams" 420ms black start, then one-shot 2.84s left-to-right pop-in + bobbing; >= 3.35s AND AppGate loaded; preloads Profile Gate backdrop)
         ├── profiles/                 # ProfileSelectScreen.kt, ProfileCreateScreen.kt (with QR code)
         ├── home/                     # HomeScreen.kt + HomeViewModel.kt
         ├── catalog/                  # MoviesScreen.kt, TvShowsScreen.kt, ViewMoreScreen.kt
