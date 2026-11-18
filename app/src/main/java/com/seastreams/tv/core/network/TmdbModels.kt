@@ -60,8 +60,28 @@ data class TmdbCastMember(
     val order: Int = 0,
 )
 
+/** One `credits.crew` entry; Details only reads `job == "Director"`. */
 @Serializable
-data class TmdbCredits(val cast: List<TmdbCastMember> = emptyList())
+data class TmdbCrewMember(
+    val id: Int,
+    val name: String = "",
+    val job: String = "",
+    @SerialName("profile_path") val profilePath: String? = null,
+)
+
+@Serializable
+data class TmdbCredits(
+    val cast: List<TmdbCastMember> = emptyList(),
+    val crew: List<TmdbCrewMember> = emptyList(),
+)
+
+/** One `created_by` entry of `/tv/{id}`: the Details director slot's fallback for shows. */
+@Serializable
+data class TmdbCreator(
+    val id: Int,
+    val name: String = "",
+    @SerialName("profile_path") val profilePath: String? = null,
+)
 
 @Serializable
 data class TmdbReleaseDate(
@@ -141,6 +161,7 @@ data class TmdbTvDetails(
     val adult: Boolean = false,
     @SerialName("content_ratings") val contentRatings: TmdbContentRatings? = null,
     val credits: TmdbCredits? = null,
+    @SerialName("created_by") val createdBy: List<TmdbCreator> = emptyList(),
     val images: TmdbImages? = null,
     @SerialName("last_episode_to_air") val lastEpisodeToAir: TmdbEpisodeRef? = null,
 ) {
