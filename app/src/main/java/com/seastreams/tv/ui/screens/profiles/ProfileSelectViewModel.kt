@@ -21,7 +21,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -47,15 +49,18 @@ class ProfileSelectViewModel @Inject constructor(
     @param:ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
-    private val backdropUrl = MutableStateFlow<String?>(null)
+    private val backdrop = MutableStateFlow<GateBackdrop?>(null)
     private var prefetchJob: Job? = null
 
     val uiState: StateFlow<ProfileSelectUiState> = combine(
         profiles.observeProfiles(),
         settings.activeProfileId,
-        backdropUrl,
-    ) { list, active, backdrop ->
-        ProfileSelectUiState(list, active, backdrop)
+        backdrop,
+    ) { list, active, art ->
+        // Rule 6: artwork picked under the Adult-only ceiling never pairs with a profile list that
+        // contains a Kids profile, even for the moment before the stricter replacement arrives.
+        val anyKids = list.any { it.isKids }
+        ProfileSelectUiState(list, active, art?.takeIf { it.kidsSafe || !anyKids }?.url)
     }.stateIn(viewModelScope, WhileUiSubscribed, ProfileSelectUiState())
 
     init {
@@ -90,19 +95,28 @@ class ProfileSelectViewModel @Inject constructor(
      * created during the startup splash (`SeaStreamsNavGraph`), so the fetch and the image decode
      * run behind the splash; the URL is published only once the bitmap is in Coil's memory cache,
      * so the gate draws the artwork on its first frame instead of popping it in.
+     *
+     * The VM is activity-scoped and outlives profile edits, so the fetch re-runs whenever the
+     * "any Kids profile" answer changes: adding (or converting to) a Kids profile fetches a
+     * stricter backdrop, removing the last one fetches a regular one. A failed refetch keeps the
+     * current artwork, which [uiState] still hides if it is no longer allowed.
      */
     private fun loadBackdrop() {
         viewModelScope.launch {
-            val anyKids = profiles.observeProfiles().first().any { it.isKids }
-            // Purely decorative: offline or rate-limited simply leaves the dark background.
-            val url = orNullUnlessCancelled { withContext(Dispatchers.IO) { gateBackdrop.get() }(anyKids) }
-            if (url != null) {
-                // Best effort: if decoding fails, the on-screen request simply retries.
-                orNullUnlessCancelled {
-                    imagePrewarmer.warm(listOf(profileGateBackdropTarget(appContext.resources.displayMetrics, url)))
+            profiles.observeProfiles()
+                .map { list -> list.any { it.isKids } }
+                .distinctUntilChanged()
+                .collectLatest { anyKids ->
+                    // Purely decorative: offline or rate-limited simply leaves the dark background.
+                    val url = orNullUnlessCancelled {
+                        withContext(Dispatchers.IO) { gateBackdrop.get() }(anyKids)
+                    } ?: return@collectLatest
+                    // Best effort: if decoding fails, the on-screen request simply retries.
+                    orNullUnlessCancelled {
+                        imagePrewarmer.warm(listOf(profileGateBackdropTarget(appContext.resources.displayMetrics, url)))
+                    }
+                    backdrop.value = GateBackdrop(url, kidsSafe = anyKids)
                 }
-            }
-            backdropUrl.value = url
         }
     }
 
@@ -110,3 +124,6 @@ class ProfileSelectViewModel @Inject constructor(
         const val PREFETCH_SETTLE_MILLIS = 150L
     }
 }
+
+/** A Profile Gate backdrop and whether it was picked under the stricter Kids-present ceiling. */
+private data class GateBackdrop(val url: String, val kidsSafe: Boolean)
