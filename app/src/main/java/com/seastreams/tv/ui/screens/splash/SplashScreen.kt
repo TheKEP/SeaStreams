@@ -79,7 +79,7 @@ private const val TILT_DEG = 11f
 private const val BOB_DECAY = 0.9f
 
 /**
- * Icon size and a fixed downward shift, tuned against `docs/ui-references/1280x720.png`: the play
+ * Icon size and a fixed downward shift, tuned against `docs/ui-references/tv_banner.png`: the play
  * button's top corner sits above the `s`, its bottom corner below, and its tip near the `s` waist.
  * The all-x-height wordmark's ink sits below the centre of its line box, hence the shift.
  */
