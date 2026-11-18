@@ -41,9 +41,12 @@ app/src/main/java/com/seastreams/tv/
     ├── theme/                        # Color.kt, Type.kt (FredokaFontFamily from res/font/fredoka_semibold.ttf), FocusModifiers.kt,
     │                                 # SelectLongPress.kt (shared OK long-press, reset on focus change; never pass onLongClick
     │                                 # to a tv Surface: its internal long-click flag survives focus loss and eats the next click)
+    │                                 # FocusModifiers.kt: onDpadEdgeWrap (bidirectional edge-stop-then-wrap: Left/Up on the first
+    │                                 # item → last, Right/Down on the last → first; held repeats stop), D-pad repeat throttles,
+    │                                 # ignoreInitialKeyUp
     ├── navigation/                   # SeaStreamsNavGraph.kt (Splash -> AppGate: Onboarding | Profile Gate)
     ├── components/
-    │   ├── TopNavBar.kt              # Avatar, Clock, Search, Home, Movies, TV Shows, Library, Settings
+    │   ├── TopNavBar.kt              # Avatar, Clock, Search, Home, Movies, TV Shows, Library, Settings (Avatar ⇄ Settings edge wrap loop)
     │   ├── HeroCarousel.kt           # Full-width hero card with horizontal D-pad cycling
     │   ├── ExpandingCatalogRow.kt    # TvLazyRow with configurable scroll/expansion speed + 2:3 -> 16:9 transition + View More + wrap loop
     │   ├── InlineTrailerOverlay.kt   # 16:9 card PlayerView surface + top-right white muted speaker badge; attaches only when playsIn(slot, cardFocused) — the one focused card owning the playing slot, so a duplicate title on an unfocused row keeps its backdrop
