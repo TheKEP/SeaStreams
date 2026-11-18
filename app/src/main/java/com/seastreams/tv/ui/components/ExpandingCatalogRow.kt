@@ -81,7 +81,8 @@ private const val INFO_ANIM_MILLIS = 130
  * - Every row always shows one 16:9 backdrop card: its last-focused card (the first card by default).
  *   It stays wide after focus leaves the row; only the card holding D-pad focus draws the focus ring.
  *   The focused card is held at the left gutter while the row scrolls beneath it, and its title,
- *   rating, year, genre, runtime and synopsis show below while the row has focus.
+ *   rating, year, genre, runtime and synopsis show below while the row has focus, or while a
+ *   long-press menu opened from it holds focus ([holdInfo]).
  * - [items] should already be capped (`ROW_CAP` = 20 on every tab); [hasMore] appends a `View More`
  *   card at position 21 (index 20).
  * - Edge-stop-then-wrap (PRD §1): holding `Right` stops on the last card (or `View More`); a fresh
@@ -122,6 +123,8 @@ fun ExpandingCatalogRow(
      * (Home/Movies/TV rows); `null` (Continue Watching) means no previews.
      */
     trailerRowKey: String? = null,
+    /** Keeps the last-focused card's info panel shown while an overlay opened from this row holds focus. */
+    holdInfo: Boolean = false,
 ) {
     val trailers = if (trailerRowKey != null) LocalInlineTrailers.current else null
     val listState = rememberLazyListState()
@@ -241,7 +244,7 @@ fun ExpandingCatalogRow(
             }
         }
         AnimatedVisibility(
-            visible = rowFocused,
+            visible = rowInfoVisible(rowFocused, holdInfo),
             enter = fadeIn(tween(INFO_ANIM_MILLIS)) + expandVertically(tween(INFO_ANIM_MILLIS)),
             exit = fadeOut(tween(INFO_ANIM_MILLIS)) + shrinkVertically(tween(INFO_ANIM_MILLIS)),
         ) {
