@@ -17,20 +17,22 @@ data class ProfileRequest(
     val allowUnrated: Boolean = false,
 )
 
-@Serializable
-data class AddonUrlRequest(val manifestUrl: String)
+// Addon requests name the profile whose addon list they change; no other profile is touched.
 
 @Serializable
-data class AddonRenameRequest(val manifestUrl: String, val name: String)
+data class AddonUrlRequest(val profileId: Long, val manifestUrl: String)
 
 @Serializable
-data class AddonEnabledRequest(val manifestUrl: String, val enabled: Boolean)
+data class AddonRenameRequest(val profileId: Long, val manifestUrl: String, val name: String)
 
 @Serializable
-data class AddonMoveRequest(val manifestUrl: String, val offset: Int)
+data class AddonEnabledRequest(val profileId: Long, val manifestUrl: String, val enabled: Boolean)
 
 @Serializable
-data class AddonReorderRequest(val manifestUrls: List<String>)
+data class AddonMoveRequest(val profileId: Long, val manifestUrl: String, val offset: Int)
+
+@Serializable
+data class AddonReorderRequest(val profileId: Long, val manifestUrls: List<String>)
 
 /** [target] is `MOVIES` or `TV_SHOWS`. */
 @Serializable
@@ -74,5 +76,11 @@ data class PortalState(
     val kidsMovieCeilings: List<String>,
     val kidsTvCeilings: List<String>,
     val profiles: List<ProfileDto>,
-    val addons: List<AddonDto>,
+    /** The profile selected on the TV, which the addon editor opens on; `null` when none is active. */
+    val activeProfileId: Long?,
+    /** Each profile's own addon list, in that profile's order. */
+    val profileAddons: List<ProfileAddonsDto>,
 )
+
+@Serializable
+data class ProfileAddonsDto(val profileId: Long, val addons: List<AddonDto>)

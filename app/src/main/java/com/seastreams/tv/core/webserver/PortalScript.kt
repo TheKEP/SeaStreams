@@ -10,7 +10,7 @@ object PortalScript {
 
     val JS = """
 'use strict';
-const S = { state: null, editingId: null, formReady: false };
+const S = { state: null, editingId: null, formReady: false, addonProfileId: null };
 const submitButton = (e) => e.submitter || e.target.querySelector('button[type=submit]');
 const byId = (id) => document.getElementById(id);
 
@@ -162,22 +162,44 @@ async function deleteProfile(p, button) {
   if (await api('/profiles/' + p.id + '/delete', {}, button) && S.editingId === p.id) resetProfileForm();
 }
 
+// Whose addons are shown and edited: the picked profile, else the TV's active one, else the first.
+function addonProfile(st) {
+  const find = (id) => st.profiles.find((p) => p.id === id);
+  const p = find(S.addonProfileId) || find(st.activeProfileId) || st.profiles[0] || null;
+  S.addonProfileId = p ? p.id : null;
+  return p;
+}
+
+const addonApi = (path, body, button) => api(path, Object.assign({ profileId: S.addonProfileId }, body), button);
+
 function renderAddons(st) {
+  const profile = addonProfile(st);
+  const select = byId('addon-profile');
+  select.replaceChildren(...(st.profiles.length
+    ? st.profiles.map((p) => h('option', { value: String(p.id) }, p.name + (p.isKids ? ' (Kids)' : '')))
+    : [h('option', { value: '' }, 'Create a profile first')]));
+  select.value = profile ? String(profile.id) : '';
+  select.disabled = !profile;
+  byId('addon-submit').disabled = !profile;
+  byId('addon-profile-hint').textContent = profile
+    ? 'Changes apply only to ' + profile.name + '.' : 'Addons are installed per profile. Create a profile first.';
   const list = byId('addon-list');
-  if (!st.addons.length) { list.replaceChildren(h('li', { class: 'empty' }, 'No addons installed.')); return; }
-  list.replaceChildren(...st.addons.map((a, i) => h('li', { class: a.enabled ? '' : 'disabled' },
+  const entry = profile ? st.profileAddons.find((e) => e.profileId === profile.id) : null;
+  const addons = entry ? entry.addons : [];
+  if (!addons.length) { list.replaceChildren(h('li', { class: 'empty' }, 'No addons installed.')); return; }
+  list.replaceChildren(...addons.map((a, i) => h('li', { class: a.enabled ? '' : 'disabled' },
     h('div', null,
       h('div', { class: 'title' }, a.name, ' ', a.builtIn ? h('span', { class: 'badge' }, 'Built-in') : null),
       a.name !== a.manifestName ? h('div', { class: 'sub' }, a.manifestName) : null,
       h('div', { class: 'sub' }, a.resources.join(' · ') + (a.builtIn ? '' : ' — ' + a.manifestUrl))),
     h('div', { class: 'row' },
       h('button', { type: 'button', class: 'icon', 'aria-label': 'Move up', disabled: i === 0,
-        onclick: (e) => api('/addons/move', { manifestUrl: a.manifestUrl, offset: -1 }, e.currentTarget) }, '↑'),
-      h('button', { type: 'button', class: 'icon', 'aria-label': 'Move down', disabled: i === st.addons.length - 1,
-        onclick: (e) => api('/addons/move', { manifestUrl: a.manifestUrl, offset: 1 }, e.currentTarget) }, '↓'),
+        onclick: (e) => addonApi('/addons/move', { manifestUrl: a.manifestUrl, offset: -1 }, e.currentTarget) }, '↑'),
+      h('button', { type: 'button', class: 'icon', 'aria-label': 'Move down', disabled: i === addons.length - 1,
+        onclick: (e) => addonApi('/addons/move', { manifestUrl: a.manifestUrl, offset: 1 }, e.currentTarget) }, '↓'),
       h('label', { class: 'check' },
         h('input', { type: 'checkbox', checked: a.enabled, disabled: a.builtIn,
-          onchange: (e) => api('/addons/enabled', { manifestUrl: a.manifestUrl, enabled: e.currentTarget.checked }) }),
+          onchange: (e) => addonApi('/addons/enabled', { manifestUrl: a.manifestUrl, enabled: e.currentTarget.checked }) }),
         'Enabled'),
       h('button', { type: 'button', class: 'icon', onclick: (e) => renameAddon(a, e.currentTarget) }, 'Rename'),
       a.builtIn ? null : h('button', { type: 'button', class: 'icon danger', onclick: (e) => removeAddon(a, e.currentTarget) }, 'Remove')))));
@@ -186,11 +208,11 @@ function renderAddons(st) {
 async function renameAddon(a, button) {
   const name = prompt('New name (leave empty to restore "' + a.manifestName + '")', a.name);
   if (name === null) return;
-  await api('/addons/rename', { manifestUrl: a.manifestUrl, name: name }, button);
+  await addonApi('/addons/rename', { manifestUrl: a.manifestUrl, name: name }, button);
 }
 
 async function removeAddon(a, button) {
-  if (confirm('Remove addon "' + a.name + '"?')) await api('/addons/remove', { manifestUrl: a.manifestUrl }, button);
+  if (confirm('Remove addon "' + a.name + '"?')) await addonApi('/addons/remove', { manifestUrl: a.manifestUrl }, button);
 }
 
 function renderImportProfiles(st) {
@@ -212,7 +234,12 @@ function bindForms() {
   });
   byId('addon-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (await api('/addons', { manifestUrl: byId('addon-url').value }, submitButton(e))) byId('addon-url').value = '';
+    if (S.addonProfileId === null) { toast('Create a profile first', false); return; }
+    if (await addonApi('/addons', { manifestUrl: byId('addon-url').value }, submitButton(e))) byId('addon-url').value = '';
+  });
+  byId('addon-profile').addEventListener('change', (e) => {
+    S.addonProfileId = Number(e.currentTarget.value) || null;
+    if (S.state) renderAddons(S.state);
   });
   byId('import-form').addEventListener('submit', async (e) => {
     e.preventDefault();

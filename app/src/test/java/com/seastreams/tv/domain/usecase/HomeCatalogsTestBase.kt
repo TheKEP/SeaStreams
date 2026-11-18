@@ -38,8 +38,15 @@ abstract class HomeCatalogsTestBase {
     protected val kids = testProfile(2, isKids = true)
     protected val spec = CatalogRowSpec("test", "Test", "https://mdblist.com/lists/owner/test")
 
-    /** An enabled HTTP addon at `https://{host}/manifest.json` declaring [catalogsJson] (a JSON array). */
-    protected fun addonEntity(host: String, sortOrder: Int, catalogsJson: String, enabled: Boolean = true) = AddonEntity(
+    /** An enabled HTTP addon of [profileId] at `https://{host}/manifest.json` declaring [catalogsJson] (a JSON array). */
+    protected fun addonEntity(
+        host: String,
+        sortOrder: Int,
+        catalogsJson: String,
+        enabled: Boolean = true,
+        profileId: Long = adult.id,
+    ) = AddonEntity(
+        profileId = profileId,
         manifestUrl = "https://$host/manifest.json",
         manifestId = "com.example.$host",
         name = host,

@@ -99,12 +99,15 @@ class PortalServerTest {
 
         tmdbKeys = TmdbKeyRepository(settings) { key -> key == VALID_KEY }
         profileDao = FakeProfileDao()
-        addonDao = FakeAddonDao()
+        addonDao = FakeAddonDao(profileIds = { profileDao.rows.value.map { it.id } })
         val controller = PortalController(
             tmdbKeys = tmdbKeys,
-            profiles = ProfileRepository(profileDao, settings, settings, clock, DiscoverSnapshotStore(), LoadedCatalogStore(Clock.systemUTC())),
-            addons = AddonRepository(addonDao, StremioAddonClient(appHttp), clock),
+            profiles = ProfileRepository(
+                profileDao, addonDao, settings, settings, clock, DiscoverSnapshotStore(), LoadedCatalogStore(Clock.systemUTC()),
+            ),
+            addons = AddonRepository(addonDao, profileDao, StremioAddonClient(appHttp), clock),
             importMdbList = importUseCase,
+            settings = settings,
         )
         portal = LocalPortalServer(controller)
         port = requireNotNull(portal.start(port = 0, host = "127.0.0.1"))
@@ -201,30 +204,52 @@ class PortalServerTest {
     }
 
     @Test
-    fun `addon forms install, toggle, rename, reorder and remove`() = runTest {
-        addonDao.insertIfAbsent(BuiltInAddons.defaults(0))
+    fun `addon forms install, toggle, rename, reorder and remove on the chosen profile only`() = runTest {
+        settings.setTmdbApiKey(VALID_KEY)
+        assertEquals(200, postJson("/api/profiles", """{"name":"Alex"}""").status.value)
+        assertEquals(200, postJson("/api/profiles", """{"name":"Sam"}""").status.value)
+        val (a, b) = profileDao.rows.value.map { it.id }
+        settings.setActiveProfileId(b)
+        val defaults = listOf(BuiltInAddons.TMDB_URL, BuiltInAddons.OPENSUBTITLES_URL)
+        val bBefore = state().addonsOf(b)
+        assertEquals(b, state().activeProfileId)
+        assertEquals(defaults, bBefore.map { it.manifestUrl })
         val url = upstream.url("/addon/manifest.json")
 
-        assertEquals(200, postJson("/api/addons", """{"manifestUrl":"$url"}""").status.value)
-        assertEquals(listOf(BuiltInAddons.TMDB_URL, BuiltInAddons.OPENSUBTITLES_URL, url), state().addons.map { it.manifestUrl })
+        assertEquals(200, postJson("/api/addons", """{"profileId":$a,"manifestUrl":"$url"}""").status.value)
+        assertEquals(defaults + url, state().addonsOf(a).map { it.manifestUrl })
 
-        postJson("/api/addons/move", """{"manifestUrl":"$url","offset":-1}""")
-        postJson("/api/addons/enabled", """{"manifestUrl":"$url","enabled":false}""")
-        postJson("/api/addons/rename", """{"manifestUrl":"$url","name":"My streams"}""")
-        val after = state().addons
+        postJson("/api/addons/move", """{"profileId":$a,"manifestUrl":"$url","offset":-1}""")
+        postJson("/api/addons/enabled", """{"profileId":$a,"manifestUrl":"$url","enabled":false}""")
+        postJson("/api/addons/rename", """{"profileId":$a,"manifestUrl":"$url","name":"My streams"}""")
+        val after = state().addonsOf(a)
         assertEquals(listOf(BuiltInAddons.TMDB_URL, url, BuiltInAddons.OPENSUBTITLES_URL), after.map { it.manifestUrl })
         assertEquals("My streams", after[1].name)
         assertEquals("Streams", after[1].manifestName)
         assertFalse(after[1].enabled)
         assertTrue(after[0].builtIn)
 
-        postJson("/api/addons/reorder", """{"manifestUrls":["${BuiltInAddons.OPENSUBTITLES_URL}","$url"]}""")
-        assertEquals(listOf(BuiltInAddons.OPENSUBTITLES_URL, url, BuiltInAddons.TMDB_URL), state().addons.map { it.manifestUrl })
+        postJson("/api/addons/reorder", """{"profileId":$a,"manifestUrls":["${BuiltInAddons.OPENSUBTITLES_URL}","$url"]}""")
+        assertEquals(listOf(BuiltInAddons.OPENSUBTITLES_URL, url, BuiltInAddons.TMDB_URL), state().addonsOf(a).map { it.manifestUrl })
 
-        assertEquals(400, postJson("/api/addons/remove", """{"manifestUrl":"${BuiltInAddons.TMDB_URL}"}""").status.value)
-        assertEquals(200, postJson("/api/addons/remove", """{"manifestUrl":"$url"}""").status.value)
-        assertEquals(2, state().addons.size)
+        assertEquals(400, postJson("/api/addons/remove", """{"profileId":$a,"manifestUrl":"${BuiltInAddons.TMDB_URL}"}""").status.value)
+        assertEquals(200, postJson("/api/addons/remove", """{"profileId":$a,"manifestUrl":"$url"}""").status.value)
+        assertEquals(2, state().addonsOf(a).size)
+        // Nothing done to profile A reached profile B.
+        assertEquals(bBefore, state().addonsOf(b))
+
+        val unknown = postJson("/api/addons", """{"profileId":99,"manifestUrl":"$url"}""")
+        assertEquals(400, unknown.status.value)
+        assertEquals("Profile not found", message(unknown).message)
+        assertEquals(400, postJson("/api/addons", """{"manifestUrl":"$url"}""").status.value)
+
+        // Deleting a profile drops its addon list.
+        browser.post("$base/api/profiles/$a/delete") { contentType(ContentType.Application.Json) }
+        assertTrue(addonDao.ordered(a).isEmpty())
+        assertEquals(listOf(b), state().profileAddons.map { it.profileId })
     }
+
+    private fun PortalState.addonsOf(profileId: Long): List<AddonDto> = profileAddons.single { it.profileId == profileId }.addons
 
     @Test
     fun `portal no longer offers custom MDBList catalog rows`() = runTest {

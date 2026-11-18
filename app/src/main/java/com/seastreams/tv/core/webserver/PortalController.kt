@@ -1,6 +1,7 @@
 package com.seastreams.tv.core.webserver
 
 import com.seastreams.tv.core.database.entity.AddonEntity
+import com.seastreams.tv.core.datastore.SettingsDataStore
 import com.seastreams.tv.core.network.InvalidManifestException
 import com.seastreams.tv.core.network.StremioManifestParser
 import com.seastreams.tv.core.util.enumByNameOrNull
@@ -29,20 +30,27 @@ class PortalController @Inject constructor(
     private val profiles: ProfileRepository,
     private val addons: AddonRepository,
     private val importMdbList: ImportMdbListUseCase,
+    private val settings: SettingsDataStore,
 ) {
 
-    suspend fun state(): PortalState = PortalState(
-        tmdbKeySaved = tmdbKeys.hasValidKey.first(),
-        tmdbKeyMasked = tmdbKeys.maskedKey.first(),
-        maxProfiles = ProfileRepository.MAX_PROFILES,
-        avatarCount = ProfileRepository.AVATAR_COUNT,
-        kidsMovieCeilings = KidsCeilings.MOVIE.map { it.label },
-        kidsTvCeilings = KidsCeilings.TV.map { it.label },
-        profiles = profiles.observeProfiles().first().map {
-            ProfileDto(it.id, it.name, it.avatarIndex, it.isKids, it.movieCeiling?.label, it.tvCeiling?.label, it.allowUnrated)
-        },
-        addons = addons.observeAddons().first().map(::toDto),
-    )
+    suspend fun state(): PortalState {
+        val profileList = profiles.observeProfiles().first()
+        return PortalState(
+            tmdbKeySaved = tmdbKeys.hasValidKey.first(),
+            tmdbKeyMasked = tmdbKeys.maskedKey.first(),
+            maxProfiles = ProfileRepository.MAX_PROFILES,
+            avatarCount = ProfileRepository.AVATAR_COUNT,
+            kidsMovieCeilings = KidsCeilings.MOVIE.map { it.label },
+            kidsTvCeilings = KidsCeilings.TV.map { it.label },
+            profiles = profileList.map {
+                ProfileDto(it.id, it.name, it.avatarIndex, it.isKids, it.movieCeiling?.label, it.tvCeiling?.label, it.allowUnrated)
+            },
+            activeProfileId = settings.activeProfileId.first(),
+            profileAddons = profileList.map { profile ->
+                ProfileAddonsDto(profile.id, addons.observeAddons(profile.id).first().map(::toDto))
+            },
+        )
+    }
 
     suspend fun saveTmdbKey(request: TmdbKeyRequest): String {
         tmdbKeys.validateAndSave(request.apiKey)
@@ -65,32 +73,32 @@ class PortalController @Inject constructor(
     }
 
     suspend fun installAddon(request: AddonUrlRequest): String {
-        val installed = addons.install(request.manifestUrl)
+        val installed = addons.install(request.profileId, request.manifestUrl)
         return "Installed ${installed.name}"
     }
 
     suspend fun removeAddon(request: AddonUrlRequest): String {
-        addons.remove(request.manifestUrl)
+        addons.remove(request.profileId, request.manifestUrl)
         return "Addon removed"
     }
 
     suspend fun renameAddon(request: AddonRenameRequest): String {
-        addons.rename(request.manifestUrl, request.name)
+        addons.rename(request.profileId, request.manifestUrl, request.name)
         return "Addon renamed"
     }
 
     suspend fun setAddonEnabled(request: AddonEnabledRequest): String {
-        addons.setEnabled(request.manifestUrl, request.enabled)
+        addons.setEnabled(request.profileId, request.manifestUrl, request.enabled)
         return if (request.enabled) "Addon enabled" else "Addon disabled"
     }
 
     suspend fun moveAddon(request: AddonMoveRequest): String {
-        addons.move(request.manifestUrl, request.offset)
+        addons.move(request.profileId, request.manifestUrl, request.offset)
         return "Order updated"
     }
 
     suspend fun reorderAddons(request: AddonReorderRequest): String {
-        addons.reorder(request.manifestUrls)
+        addons.reorder(request.profileId, request.manifestUrls)
         return "Order updated"
     }
 

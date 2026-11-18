@@ -23,6 +23,7 @@ zxing = "3.5.4"
 junitJupiter = "5.14.4"
 mockk = "1.14.12"
 turbine = "1.2.1"
+sqliteJdbc = "3.49.1.0"
 
 [libraries]
 # Build logic
@@ -74,6 +75,8 @@ junit-platform-launcher = { group = "org.junit.platform", name = "junit-platform
 mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
 turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
+# Test-only: runs Room migration SQL against a real SQLite on the JVM (approved for per-profile addons).
+sqlite-jdbc = { group = "org.xerial", name = "sqlite-jdbc", version.ref = "sqliteJdbc" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
