@@ -51,7 +51,10 @@ import com.seastreams.tv.player.PlayerTracks
 import com.seastreams.tv.player.SeaStreamsPlayerManager
 import com.seastreams.tv.ui.theme.FocusPill
 import com.seastreams.tv.ui.theme.TextSecondary
+import com.seastreams.tv.ui.screens.playback.RESTORE_FRAMES
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
+import com.seastreams.tv.ui.theme.retryEachFrame
+import com.seastreams.tv.ui.theme.tryRequestFocus
 import kotlinx.coroutines.delay
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -71,11 +74,14 @@ fun PlayerOverlayControls(state: PlayerUiState, viewModel: PlayerViewModel, init
     val panelButtons = remember { PlayerPanel.entries.associateWith { FocusRequester() } }
     var lastPanel by remember { mutableStateOf<PlayerPanel?>(null) }
     LaunchedEffect(Unit) { (if (initialFocus == HudFocus.SEEK) seekBar else playButton).requestFocusAfterFrame() }
-    // Closing an overlay hands focus back to the bar button that opened it.
+    // Closing an overlay hands focus back to the bar button that opened it (Play/Pause if that pill
+    // isn't shown), retrying while the bar re-attaches so focus never stays on nothing.
     LaunchedEffect(state.panel) {
         val closed = lastPanel
         lastPanel = state.panel
-        if (state.panel == null && closed != null) panelButtons[closed]?.requestFocusAfterFrame()
+        if (state.panel != null || closed == null) return@LaunchedEffect
+        val target = panelReturnFocus(closed, state)?.let { panelButtons[it] } ?: playButton
+        if (!retryEachFrame(RESTORE_FRAMES) { target.tryRequestFocus() }) playButton.tryRequestFocus()
     }
 
     Box(Modifier.fillMaxSize()) {

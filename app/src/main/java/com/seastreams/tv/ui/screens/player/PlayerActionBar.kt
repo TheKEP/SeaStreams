@@ -63,14 +63,18 @@ fun PlayerActionBar(
         }
         if (state.isTrailer) return@buildList
         if (state.isEpisode) add { modifier -> CircleButton(SeaIcons.SkipNext, "Next episode", viewModel::nextEpisode, modifier) }
-        add { modifier -> PanelPill("Subtitles", PlayerPanel.SUBTITLES, state, viewModel, panelButtons, modifier) }
+        // Pill visibility is shared with the overlay-close focus restore ([panelReturnFocus]).
+        fun pill(label: String, panel: PlayerPanel) {
+            if (panel.onActionBar(state)) add { modifier -> PanelPill(label, panel, state, viewModel, panelButtons, modifier) }
+        }
+        pill("Subtitles", PlayerPanel.SUBTITLES)
         if (state.externalSubtitleActive) {
             add { modifier -> SubtitleSync(state.subtitleOffsetMs, viewModel::stepSubtitleOffset, modifier) }
         }
-        add { modifier -> PanelPill("Audio", PlayerPanel.AUDIO, state, viewModel, panelButtons, modifier) }
-        add { modifier -> PanelPill("Streams", PlayerPanel.STREAMS, state, viewModel, panelButtons, modifier) }
-        if (state.isEpisode) add { modifier -> PanelPill("Episodes", PlayerPanel.EPISODES, state, viewModel, panelButtons, modifier) }
-        add { modifier -> PanelPill("Info", PlayerPanel.INFO, state, viewModel, panelButtons, modifier) }
+        pill("Audio", PlayerPanel.AUDIO)
+        pill("Streams", PlayerPanel.STREAMS)
+        pill("Episodes", PlayerPanel.EPISODES)
+        pill("Info", PlayerPanel.INFO)
     }
     Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         val firstPill = if (state.isEpisode) 2 else 1

@@ -26,6 +26,7 @@ import androidx.compose.ui.focus.focusProperties
 @Stable
 class FocusOriginTracker {
     private var pending: FocusRequester? = null
+    private val fallbacks = mutableListOf<FallbackToken>()
 
     fun mark(requester: FocusRequester) {
         pending = requester
@@ -33,6 +34,37 @@ class FocusOriginTracker {
 
     /** The last mark, cleared so it is used at most once. */
     fun take(): FocusRequester? = pending.also { pending = null }
+
+    /**
+     * Registers the control to focus when playback closes without a usable mark (none was made, or
+     * its node is gone), e.g. Details' primary `Play`/`Resume`. The latest registration wins until it
+     * is unregistered with the returned token.
+     */
+    fun registerFallback(requester: FocusRequester): Any = FallbackToken(requester).also { fallbacks += it }
+
+    fun unregisterFallback(token: Any) {
+        fallbacks.remove(token)
+    }
+
+    /** The most recently registered fallback still in place. */
+    fun fallback(): FocusRequester? = fallbacks.lastOrNull()?.requester
+
+    private class FallbackToken(val requester: FocusRequester)
+}
+
+/**
+ * Restores focus after a layer closes: each frame (after [awaitFrame]) tries [attempts] in order,
+ * e.g. the exact origin then a fallback, and stops at the first success. The origin keeps priority
+ * every frame, so a layer that is still covered for a frame or two doesn't hand focus to the
+ * fallback. Returns the index of the attempt that succeeded, or `-1` after [maxFrames] frames.
+ */
+suspend fun restoreFocus(maxFrames: Int, awaitFrame: suspend () -> Unit, attempts: List<() -> Boolean>): Int {
+    if (attempts.isEmpty()) return -1
+    repeat(maxFrames) {
+        awaitFrame()
+        attempts.forEachIndexed { index, attempt -> if (attempt()) return index }
+    }
+    return -1
 }
 
 /** `null` outside a profile's shell (e.g. the profile screens), where nothing needs restoring. */
