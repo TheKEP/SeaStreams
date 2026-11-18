@@ -21,9 +21,10 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -66,12 +67,30 @@ enum class NavTab(val label: String, val icon: ImageVector? = null) {
     }
 }
 
+/** How focus entering the [TopNavBar] is handled. */
+enum class NavBarEntry {
+    /** A D-pad move into the bar from the content: always the active screen's pill. */
+    ACTIVE_PILL,
+
+    /** A code-driven request (`Back` → active pill, Settings closing → its gear): keep that exact target. */
+    KEEP_REQUESTED,
+}
+
+/**
+ * The bar never remembers a previously focused pill (PRD §1): a D-pad `Up`/`Down` into it lands on
+ * the active screen's pill, and a programmatic `requestFocus()` (direction `Enter`) is never redirected,
+ * so a stale `Settings` gear can't take `Back`'s focus away from the active pill.
+ */
+internal fun navBarEntry(direction: FocusDirection): NavBarEntry =
+    if (direction == FocusDirection.Up || direction == FocusDirection.Down) NavBarEntry.ACTIVE_PILL else NavBarEntry.KEEP_REQUESTED
+
 /**
  * Top-left: profile avatar (opens the profile switcher) and a live 12-hour `h:mm a` clock.
  * Top-right: translucent pill bar with the tabs for this profile.
  *
- * The bar is one focus group: entering it from below restores the last-focused pill, defaulting to
- * [selectedTabFocusRequester] (the pill of the screen being shown).
+ * The bar is one focus group with no last-focused memory ([navBarEntry]): a D-pad move in from the
+ * content lands on [selectedTabFocusRequester] (the pill of the screen being shown), while explicit
+ * requests (`Back` → that pill, Settings closing → the gear that opened it) keep their exact target.
  *
  * Edge-stop-then-wrap across the whole bar (PRD §1): the avatar is the left edge and Settings (always
  * the last pill, Kids or not) the right edge. A fresh `Left` on the avatar wraps to Settings, a fresh
@@ -93,7 +112,14 @@ fun TopNavBar(
         modifier
             .fillMaxWidth()
             .padding(horizontal = RowGutter, vertical = 16.dp)
-            .focusRestorer(selectedTabFocusRequester)
+            .focusProperties {
+                onEnter = {
+                    if (navBarEntry(requestedFocusDirection) == NavBarEntry.ACTIVE_PILL) {
+                        // Unattached (profile not loaded yet) falls back to default focus search.
+                        runCatching { selectedTabFocusRequester.requestFocus() }
+                    }
+                }
+            }
             .focusGroup(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
