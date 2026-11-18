@@ -3,7 +3,6 @@ package com.seastreams.tv.ui.theme
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.seastreams.tv.core.datastore.BackgroundSwatches
-import com.seastreams.tv.core.datastore.CatalogRowScrollSpeed
 import com.seastreams.tv.core.datastore.SettingsDataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,11 +26,6 @@ class AppearanceViewModel @Inject constructor(private val settings: SettingsData
     val saved: StateFlow<Int> = settings.settings
         .map { it.appearance.backgroundArgb }
         .stateIn(viewModelScope, SharingStarted.Eagerly, BackgroundSwatches.DEFAULT)
-
-    /** Catalog row glide / card widen timing for Home, Movies and TV Shows. */
-    val catalogRowScrollSpeed: StateFlow<CatalogRowScrollSpeed> = settings.settings
-        .map { it.appearance.catalogRowScrollSpeed }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, CatalogRowScrollSpeed.DEFAULT)
 
     private val preview = MutableStateFlow<Int?>(null)
 

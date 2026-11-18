@@ -219,36 +219,37 @@ class SettingsDataStoreTest {
     }
 
     @Test
-    fun `catalog row scroll speed defaults to slow`() = runTest {
-        assertEquals(CatalogRowScrollSpeed.SLOW, settings.settings.first().appearance.catalogRowScrollSpeed)
+    fun `swatches are the seven picker colours in order, ending with espresso`() {
+        val expected = listOf(0xFF000000, 0xFF171535, 0xFF351529, 0xFF351515, 0xFF153535, 0xFF090B34, 0xFF472A11)
+        assertEquals(expected.map { it.toInt() }, BackgroundSwatches.ALL)
     }
 
     @Test
-    fun `medium and fast catalog row scroll speeds persist`() = runTest {
-        settings.setCatalogRowScrollSpeed(CatalogRowScrollSpeed.MEDIUM)
-        assertEquals(CatalogRowScrollSpeed.MEDIUM, settings.settings.first().appearance.catalogRowScrollSpeed)
-
-        settings.setCatalogRowScrollSpeed(CatalogRowScrollSpeed.FAST)
-        assertEquals(CatalogRowScrollSpeed.FAST, settings.settings.first().appearance.catalogRowScrollSpeed)
-
-        // A fresh facade over the same file reads the saved value back.
-        assertEquals(CatalogRowScrollSpeed.FAST, SettingsDataStore(rawStore).settings.first().appearance.catalogRowScrollSpeed)
+    fun `the deep navy and espresso swatches persist across store instances`() = runTest {
+        listOf(0xFF090B34.toInt(), 0xFF472A11.toInt()).forEach { swatch ->
+            settings.setBackgroundColor(swatch)
+            assertEquals(swatch, SettingsDataStore(rawStore).settings.first().appearance.backgroundArgb)
+        }
     }
 
     @Test
-    fun `an unknown stored catalog row scroll speed falls back to slow`() = runTest {
-        rawStore.edit { it[stringPreferencesKey("${SCOPE}ui_catalog_row_scroll_speed")] = "LUDICROUS" }
-        assertEquals(CatalogRowScrollSpeed.SLOW, settings.settings.first().appearance.catalogRowScrollSpeed)
+    fun `the replaced navy and ochre colours are no longer selectable`() = runTest {
+        listOf(0xFF151F35.toInt(), 0xFF916405.toInt()).forEach { old ->
+            assertFalse(old in BackgroundSwatches.ALL)
+            settings.setBackgroundColor(old)
+            assertEquals(BackgroundSwatches.DEFAULT, settings.settings.first().appearance.backgroundArgb)
+        }
     }
 
     @Test
-    fun `changing the scroll speed leaves the background untouched`() = runTest {
-        val color = BackgroundSwatches.ALL.last()
-        settings.setBackgroundColor(color)
-        settings.setCatalogRowScrollSpeed(CatalogRowScrollSpeed.MEDIUM)
-        val appearance = settings.settings.first().appearance
-        assertEquals(color, appearance.backgroundArgb)
-        assertEquals(CatalogRowScrollSpeed.MEDIUM, appearance.catalogRowScrollSpeed)
+    fun `a leftover scroll speed value is ignored and purged`() = runTest {
+        rawStore.edit { it[stringPreferencesKey("${SCOPE}ui_catalog_row_scroll_speed")] = "FAST" }
+        settings.setBackgroundColor(0xFF472A11.toInt())
+
+        settings.purgeRetiredSettings()
+
+        assertNull(rawStore.data.first()[stringPreferencesKey("${SCOPE}ui_catalog_row_scroll_speed")])
+        assertEquals(0xFF472A11.toInt(), settings.settings.first().appearance.backgroundArgb)
     }
 
     private companion object {

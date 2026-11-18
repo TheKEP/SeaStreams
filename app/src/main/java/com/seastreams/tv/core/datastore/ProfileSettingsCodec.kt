@@ -15,6 +15,15 @@ import com.seastreams.tv.core.util.enumByNameOrNull
 /** Storage-name prefix for every General Settings key owned by [profileId] (`p{id}/…`). */
 internal fun profileKeyPrefix(profileId: Long): String = "p$profileId/"
 
+/** Storage names of removed settings (the former Catalog row scroll speed), purged on startup. */
+internal val RETIRED_SETTING_NAMES: Set<String> = setOf("ui_catalog_row_scroll_speed")
+
+/** Whether [keyName] is a retired setting: its legacy app-wide key or any profile's `p{id}/` copy. */
+internal fun isRetiredSettingKey(keyName: String): Boolean =
+    keyName.replaceFirst(PROFILE_KEY_PREFIX, "") in RETIRED_SETTING_NAMES
+
+private val PROFILE_KEY_PREFIX = Regex("^p\\d+/")
+
 /**
  * A General Settings key stored once per profile. [legacy] is the pre-per-profile global key with
  * the same name; it is only read as a fallback until `migrateLegacySettings` has copied it out.
@@ -49,7 +58,6 @@ internal object ProfileSettingsKeys {
     val MUTE_AUTO_PLAY_TRAILERS = ScopedKey("player_mute_autoplay_trailers", ::booleanPreferencesKey)
     val TRAILER_DELAY_SECONDS = ScopedKey("player_trailer_delay_s", ::intPreferencesKey)
     val BACKGROUND_COLOR = ScopedKey("ui_background_color", ::intPreferencesKey)
-    val CATALOG_ROW_SCROLL_SPEED = ScopedKey("ui_catalog_row_scroll_speed", ::stringPreferencesKey)
 
     val PASSTHROUGH_ENABLED = ScopedKey("audio_passthrough", ::booleanPreferencesKey)
     val DIALOGUE_BOOST = ScopedKey("audio_dialogue_boost", ::stringPreferencesKey)
@@ -72,7 +80,7 @@ internal object ProfileSettingsKeys {
         EXTERNAL_PLAYER, AUTO_PLAY_TOP_STREAM, PREFERRED_AUTOPLAY_ADDON, FALLBACK_TIMEOUT_SECONDS,
         AUTO_PLAY_FROM_CONTINUE_WATCHING, BLUR_UNWATCHED_THUMBNAILS, HDR_WHITE_DIMMING, AUTO_PLAY_NEXT_EPISODE,
         CONVERT_DV_PROFILE_7, BUFFER_PROFILE, PARALLEL_CONNECTIONS, AUTO_PLAY_TRAILERS, MUTE_AUTO_PLAY_TRAILERS,
-        TRAILER_DELAY_SECONDS, BACKGROUND_COLOR, CATALOG_ROW_SCROLL_SPEED,
+        TRAILER_DELAY_SECONDS, BACKGROUND_COLOR,
         PASSTHROUGH_ENABLED, DIALOGUE_BOOST, NIGHT_MODE, AUDIO_DELAY_MS, PREFERRED_AUDIO_LANGUAGE,
         SUBTITLE_MODE, SUBTITLE_LANGUAGE, HIDE_NON_PREFERRED_SUBTITLES, CLEAN_SDH, SUBTITLE_FONT_SCALE,
         SUBTITLE_BOLD, SUBTITLE_ITALIC, SUBTITLE_TEXT_COLOR, SUBTITLE_EDGE_TYPE, SUBTITLE_BACKGROUND_OPACITY,
@@ -95,8 +103,6 @@ internal class ProfileSettingsReader(private val prefs: Preferences, private val
         appearance = AppearanceSettings(
             backgroundArgb = this[ProfileSettingsKeys.BACKGROUND_COLOR]?.takeIf { it in BackgroundSwatches.ALL }
                 ?: BackgroundSwatches.DEFAULT,
-            catalogRowScrollSpeed =
-                enumOrDefault(this[ProfileSettingsKeys.CATALOG_ROW_SCROLL_SPEED], CatalogRowScrollSpeed.DEFAULT),
         ),
     )
 

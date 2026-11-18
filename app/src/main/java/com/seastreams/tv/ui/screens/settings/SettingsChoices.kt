@@ -2,7 +2,6 @@ package com.seastreams.tv.ui.screens.settings
 
 import com.seastreams.tv.core.database.entity.AddonEntity
 import com.seastreams.tv.core.datastore.BackgroundSwatches
-import com.seastreams.tv.core.datastore.CatalogRowScrollSpeed
 import com.seastreams.tv.core.datastore.DialogueBoost
 import com.seastreams.tv.core.datastore.PlaybackBufferProfile
 import com.seastreams.tv.core.datastore.PlayerSettings
@@ -43,13 +42,14 @@ fun backgroundName(argb: Int): String = when (BackgroundSwatches.ALL.indexOf(arg
     2 -> "Plum"
     3 -> "Oxblood"
     4 -> "Deep teal"
-    5 -> "Navy"
+    5 -> "Deep navy"
+    6 -> "Espresso"
     else -> "Black"
 }
 
-/** Picker label: the default speed is marked so it can be found again after changing it. */
-fun scrollSpeedOptionLabel(speed: CatalogRowScrollSpeed): String =
-    if (speed == CatalogRowScrollSpeed.DEFAULT) "${speed.label} (default)" else speed.label
+/** Subtitle of *Auto-play top stream*: how to reach the stream results from Details' `Play`. */
+fun autoPlayTopStreamDescription(enabled: Boolean): String =
+    if (enabled) "Press and hold Play to view stream results" else "Press Play to view stream results"
 
 const val BUILT_IN_PLAYER = "ExoPlayer (built-in)"
 const val SYSTEM_CHOOSER = "Other (System chooser)"
@@ -73,7 +73,7 @@ fun choiceSpec(kind: ChoiceKind, state: SettingsUiState, vm: SettingsViewModel):
                     }
                 },
         )
-        ChoiceKind.EXTERNAL_PLAYER -> {
+        ChoiceKind.PLAYER -> {
             val choice = player.playerChoice
             val apps = state.players.map { PlayerChoice.App(it.packageName) to it.label }
             // A saved player that has since been uninstalled stays listed so the choice is visible.
@@ -82,7 +82,7 @@ fun choiceSpec(kind: ChoiceKind, state: SettingsUiState, vm: SettingsViewModel):
                 listOfNotNull(missing?.let { it to "${it.packageName} (not installed)" }) +
                 (PlayerChoice.SystemChooser to SYSTEM_CHOOSER)
             ChoiceSpec(
-                "External player",
+                "Player",
                 entries.map { (option, label) -> ChoiceOption(label, option == choice) { vm.updatePlayer { it.copy(playerChoice = option) } } },
             )
         }
@@ -96,14 +96,6 @@ fun choiceSpec(kind: ChoiceKind, state: SettingsUiState, vm: SettingsViewModel):
             "Preferred audio language",
             PREFERRED_LANGUAGES.map { code ->
                 ChoiceOption(languageName(code), code == state.settings.audio.preferredAudioLanguage) { vm.updateAudio { it.copy(preferredAudioLanguage = code) } }
-            },
-        )
-        ChoiceKind.CATALOG_ROW_SCROLL_SPEED -> ChoiceSpec(
-            "Catalog row scroll speed",
-            CatalogRowScrollSpeed.entries.map { speed ->
-                ChoiceOption(scrollSpeedOptionLabel(speed), speed == state.settings.appearance.catalogRowScrollSpeed) {
-                    vm.setCatalogRowScrollSpeed(speed)
-                }
             },
         )
         ChoiceKind.BUFFER_PROFILE -> ChoiceSpec(

@@ -49,17 +49,15 @@ sealed interface SettingsPanel {
 
 enum class ChoiceKind {
     PREFERRED_ADDON,
-    EXTERNAL_PLAYER,
+    PLAYER,
     DIALOGUE_BOOST,
     AUDIO_LANGUAGE,
     SUBTITLE_LANGUAGE,
-    CATALOG_ROW_SCROLL_SPEED,
     BUFFER_PROFILE,
     PARALLEL_CONNECTIONS,
 }
 
 const val BACKGROUND_ROW_KEY = "background"
-const val ROW_SPEED_ROW_KEY = "row-speed"
 
 /** Callbacks the list needs; kept apart from the ViewModel so the builder stays a plain function. */
 class SettingsCallbacks(
@@ -95,11 +93,10 @@ fun settingsItems(
         add(SettingsItem.Header("h-ui", "UI & Appearance"))
         add(entry(BACKGROUND_ROW_KEY, SeaIcons.Palette, "Background color", backgroundName(s.appearance.backgroundArgb), RowTrailing.Chevron, cb.toggleSwatches))
         if (swatchesOpen) add(SettingsItem.Swatches)
-        add(entry(ROW_SPEED_ROW_KEY, SeaIcons.Timer, "Catalog row scroll speed", s.appearance.catalogRowScrollSpeed.label, RowTrailing.Chevron) { cb.open(SettingsPanel.Choice(ChoiceKind.CATALOG_ROW_SCROLL_SPEED)) })
         add(toggle("blur", SeaIcons.HiddenEye, "Blur unwatched episode thumbnails", p.blurUnwatchedThumbnails) { cb.updatePlayer { it.copy(blurUnwatchedThumbnails = !it.blurUnwatchedThumbnails) } })
 
         add(SettingsItem.Header("h-playback", "Playback"))
-        add(toggle("autoplay-top", Icons.Filled.PlayArrow, "Auto-play top stream", p.autoPlayTopStream) { cb.updatePlayer { it.copy(autoPlayTopStream = !it.autoPlayTopStream) } })
+        add(entry("autoplay-top", Icons.Filled.PlayArrow, "Auto-play top stream", autoPlayTopStreamDescription(p.autoPlayTopStream), RowTrailing.Toggle(p.autoPlayTopStream)) { cb.updatePlayer { it.copy(autoPlayTopStream = !it.autoPlayTopStream) } })
         val preferred = state.addons.firstOrNull { it.manifestUrl == p.preferredAutoPlayAddonUrl }
         add(entry("autoplay-addon", Icons.Filled.Star, "Preferred auto-play addon", preferred?.displayName() ?: FIRST_ENABLED_ADDON, RowTrailing.Chevron) { cb.open(SettingsPanel.Choice(ChoiceKind.PREFERRED_ADDON)) })
         add(toggle("autoplay-next", SeaIcons.Episodes, "Auto-play next episode", p.autoPlayNextEpisode) { cb.updatePlayer { it.copy(autoPlayNextEpisode = !it.autoPlayNextEpisode) } })
@@ -128,7 +125,7 @@ fun settingsItems(
                 ) { cb.updatePlayer { it.copy(trailerAutoPlayDelaySeconds = nextTrailerDelay(it.trailerAutoPlayDelaySeconds)) } },
             )
         }
-        add(entry("player", SeaIcons.Television, "External player", playerLabel(p.playerChoice, state.players), RowTrailing.Chevron) { cb.open(SettingsPanel.Choice(ChoiceKind.EXTERNAL_PLAYER)) })
+        add(entry("player", SeaIcons.Television, "Player", playerLabel(p.playerChoice, state.players), RowTrailing.Chevron) { cb.open(SettingsPanel.Choice(ChoiceKind.PLAYER)) })
         add(toggle("dv7", SeaIcons.Brightness, "Convert Dolby Vision Profile 7 to HDR", p.convertDvProfile7ToHdr) { cb.updatePlayer { it.copy(convertDvProfile7ToHdr = !it.convertDvProfile7ToHdr) } })
         add(toggle("hdr-dim", SeaIcons.Brightness, "HDR white dimming", p.hdrWhiteDimming) { cb.updatePlayer { it.copy(hdrWhiteDimming = !it.hdrWhiteDimming) } })
 
