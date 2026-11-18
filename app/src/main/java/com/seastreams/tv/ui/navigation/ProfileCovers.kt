@@ -11,8 +11,7 @@ import com.seastreams.tv.ui.screens.settings.SettingsScreen
 
 /** Full-screen layers drawn over the current page while it stays composed underneath. */
 sealed interface Cover {
-    /** [autoPlay]: opened from Continue Watching with auto-play on, so playback starts at once. */
-    data class Details(val item: MediaItem, val autoPlay: Boolean) : Cover
+    data class Details(val item: MediaItem) : Cover
 
     data class Episodes(val details: TitleDetails, val imdbId: String?) : Cover
 
@@ -28,18 +27,15 @@ fun CoverContent(
     profileId: Long,
     playback: PlaybackViewModel,
     onPush: (Cover) -> Unit,
-    onUpdate: (id: Long, Cover) -> Unit,
     onClose: () -> Unit,
 ) {
     when (val cover = entry.cover) {
         is Cover.Details -> DetailsScreen(
             profileId = profileId,
             item = cover.item,
-            autoPlay = cover.autoPlay,
             viewModel = activityViewModel(),
             playback = playback,
             onOpenEpisodes = { details, imdbId -> onPush(Cover.Episodes(details, imdbId)) },
-            onAutoPlayHandled = { onUpdate(entry.id, cover.copy(autoPlay = false)) },
             onBack = onClose,
         )
         is Cover.Episodes -> EpisodesScreen(
