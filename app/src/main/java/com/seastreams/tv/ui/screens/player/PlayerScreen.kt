@@ -180,7 +180,7 @@ fun PlayerScreen(request: PlaybackRequest, viewModel: PlayerViewModel, onExit: (
                 text = text,
                 style = state.subtitleStyle,
                 containerHeight = maxHeight,
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottom, start = 96.dp, end = 96.dp),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottom, start = CUE_SIDE_PADDING, end = cueEndPadding(state.panel)),
             )
         }
         CenterIndicator(state, isTrailer = request is PlaybackRequest.Trailer, visual, Modifier.align(Alignment.Center))

@@ -19,6 +19,7 @@ import com.seastreams.tv.player.SeaStreamsPlayerManager
 import com.seastreams.tv.player.StreamFallbackController
 import com.seastreams.tv.player.knownOrZero
 import com.seastreams.tv.player.subtitle.ExternalSubtitleLoader
+import com.seastreams.tv.player.subtitle.sync.AutoSyncStatus
 import dagger.Lazy
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -80,6 +81,10 @@ class PlayerViewModel @Inject constructor(
     internal var lastSaveAtPosition = 0L
     private var exiting = false
     private var userExitPending = false
+    internal val autoSync = AutoSyncSession()
+
+    /** The subtitle choice made for the playing title; `null` until one is made (reset per title). */
+    internal var subtitleChoice: SubtitleChoice? = null
 
     internal val subtitles = PlayerSubtitles(viewModelScope) {
         ExternalSubtitleLoader(withContext(Dispatchers.IO) { okHttp.get() })
@@ -111,7 +116,7 @@ class PlayerViewModel @Inject constructor(
             _manager.value = manager
             _state.value = PlayerUiState(
                 audio = audio,
-                dspAvailable = manager.dspAvailable,
+                dspAvailable = manager.pcmOutput.value,
                 cleanSdh = settings.subtitles.cleanSdh,
                 subtitleStyle = settings.subtitles.style,
                 hdrWhiteDimming = settings.player.hdrWhiteDimming,
@@ -120,6 +125,7 @@ class PlayerViewModel @Inject constructor(
             launch { manager.events.collect { onEvent(manager, it) } }
             launch { manager.isPlaying.collect { playing -> _state.update { it.copy(playing = playing) } } }
             launch { manager.buffering.collect { buffering -> _state.update { it.copy(buffering = buffering) } } }
+            launch { manager.pcmOutput.collect { pcm -> _state.update { it.copy(dspAvailable = pcm) } } }
             launch { tick(manager) }
             when (request) {
                 is PlaybackRequest.Media -> startMedia(request)
@@ -139,6 +145,9 @@ class PlayerViewModel @Inject constructor(
     internal fun startMedia(request: PlaybackRequest.Media) {
         val manager = _manager.value ?: return
         fallback.enabled = true
+        autoSync.stop()
+        autoSync.manualOverride = false
+        subtitleChoice = null
         subtitles.clear()
         subtitles.setExternal(request.subtitles)
         initialSubtitleDone = false
@@ -154,6 +163,7 @@ class PlayerViewModel @Inject constructor(
                 subtitleOptions = subtitles.options(emptyList(), settings.subtitles.preferredLanguage, settings.subtitles.hideNonPreferredLanguages),
                 selectedSubtitleId = null,
                 subtitleOffsetMs = 0,
+                subtitleSyncStatus = AutoSyncStatus.Off,
                 audioOptions = emptyList(),
                 selectedAudioId = null,
                 episodes = it.episodes.following(request.target.episode),
@@ -170,6 +180,7 @@ class PlayerViewModel @Inject constructor(
             _state.update { it.copy(selectedSubtitleId = null) }
             initialSubtitleDone = false
         }
+        restartAutoSyncForNewStream()
         // Every new source (first start, fallback advance, stream/episode switch) shows the backdrop until its first frame.
         _state.update { it.onNewStream(index) }
         manager.playStream(stream, positionMs)
@@ -294,6 +305,7 @@ class PlayerViewModel @Inject constructor(
         sessionJob = null
         switching.cancel()
         fallback.cancel()
+        autoSync.stop()
         subtitles.clear()
         _manager.value?.release()
         _manager.value = null
