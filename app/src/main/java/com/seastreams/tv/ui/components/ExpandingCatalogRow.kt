@@ -122,6 +122,8 @@ fun ExpandingCatalogRow(
     trailerRowKey: String? = null,
     /** Keeps the last-focused card's info panel shown while an overlay opened from this row holds focus. */
     holdInfo: Boolean = false,
+    /** [cardOverlay] draws an [ArtworkProgressBar]; wide cards lift their title logo above it. */
+    reserveProgressBar: Boolean = false,
 ) {
     val trailers = if (trailerRowKey != null) LocalInlineTrailers.current else null
     val listState = rememberLazyListState()
@@ -209,6 +211,7 @@ fun ExpandingCatalogRow(
                             trailers?.onFocusLeft(slot)
                         },
                         onLongClick = onItemLongClick?.let { { it(index) } },
+                        reserveProgressBar = reserveProgressBar,
                         modifier = Modifier
                             .then(if (index == 0) Modifier.focusRequester(firstCard) else Modifier)
                             .then(if (index == focusedIndex) Modifier.focusRequester(lastFocusedCard) else Modifier)

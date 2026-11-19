@@ -47,7 +47,7 @@ app/src/main/java/com/seastreams/tv/
 │   └── subtitle/
 │       └── CleanSdhTextRenderer.kt   # Intercepts cues when Clean SDH is active + applies session/global styles
 └── ui/
-    ├── theme/                        # Color.kt, Type.kt (FredokaFontFamily from res/font/fredoka_semibold.ttf), FocusModifiers.kt,
+    ├── theme/                        # Color.kt (Seek* tokens shared by PlayerSeekBar and the artwork progress bar), Type.kt (FredokaFontFamily from res/font/fredoka_semibold.ttf), FocusModifiers.kt,
     │                                 # SelectLongPress.kt (shared OK long-press, reset on focus change; never pass onLongClick
     │                                 # to a tv Surface: its internal long-click flag survives focus loss and eats the next click)
     │                                 # FocusModifiers.kt: onDpadEdgeWrap (bidirectional edge-stop-then-wrap: Left/Up on the first
@@ -61,6 +61,7 @@ app/src/main/java/com/seastreams/tv/
     │   ├── TopNavBar.kt              # Avatar, Clock, Search, Home, Movies, TV Shows, Library, Settings (Avatar ⇄ Settings edge wrap loop; no focusRestorer — navBarEntry sends D-pad Up/Down entry to the active pill and never redirects programmatic requests, so Back → active pill and Settings-close → gear land exactly)
     │   ├── HeroCarousel.kt           # Full-width hero card with horizontal D-pad cycling
     │   ├── ExpandingCatalogRow.kt    # TvLazyRow with fixed slow glide/expansion timing (`CATALOG_ROW_GLIDE_MS` / `CARD_EXPAND_MS` in ExpandingCard.kt) + 2:3 -> 16:9 transition + View More + wrap loop + `holdInfo` (keeps the info panel while the row's long-press menu holds focus)
+    │   ├── WatchedIndicator.kt       # artworkProgress (< 90% bar / >= 90% checkmark rule), WatchedCheckmarkBadge, ArtworkProgressBar (1dp Obsidian backing + SeekTrack + SeekBuffered, 6dp fill, inset 5dp bottom / 10dp sides to clear the 3dp focus ring; ArtworkProgressClearance for overlays above it), LocalWatchedTitles
     │   ├── InlineTrailerOverlay.kt   # 16:9 card PlayerView surface + top-right white muted speaker badge; attaches only when playsIn(slot, cardFocused) — the one focused card owning the playing slot, so a duplicate title on an unfocused row keeps its backdrop
     │   └── PosterGrid.kt             # 5-column TvLazyVerticalGrid
     └── screens/
