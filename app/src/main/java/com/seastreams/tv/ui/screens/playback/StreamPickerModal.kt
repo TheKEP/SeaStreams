@@ -5,9 +5,9 @@ import androidx.compose.runtime.Composable
 import com.seastreams.tv.domain.model.StreamSource
 
 /**
- * Stream selection modal: a [StreamListPanel] listing every stream the enabled addons returned, in
- * addon order, opening focused on the `LAST USED` stream when listed. Focus stays inside the panel
- * and wraps both ways; `Back` closes it.
+ * Stream selection modal: a [StreamListPanel] with one addon card per enabled stream addon (in addon
+ * order) over the selected addon's streams, opening on the `LAST USED` stream's addon and card when
+ * listed. Focus stays inside the panel; `Back` closes it.
  */
 @Composable
 fun StreamPickerModal(state: StreamPickerState, onChoose: (StreamSource) -> Unit, onDismiss: () -> Unit) {
@@ -22,5 +22,6 @@ fun StreamPickerModal(state: StreamPickerState, onChoose: (StreamSource) -> Unit
         onChoose = { _, stream -> onChoose(stream) },
         failedAddons = state.failedAddons,
         lastUsedIndex = state.lastUsedIndex,
+        addons = state.streamAddons,
     )
 }

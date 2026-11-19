@@ -1,41 +1,29 @@
 package com.seastreams.tv.ui.screens.playback
 
-import com.seastreams.tv.domain.model.StreamSource
+import com.seastreams.tv.domain.model.StreamAddon
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
-/** The shared stream list (Details modal and player `Streams` overlay) picks one entry kind. */
+/** The shared stream panel (Details modal and player `Streams` overlay) picks one content kind. */
 class StreamListContentTest {
 
+    private val one = listOf(AddonGroup(StreamAddon("https://a", "A"), listOf(0)))
+    private val emptyAddon = listOf(AddonGroup(StreamAddon("https://a", "A"), emptyList()))
+
     @Test
-    fun `loading shows the loading entry even when streams are already present`() {
-        assertEquals(StreamListContent.LOADING, streamListContent(loading = true, streams = emptyList()))
-        assertEquals(StreamListContent.LOADING, streamListContent(loading = true, streams = listOf(stream(1))))
+    fun `loading shows the loading entry even when addon cards are already known`() {
+        assertEquals(StreamListContent.LOADING, streamListContent(loading = true, groups = emptyList()))
+        assertEquals(StreamListContent.LOADING, streamListContent(loading = true, groups = one))
     }
 
     @Test
-    fun `no streams after loading shows the empty entry`() {
-        assertEquals(StreamListContent.EMPTY, streamListContent(loading = false, streams = emptyList()))
+    fun `no addon cards after loading shows the empty entry`() {
+        assertEquals(StreamListContent.EMPTY, streamListContent(loading = false, groups = emptyList()))
     }
 
     @Test
-    fun `streams after loading show the stream cards`() {
-        assertEquals(StreamListContent.RESULTS, streamListContent(loading = false, streams = listOf(stream(1), stream(2))))
+    fun `addon cards show results even when every addon returned nothing`() {
+        assertEquals(StreamListContent.RESULTS, streamListContent(loading = false, groups = one))
+        assertEquals(StreamListContent.RESULTS, streamListContent(loading = false, groups = emptyAddon))
     }
-
-    @Test
-    fun `initial focus goes to the LAST USED stream when it is listed`() {
-        assertEquals(2, initialStreamIndex(lastUsedIndex = 2, count = 3))
-        assertEquals(0, initialStreamIndex(lastUsedIndex = 0, count = 3))
-    }
-
-    @Test
-    fun `initial focus falls back to the first stream without a listed LAST USED`() {
-        assertEquals(0, initialStreamIndex(lastUsedIndex = null, count = 3))
-        assertEquals(0, initialStreamIndex(lastUsedIndex = 3, count = 3))
-        assertEquals(0, initialStreamIndex(lastUsedIndex = -1, count = 3))
-        assertEquals(0, initialStreamIndex(lastUsedIndex = 0, count = 0))
-    }
-
-    private fun stream(n: Int) = StreamSource("https://addon", "Addon", "https://s/$n", "Stream $n", "", emptyMap())
 }

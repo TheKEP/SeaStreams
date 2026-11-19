@@ -144,6 +144,7 @@ class PlayerSwitching @Inject constructor(
             streamIndex = playback.topIndex,
             subtitles = playback.resolution.subtitles,
             startPositionMs = recorder.resumePositionMs(playback.target),
+            streamAddons = playback.resolution.streamAddons,
         )
         vm.startMedia(request)
         vm._progress.update { PlayerProgress(request.startPositionMs, request.target.knownDurationMs, 0) }
