@@ -8,6 +8,7 @@ import com.seastreams.tv.core.network.StremioManifest
 import com.seastreams.tv.core.network.StremioManifestParser
 import com.seastreams.tv.domain.model.EpisodeRef
 import com.seastreams.tv.domain.model.MediaRef
+import com.seastreams.tv.domain.model.StreamAddon
 import com.seastreams.tv.domain.model.StreamSource
 import com.seastreams.tv.domain.model.SubtitleTrack
 import dagger.Lazy
@@ -30,6 +31,11 @@ data class StreamResolution(
     val subtitles: List<SubtitleTrack>,
     /** Display names of addons that failed or timed out. */
     val failedAddons: List<String>,
+    /**
+     * Every enabled addon that serves `stream` for this title's type and accepts its id, in the
+     * user's addon order, including ones that returned nothing or failed (the stream panel's addon cards).
+     */
+    val streamAddons: List<StreamAddon> = emptyList(),
 )
 
 /**
@@ -57,11 +63,14 @@ class ResolveStreamsUseCase @Inject constructor(
             streams = results.flatMap { it.streams },
             subtitles = results.flatMap { it.subtitles },
             failedAddons = results.filter { it.failed }.map { it.addonName },
+            streamAddons = addons
+                .filter { (_, manifest) -> stremioId(manifest, STREAM, type, query) != null }
+                .map { (entity, _) -> StreamAddon(entity.manifestUrl, entity.displayName()) },
         )
     }
 
     private suspend fun queryAddon(entity: AddonEntity, manifest: StremioManifest, type: String, query: StreamQuery): AddonResult {
-        val name = entity.customName ?: entity.name
+        val name = entity.displayName()
         val streamId = stremioId(manifest, STREAM, type, query)
         val subtitleId = stremioId(manifest, SUBTITLES, type, query)
         if (streamId == null && subtitleId == null) return AddonResult(name)
@@ -98,6 +107,8 @@ class ResolveStreamsUseCase @Inject constructor(
             AddonResult(name, failed = true)
         }
     }
+
+    private fun AddonEntity.displayName(): String = customName ?: name
 
     private fun AddonEntity.parsed(): StremioManifest? {
         if (!manifestUrl.startsWith("http")) return null // built-in providers are served in-process

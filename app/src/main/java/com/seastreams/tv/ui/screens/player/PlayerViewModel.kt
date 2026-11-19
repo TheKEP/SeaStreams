@@ -149,6 +149,7 @@ class PlayerViewModel @Inject constructor(
                 title = request.title,
                 subtitle = episodeSubtitle(request),
                 streams = request.streams,
+                streamAddons = request.streamAddons,
                 streamIndex = request.streamIndex,
                 subtitleOptions = subtitles.options(emptyList(), settings.subtitles.preferredLanguage, settings.subtitles.hideNonPreferredLanguages),
                 selectedSubtitleId = null,

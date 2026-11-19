@@ -11,6 +11,7 @@ import com.seastreams.tv.domain.model.EpisodeRef
 import com.seastreams.tv.domain.model.PlaybackArtwork
 import com.seastreams.tv.domain.model.PlaybackRequest
 import com.seastreams.tv.domain.model.playbackArtwork
+import com.seastreams.tv.domain.model.StreamAddon
 import com.seastreams.tv.domain.model.StreamSource
 import com.seastreams.tv.domain.model.SubtitleTrack
 import com.seastreams.tv.domain.playback.AutoNextPolicy
@@ -56,6 +57,8 @@ data class StreamPickerState(
     val streams: List<StreamSource> = emptyList(),
     val failedAddons: List<String> = emptyList(),
     val lastUsedIndex: Int? = null,
+    /** The addon cards above the list, in addon order (arrives with [streams]). */
+    val streamAddons: List<StreamAddon> = emptyList(),
 )
 
 data class PlaybackUiState(
@@ -169,6 +172,7 @@ class PlaybackViewModel @Inject constructor(
                         subtitle = resolved.target.subtitle(),
                         loading = false,
                         streams = resolution.streams,
+                        streamAddons = resolution.streamAddons,
                         failedAddons = resolution.failedAddons,
                         lastUsedIndex = lastUsedIndex,
                     ),
@@ -241,7 +245,9 @@ class PlaybackViewModel @Inject constructor(
         val startPosition = recorder.resumePositionMs(target)
         val choice = current.player.playerChoice
         if (choice == PlayerChoice.BuiltIn) {
-            val request = PlaybackRequest.Media(nextSessionId++, target, resolution.streams, index, resolution.subtitles, startPosition)
+            val request = PlaybackRequest.Media(
+                nextSessionId++, target, resolution.streams, index, resolution.subtitles, startPosition, resolution.streamAddons,
+            )
             _state.update { it.copy(picker = null, player = request, loading = null) }
             return
         }

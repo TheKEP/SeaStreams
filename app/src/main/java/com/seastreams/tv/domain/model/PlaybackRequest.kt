@@ -19,6 +19,8 @@ sealed interface PlaybackRequest {
         val streamIndex: Int,
         val subtitles: List<SubtitleTrack>,
         val startPositionMs: Long,
+        /** The stream-capable addons behind [streams], for the `Streams` overlay's addon cards. */
+        val streamAddons: List<StreamAddon> = emptyList(),
     ) : PlaybackRequest {
         override val title: String get() = target.details.media.title
 
