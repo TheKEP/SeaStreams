@@ -121,7 +121,8 @@ class SeaStreamsPlayerManager(
     /** Plays one addon stream from [startPositionMs], with its `proxyHeaders` on every request. */
     fun playStream(stream: StreamSource, startPositionMs: Long) {
         meter.reset()
-        val dataSource = ParallelRangeDataSource.Factory(client, config.parallelConnections, meter)
+        val readAhead = config.bufferProfile.rangeReadAhead(config.parallelConnections)
+        val dataSource = ParallelRangeDataSource.Factory(client, config.parallelConnections, readAhead, meter)
             .setDefaultRequestProperties(stream.headers)
         val item = MediaItem.Builder().setUri(stream.url).apply {
             if (stream.url.contains(".m3u8", ignoreCase = true)) setMimeType(MimeTypes.APPLICATION_M3U8)

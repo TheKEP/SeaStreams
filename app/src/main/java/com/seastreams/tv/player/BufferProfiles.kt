@@ -21,10 +21,13 @@ private const val START_BUFFER_MS = 2_500
  * PRD §9 Playback Buffer Profile. `Large` and `Max` bank minutes of video during fast bursts and wait
  * for 5s / 8s of video after a stall, so short ISP/peering dips don't rebuffer again straight away.
  * The byte target always wins over the time thresholds, keeping high-bitrate 4K remuxes in memory.
+ * `minBufferMs == maxBufferMs` leaves no hysteresis gap: ExoPlayer keeps draining the parallel reader's
+ * read-ahead ring until the target is met and tops up as soon as playback consumes, so every range
+ * connection stays busy.
  */
 fun PlaybackBufferProfile.loadControlSpec(): LoadControlSpec = when (this) {
     PlaybackBufferProfile.STANDARD -> LoadControlSpec(50_000, 50_000, START_BUFFER_MS, 5_000, 64 * MEGABYTE)
-    PlaybackBufferProfile.LARGE -> LoadControlSpec(120_000, 150_000, START_BUFFER_MS, 5_000, 150 * MEGABYTE)
+    PlaybackBufferProfile.LARGE -> LoadControlSpec(150_000, 150_000, START_BUFFER_MS, 5_000, 150 * MEGABYTE)
     PlaybackBufferProfile.MAX -> LoadControlSpec(300_000, 300_000, START_BUFFER_MS, 8_000, 250 * MEGABYTE)
 }
 
