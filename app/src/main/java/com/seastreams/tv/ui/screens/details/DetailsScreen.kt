@@ -22,6 +22,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
@@ -31,7 +32,6 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import com.seastreams.tv.core.util.MILLIS_PER_MINUTE
 import com.seastreams.tv.domain.model.MediaItem
 import com.seastreams.tv.domain.model.TitleDetails
 import com.seastreams.tv.domain.playback.ShuffleMode
@@ -39,7 +39,6 @@ import com.seastreams.tv.ui.components.LocalFocusOrigins
 import com.seastreams.tv.ui.components.LocalLayerCovered
 import com.seastreams.tv.ui.components.LocalTransientMessages
 import com.seastreams.tv.ui.components.MediaMetadataLine
-import com.seastreams.tv.ui.components.MetadataFormat
 import com.seastreams.tv.ui.components.SizedImage
 import com.seastreams.tv.ui.components.TitleArt
 import com.seastreams.tv.ui.screens.playback.PlaybackViewModel
@@ -122,6 +121,7 @@ fun DetailsScreen(
             }
         },
         onToggleLibrary = viewModel::toggleLibrary,
+        onClearProgress = viewModel::clearProgress,
         onRetry = viewModel::retry,
         onBack = onBack,
     )
@@ -145,7 +145,10 @@ fun DetailsScreen(
             TitleArt(media, logoSize = LogoSize, textStyle = MaterialTheme.typography.displaySmall)
             MediaMetadataLine(media, showCertification = true, maxGenres = MAX_GENRES)
             DetailsBody(state, media)
-            DetailsActionStack(actions, firstButton)
+            // Laid out and focusable from frame 1 (focus leaves the covered page at once), but drawn only
+            // once Play/Resume is final, so the first visible frame already reads `Resume S1:E5`.
+            val actionsReady = state.actionsReady
+            DetailsActionStack(actions, firstButton, Modifier.drawWithContent { if (actionsReady) drawContent() })
         }
         // Centred on the full screen height, outside the scroll, so it never moves with the left column.
         DetailsCastGrid(state.details?.credits.orEmpty(), Modifier.align(Alignment.CenterEnd).padding(end = 48.dp))
@@ -167,18 +170,10 @@ private fun DetailsBody(state: DetailsUiState, media: MediaItem) {
             if (media.overview.isNotBlank()) {
                 Text(media.overview, style = MaterialTheme.typography.bodyLarge, maxLines = SYNOPSIS_LINES, overflow = TextOverflow.Ellipsis)
             }
-            val progressNote = resumeNote(state)
-            if (progressNote != null) Text(progressNote, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+            // Always present (blank without progress), so the note arriving or clearing never moves the stack.
+            Text(state.resumeNoteSlot, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
         }
     }
-}
-
-/** `42m left` under the synopsis when the movie or next-up episode is part-watched. */
-private fun resumeNote(state: DetailsUiState): String? {
-    val episode = state.nextUpEpisode
-    val point = state.progress.firstOrNull { it.episode == episode && it.inProgress } ?: return null
-    val minutesLeft = ((point.durationMs - point.positionMs) / MILLIS_PER_MINUTE).toInt()
-    return MetadataFormat.runtime(minutesLeft)?.let { "$it left" }
 }
 
 private val BackdropSize = DpSize(960.dp, 540.dp)
