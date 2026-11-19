@@ -4,6 +4,8 @@ import com.seastreams.tv.data.details.TitleDetailsRepository
 import com.seastreams.tv.domain.model.EpisodeRef
 import com.seastreams.tv.domain.model.MediaType
 import com.seastreams.tv.domain.model.SeasonInfo
+import com.seastreams.tv.domain.model.StreamAddon
+import com.seastreams.tv.domain.model.StreamSource
 import com.seastreams.tv.domain.usecase.ResolveStreamsUseCase
 import com.seastreams.tv.domain.usecase.StreamResolution
 import com.seastreams.tv.testutil.testDetails
@@ -67,6 +69,24 @@ class PlaybackStreamResolverTest {
         assertEquals(EpisodeRef(2, 1), next.episode)
         assertEquals(ShuffleSession.Sequential, next.shuffle)
     }
+
+    @Test
+    fun `auto-play still picks the preferred addon's first stream from the flat list`() = runTest {
+        val streams = listOf(stream("https://a", 1), stream("https://b", 1), stream("https://b", 2))
+        val addons = listOf(StreamAddon("https://a", "A"), StreamAddon("https://b", "B"), StreamAddon("https://empty", "Empty"))
+        coEvery { resolveStreams(any()) } returns StreamResolution(streams, emptyList(), emptyList(), addons)
+        val movie = PlaybackTarget(1, testDetails(5), "tt5", episode = null)
+
+        val preferred = resolver.resolve(movie, preferredAddonUrl = "https://b")
+        val unpreferred = resolver.resolve(movie, preferredAddonUrl = null)
+
+        assertEquals(1, preferred.topIndex)
+        assertEquals(streams, preferred.resolution.streams)
+        assertEquals(addons, preferred.resolution.streamAddons)
+        assertEquals(0, unpreferred.topIndex)
+    }
+
+    private fun stream(addonUrl: String, n: Int) = StreamSource(addonUrl, addonUrl, "$addonUrl/$n", "S$n", "", emptyMap())
 
     @Test
     fun `the last episode of a sequential session is caught up`() = runTest {

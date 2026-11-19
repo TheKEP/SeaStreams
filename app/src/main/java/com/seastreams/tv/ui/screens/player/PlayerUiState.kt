@@ -8,6 +8,7 @@ import com.seastreams.tv.domain.model.Episode
 import com.seastreams.tv.domain.model.EpisodeRef
 import com.seastreams.tv.domain.model.PlaybackRequest
 import com.seastreams.tv.domain.model.SeasonInfo
+import com.seastreams.tv.domain.model.StreamAddon
 import com.seastreams.tv.domain.model.StreamSource
 import com.seastreams.tv.domain.playback.AudioOption
 import com.seastreams.tv.domain.playback.SubtitleOption
@@ -58,6 +59,8 @@ data class PlayerUiState(
     val hudVisible: Boolean = false,
     val panel: PlayerPanel? = null,
     val streams: List<StreamSource> = emptyList(),
+    /** The `Streams` overlay's addon cards, in addon order; empty for trailers. */
+    val streamAddons: List<StreamAddon> = emptyList(),
     val streamIndex: Int = 0,
     /** This movie/episode's `LAST USED` stream in [streams] (badge + overlay focus); `null` if none. */
     val lastUsedIndex: Int? = null,
