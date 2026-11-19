@@ -11,7 +11,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -31,10 +30,10 @@ import com.seastreams.tv.ui.theme.TextPrimary
 import com.seastreams.tv.ui.theme.TextSecondary
 import com.seastreams.tv.ui.theme.focusPillColors
 import com.seastreams.tv.ui.theme.onDpadEdgeWrap
+import com.seastreams.tv.ui.theme.rememberListEdgeWrap
 import com.seastreams.tv.ui.theme.rememberSelectLongPress
 import com.seastreams.tv.ui.theme.selectLongPress
-import com.seastreams.tv.ui.theme.requestFocusAfterFrame
-import kotlinx.coroutines.launch
+import com.seastreams.tv.ui.theme.verticalListEdgeWrap
 
 /**
  * Hover-activated vertical list (Search categories, Library filters; `search-screen.jpg`): moving
@@ -43,6 +42,8 @@ import kotlinx.coroutines.launch
  * - The selected entry keeps a translucent pill while focus is elsewhere; the focused one is white.
  * - Entering the list from the side restores focus to the selected entry ([selectedFocusRequester]).
  * - Edge-stop-then-wrap: holding `Down` stops on the last entry; a fresh `Down` there wraps to the first.
+ *   With [wrapUp] (Episodes seasons) it is two-way: a fresh `Up` on the first entry wraps to the last
+ *   (held `Up` stops there). Without it, `Up` on the first entry is ordinary focus search.
  * - [onLongClick] (optional) runs when `OK` is held on an entry, with that entry's focus requester.
  */
 @Composable
@@ -57,15 +58,11 @@ fun <T> HoverSidebar(
     /** Optional right-aligned detail per entry, e.g. `10 episodes` on a season pill. */
     trailing: (T) -> String? = { null },
     onLongClick: ((entry: T, requester: FocusRequester) -> Unit)? = null,
+    wrapUp: Boolean = false,
 ) {
     val listState = rememberLazyListState()
-    val scope = rememberCoroutineScope()
-    val wrapToFirst: () -> Unit = {
-        scope.launch {
-            listState.scrollToItem(0)
-            firstEntry.requestFocusAfterFrame()
-        }
-    }
+    val lastEntry = remember { FocusRequester() }
+    val wrap = rememberListEdgeWrap(listState, firstEntry, lastEntry, entries.lastIndex)
     LazyColumn(
         state = listState,
         modifier = modifier.focusRestorer(selectedFocusRequester),
@@ -85,7 +82,14 @@ fun <T> HoverSidebar(
                     .focusRequester(requester)
                     .then(if (isSelected) Modifier.focusRequester(selectedFocusRequester) else Modifier)
                     .then(if (index == 0) Modifier.focusRequester(firstEntry) else Modifier)
-                    .then(if (index == entries.lastIndex) Modifier.onDpadEdgeWrap(Key.DirectionDown, wrapToFirst) else Modifier),
+                    .then(if (index == entries.lastIndex) Modifier.focusRequester(lastEntry) else Modifier)
+                    .then(
+                        when {
+                            wrapUp -> Modifier.verticalListEdgeWrap(index, entries.lastIndex, wrap.toFirst, wrap.toLast)
+                            index == entries.lastIndex -> Modifier.onDpadEdgeWrap(Key.DirectionDown, wrap.toFirst)
+                            else -> Modifier
+                        },
+                    ),
             )
         }
     }

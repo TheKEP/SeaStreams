@@ -61,6 +61,7 @@ fun PlayerPanels(panel: PlayerPanel, state: PlayerUiState, viewModel: PlayerView
             onChoose = { index, _ -> viewModel.selectStream(index) },
             modifier = modifier,
             selectedIndex = state.streamIndex,
+            lastUsedIndex = state.lastUsedIndex,
             showRank = true,
         )
         PlayerPanel.EPISODES -> EpisodesPanel(state, viewModel, modifier)

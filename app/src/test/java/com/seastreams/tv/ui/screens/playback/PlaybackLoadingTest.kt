@@ -7,6 +7,7 @@ import com.seastreams.tv.domain.model.MediaType
 import com.seastreams.tv.domain.model.PlaybackArtwork
 import com.seastreams.tv.domain.model.PlaybackRequest
 import com.seastreams.tv.domain.model.StreamSource
+import com.seastreams.tv.domain.playback.LastUsedStreamRecorder
 import com.seastreams.tv.domain.playback.PlaybackProgressRecorder
 import com.seastreams.tv.domain.playback.PlaybackStreamResolver
 import com.seastreams.tv.domain.playback.PlaybackTarget
@@ -14,6 +15,7 @@ import com.seastreams.tv.domain.playback.ResolvedPlayback
 import com.seastreams.tv.domain.usecase.ContinueWatchingTarget
 import com.seastreams.tv.domain.usecase.ResolveContinueWatchingTargetUseCase
 import com.seastreams.tv.domain.usecase.StreamResolution
+import com.seastreams.tv.testutil.FakeLastUsedStreamDao
 import com.seastreams.tv.testutil.FakeWatchProgressDao
 import com.seastreams.tv.testutil.testDetails
 import io.mockk.coEvery
@@ -82,6 +84,7 @@ class PlaybackLoadingTest {
         settings = settings,
         streams = resolver,
         recorder = PlaybackProgressRecorder(FakeWatchProgressDao(), Clock.systemUTC()),
+        lastUsed = LastUsedStreamRecorder(FakeLastUsedStreamDao(), Clock.systemUTC()),
         resolveTrailer = mockk(),
         resolveContinueWatching = resolveCard,
         clock = Clock.systemUTC(),

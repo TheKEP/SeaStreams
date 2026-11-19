@@ -59,6 +59,8 @@ data class PlayerUiState(
     val panel: PlayerPanel? = null,
     val streams: List<StreamSource> = emptyList(),
     val streamIndex: Int = 0,
+    /** This movie/episode's `LAST USED` stream in [streams] (badge + overlay focus); `null` if none. */
+    val lastUsedIndex: Int? = null,
     val subtitleOptions: List<SubtitleOption> = emptyList(),
     val selectedSubtitleId: String? = null,
     val subtitleOffsetMs: Long = 0,

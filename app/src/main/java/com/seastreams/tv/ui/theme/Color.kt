@@ -17,3 +17,6 @@ val FocusPill = Color(0xFFE5E9F0)
 val OnFocusPill = Obsidian
 val SuccessGreen = Color(0xFF3DD68C)
 val ErrorRed = Color(0xFFFF6B6B)
+
+/** The stream list's `LAST USED` pill (`last_used.png`): Obsidian text on gold, focused or not. */
+val LastUsedGold = Color(0xFFF5C518)
