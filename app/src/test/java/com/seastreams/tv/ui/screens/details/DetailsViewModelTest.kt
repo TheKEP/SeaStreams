@@ -1,5 +1,6 @@
 package com.seastreams.tv.ui.screens.details
 
+import com.seastreams.tv.core.database.entity.WatchProgressEntity
 import com.seastreams.tv.data.details.RestrictedTitleException
 import com.seastreams.tv.data.details.TitleDetailsRepository
 import com.seastreams.tv.data.library.LibraryRepository
@@ -20,6 +21,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -40,6 +42,7 @@ class DetailsViewModelTest {
     private val profiles = mockk<ProfileRepository>()
     private val titles = mockk<TitleDetailsRepository>()
     private val libraryDao = FakeLibraryDao()
+    private val progressDao = FakeWatchProgressDao()
     private val movie = testDetails(7)
     private val profile = testProfile(1, isKids = false)
 
@@ -54,7 +57,128 @@ class DetailsViewModelTest {
 
     private fun TestScope.viewModel(): DetailsViewModel {
         val library = LibraryRepository(libraryDao, Clock.systemUTC(), backgroundScope)
-        return DetailsViewModel(profiles, titles, library, PlaybackProgressRecorder(FakeWatchProgressDao(), Clock.systemUTC()))
+        return DetailsViewModel(profiles, titles, library, PlaybackProgressRecorder(progressDao, Clock.systemUTC()))
+    }
+
+    private suspend fun seedProgress(tmdbId: Int, type: MediaType, positionMs: Long, season: Int = 0, episode: Int = 0) =
+        progressDao.upsert(
+            WatchProgressEntity(
+                profileId = 1, tmdbId = tmdbId, mediaType = type, seasonNumber = season, episodeNumber = episode,
+                title = "Title $tmdbId", episodeTitle = null, posterPath = null, backdropPath = null,
+                positionMs = positionMs, durationMs = 100_000, updatedAtMillis = 1,
+            ),
+        )
+
+    @Test
+    fun `Clear progress on a part-watched movie deletes its record and turns Resume into Play`() = runTest(UnconfinedTestDispatcher()) {
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
+        seedProgress(movie.media.tmdbId, MediaType.MOVIE, positionMs = 40_000)
+        val vm = viewModel()
+        vm.open(1, movie.media)
+        assertEquals("Resume", vm.state.value.playLabel)
+        assertTrue(vm.state.value.canClearProgress)
+
+        vm.clearProgress()
+
+        assertTrue(progressDao.rows.value.isEmpty())
+        assertEquals("Play", vm.state.value.playLabel)
+        assertFalse(vm.state.value.canClearProgress)
+    }
+
+    @Test
+    fun `Clear progress flips Resume to Play synchronously, before the delete lands`() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        seedProgress(movie.media.tmdbId, MediaType.MOVIE, positionMs = 40_000)
+        val vm = viewModel()
+        vm.open(1, movie.media)
+        advanceUntilIdle()
+        assertEquals("Resume", vm.state.value.playLabel)
+
+        vm.clearProgress()
+        // Same frame as the focus move to Play: no coroutine has run yet.
+        assertEquals("Play", vm.state.value.playLabel)
+        assertFalse(vm.state.value.canClearProgress)
+        assertEquals("", vm.state.value.resumeNoteSlot)
+        assertEquals(1, progressDao.rows.value.size)
+
+        val immediate = vm.state.value
+        advanceUntilIdle()
+        assertTrue(progressDao.rows.value.isEmpty())
+        assertEquals(immediate, vm.state.value)
+    }
+
+    /** Every state [vm] emits from now on, recorded without conflation. */
+    private fun TestScope.recordStates(vm: DetailsViewModel): List<DetailsUiState> {
+        val seen = mutableListOf<DetailsUiState>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.state.collect { seen += it } }
+        return seen
+    }
+
+    private fun assertNoPlayFlash(states: List<DetailsUiState>, expectedLabel: String) {
+        val ready = states.filter { it.actionsReady }
+        assertTrue(ready.isNotEmpty(), "never became ready")
+        ready.forEach { state ->
+            assertEquals(expectedLabel, state.playLabel)
+            assertTrue(state.resumeNoteSlot.endsWith(" left"), "slot=${state.resumeNoteSlot}")
+        }
+    }
+
+    @Test
+    fun `a show with S1E5 in progress is first drawn as Resume S1E5, never Play`() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val show = testDetails(11, MediaType.TV, seasons = listOf(SeasonInfo(1, "Season 1", 10)))
+        coEvery { titles.load(show.ref, profile.toAgeRestriction()) } returns show
+        coEvery { titles.imdbIdForDetails(show.ref) } returns "tt0000011"
+        seedProgress(show.media.tmdbId, MediaType.TV, positionMs = 40_000, season = 1, episode = 5)
+        val vm = viewModel()
+        val states = recordStates(vm)
+
+        vm.open(1, show.media)
+        advanceUntilIdle()
+
+        assertNoPlayFlash(states, "Resume S1:E5")
+    }
+
+    @Test
+    fun `a part-watched movie is first drawn as Resume, never Play`() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        seedProgress(movie.media.tmdbId, MediaType.MOVIE, positionMs = 40_000)
+        val vm = viewModel()
+        val states = recordStates(vm)
+
+        vm.open(1, movie.media)
+        advanceUntilIdle()
+
+        assertNoPlayFlash(states, "Resume")
+    }
+
+    @Test
+    fun `unwatched and completed movies offer no Clear progress`() = runTest(UnconfinedTestDispatcher()) {
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
+        val vm = viewModel()
+        vm.open(1, movie.media)
+        assertFalse(vm.state.value.canClearProgress)
+
+        seedProgress(movie.media.tmdbId, MediaType.MOVIE, positionMs = 95_000)
+        assertEquals("Play", vm.state.value.playLabel)
+        assertFalse(vm.state.value.canClearProgress)
+        vm.clearProgress()
+        assertEquals(1, progressDao.rows.value.size)
+    }
+
+    @Test
+    fun `a show with a part-watched episode offers no Clear progress and keeps its row`() = runTest(UnconfinedTestDispatcher()) {
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
+        val show = testDetails(11, MediaType.TV, seasons = listOf(SeasonInfo(1, "Season 1", 4)))
+        coEvery { titles.load(show.ref, profile.toAgeRestriction()) } returns show
+        coEvery { titles.imdbIdForDetails(show.ref) } returns "tt0000011"
+        seedProgress(show.media.tmdbId, MediaType.TV, positionMs = 40_000, season = 1, episode = 1)
+        val vm = viewModel()
+        vm.open(1, show.media)
+
+        assertFalse(vm.state.value.canClearProgress)
+        vm.clearProgress()
+        assertEquals(1, progressDao.rows.value.size)
     }
 
     @Test

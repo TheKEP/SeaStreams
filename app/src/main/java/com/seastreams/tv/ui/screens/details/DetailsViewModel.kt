@@ -89,6 +89,20 @@ class DetailsViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Movie `Clear progress`: deletes the movie's progress record for the active profile. The state
+     * drops the movie's point synchronously, so the frame that moves focus to `Play` also flips its
+     * label and removes the button; Room's later re-emission is an equal state and recomposes nothing.
+     */
+    fun clearProgress() {
+        val current = _state.value
+        if (!current.canClearProgress) return
+        val profileId = current.profileId ?: return
+        val media = current.media ?: return
+        _state.update { s -> s.copy(progress = s.progress.filterNot { it.episode == null }) }
+        viewModelScope.launch { progress.clearMovieProgress(profileId, media.ref) }
+    }
+
     fun requestTrailer() {
         val media = _state.value.media ?: return
         viewModelScope.launch {
@@ -129,7 +143,7 @@ class DetailsViewModel @Inject constructor(
             library.observeContains(profileId, item.ref).collect { saved -> _state.update { it.copy(inLibrary = saved) } }
         }
         launch {
-            progress.observe(profileId, item.ref).collect { points -> _state.update { it.copy(progress = points) } }
+            progress.observe(profileId, item.ref).collect { points -> _state.update { it.copy(progress = points, progressLoaded = true) } }
         }
         val details = try {
             titles.load(item.ref, profile.toAgeRestriction())
