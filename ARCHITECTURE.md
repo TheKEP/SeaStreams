@@ -3,11 +3,15 @@
 ## 1. Module & Package Layout (`com.seastreams.tv`)
 ```text
 app/src/main/java/com/seastreams/tv/
-├── SeaStreamsApp.kt                  # Hilt Application class
+├── SeaStreamsApp.kt                  # Hilt Application class + Coil SingletonImageLoader.Factory; startup orphan-cache sweep on IO
 ├── MainActivity.kt                   # Single-activity Compose TV host + Back handler
 ├── core/
+│   ├── cache/
+│   │   └── CacheManager.kt           # Total cacheDir size, Clear Cache (Coil memory+disk, OkHttp evictAll, stray files), startup orphan sweep; all on @IoDispatcher
+│   ├── image/
+│   │   └── ImageLoaderSetup.kt       # Coil 3 ImageLoader: 150MB LRU disk cache in cacheDir/image_cache + 25% memory cache
 │   ├── network/
-│   │   ├── NetworkModule.kt          # OkHttp (100MB disk cache) + Ktor HttpClient + 429 Retry Interceptor
+│   │   ├── NetworkModule.kt          # OkHttp (100MB LRU disk cache in cacheDir/http_cache) + Ktor HttpClient + 429 Retry Interceptor
 │   │   ├── OkHttpDownloader.kt       # NewPipeExtractor Downloader backed by shared OkHttpClient
 │   │   ├── TmdbApiService.kt         # /discover, /search, /movie/{id}, /tv/{id}, /external_ids
 │   │   ├── MdbListApiService.kt      # Fetches built-in Home chart JSONs & one-time Library import lists
@@ -55,7 +59,8 @@ app/src/main/java/com/seastreams/tv/
     │                                 # ignoreInitialKeyUp
     │                                 # ListEdgeWrap.kt: verticalEdgeKeys (pure: Up on first, Down on last, both on a single item),
     │                                 # Modifier.verticalListEdgeWrap + rememberListEdgeWrap (scroll + focus first/last) for the
-    │                                 # two-way stream panel columns (Addons + Choose a stream) / Episodes seasons + episodes lists
+    │                                 # two-way stream panel columns (Addons + Choose a stream) / Episodes seasons + episodes lists /
+    │                                 # General Settings main list
     ├── navigation/                   # SeaStreamsNavGraph.kt (Splash -> AppGate: Onboarding | Profile Gate)
     ├── components/
     │   ├── TopNavBar.kt              # Avatar, Clock, Search, Home, Movies, TV Shows, Library, Settings (Avatar ⇄ Settings edge wrap loop; no focusRestorer — navBarEntry sends D-pad Up/Down entry to the active pill and never redirects programmatic requests, so Back → active pill and Settings-close → gear land exactly)
@@ -74,7 +79,7 @@ app/src/main/java/com/seastreams/tv/
         ├── library/                  # LibraryScreen.kt (All/Movies/Shows + Sort + A-Z jump bar)
         ├── playback/                 # PlaybackHost.kt + PlaybackViewModel.kt; StreamPickerModal.kt (stream selection modal: BackHandler + StreamListPanel); StreamListPanel.kt (shared stream modal container — 760dp panel over a dimmed scrim, a `Row` of the AddonColumn (hidden while loading or with no stream addons), a 1dp divider and the `Choose a stream` column: header, then a two-way wrapping LazyColumn of the selected addon's StreamResultCards or its "returned no results" message; cards carry global stream indices so rank/playing check/`lastUsedIndex`/`onChoose` match the flat list; initial addon + both scrolls + focus via pure `initialFocus()`; Back left to the caller; used by StreamPickerModal and the player Streams overlay); AddonStreamGroups.kt (pure: `addonGroups(addons, streams)` → per-addon global indices in addon order, `initialFocus(groups, lastUsedIndex)`, `columnSwitch(column, key, addonHasStreams)` Left/Right decisions between the two columns); AddonColumn.kt (220dp `Addons` column: header + two-way wrapping LazyColumn of AddonFilterCards — focus selects, `basicMarquee` names, focused / selected / idle styles, ignoreInitialKeyUp); StreamResultCard.kt (shared full-width stream card: soft-wrapping text, no maxLines, height follows content; `lastUsed` adds the gold `LAST USED` pill top-right on the addon row, addon name `weight(1f)` so it wraps beside it; pure streamCardText() keeps every description line; also used by the player Streams overlay)
         ├── player/                   # PlayerScreen.kt + PlayerOverlayControls.kt; PlayerPanels.kt (Subtitles/Audio/Episodes/Info right-hand panels; the Streams overlay renders playback/StreamListPanel.kt); PlayerTransport.kt (play/pause/seek); PlayerSeekBar.kt (pure `seekBarFractions` clamp + opaque slate track / blue buffered / white played draw with playhead tick, PRD §9 Seek Bar Styling); PlayerLoading.kt (pure LoadingVisual state machine: `PlayerUiState.started` is reset by every new stream and set by `PlayerEvent.FirstFrame` [`onRenderedFirstFrame`]. Not started → BACKDROP_AND_LOGO; started + buffering → LOGO_ONLY; trailers → NONE); PlayerLoadingOverlay.kt (full-screen backdrop + pulsing logo/title, also drawn by playback/PlaybackHost.kt while `PlaybackUiState.loading` covers auto-play's stream lookup)
-        └── settings/                 # SettingsScreen.kt (Addons, Providers, Playback, Audio, Subtitles, QR Portal)
+        └── settings/                 # SettingsScreen.kt (Addons, Providers, Playback, Audio, Subtitles, Library, Storage/Clear Cache, QR Portal); MainList two-way wrap via settingsEntryOrdinals (focusable rows only) + verticalListEdgeWrap/rememberListEdgeWrap
 ```
 
 ## 2. Launcher Resources (App Icon & TV Banner)
@@ -94,3 +99,17 @@ app/src/main/res/
 ```
 - `AndroidManifest.xml`: `<application>` sets `android:icon="@mipmap/ic_launcher"`, `android:roundIcon="@mipmap/ic_launcher_round"`, `android:banner="@drawable/tv_banner"`; the `LEANBACK_LAUNCHER` `MainActivity` repeats `android:banner` (launchers read either `ActivityInfo.banner` or `ApplicationInfo.banner`) and inherits the icon.
 - The Android 12+ system splash never shows the launcher icon: `values-v31/themes.xml` pins `windowSplashScreenAnimatedIcon` to `@android:color/transparent`.
+
+## 3. Storage Bounds & Cache Management
+SeaStreams never grows device storage without bound. Everything it caches lives in `context.cacheDir` under fixed LRU caps, so the worst case is ~250 MB regardless of how much free space the TV has:
+
+| Cache | Location | Cap | Owner |
+|---|---|---|---|
+| HTTP (TMDB / MDBList / addon JSON, 6–12h TTLs via `CacheTtlInterceptor`) | `cacheDir/http_cache` | `100 MB` LRU (`NetworkModule.HTTP_CACHE_SIZE_BYTES`) | OkHttp `Cache` |
+| Images (posters, backdrops, logos) | `cacheDir/image_cache` | `150 MB` LRU (`IMAGE_DISK_CACHE_BYTES`), never a percentage of free disk | Coil 3 `DiskCache` (`ImageLoaderSetup.kt`) |
+| Decoded bitmaps | RAM | 25% of the app's memory class (`IMAGE_MEMORY_CACHE_PERCENT`) | Coil 3 `MemoryCache` |
+
+- **Playback is memory-only:** ExoPlayer (`SeaStreamsPlayerManager`), `ParallelRangeDataSource`/`ParallelRangeReader`, inline trailers (`InlineTrailerPlayerManager`) and NewPipe (`OkHttpDownloader`) all use `OkHttpClient.withoutDiskCache()` (`UncachedHttpClient.kt`) and buffer in RAM via `LoadControl` / the read-ahead ring. There is no Media3 `SimpleCache` / `CacheDataSource`, and no stream bytes are written to disk.
+- **Coil keeps its own fetcher client**, so images are cached once (in `image_cache`), not again in the HTTP cache. Both Coil caches are created lazily on Coil's dispatchers, so building the singleton never does disk I/O on the main thread.
+- **Startup orphan sweep:** `SeaStreamsApp` calls `CacheManager.sweepOrphans()` in its `ApplicationScope` launch: top-level `cacheDir` entries other than `http_cache`/`image_cache` that are older than 1 hour are deleted (newer ones are left in case a library is mid-write).
+- **Clear Cache (General Settings → `STORAGE`):** `CacheManager.clearAll()` clears Coil's memory + disk caches and `Cache.evictAll()`s OkHttp through their own APIs (their live journals stay valid), then deletes every other `cacheDir` entry. `totalSizeBytes()` sums every file under `cacheDir`. All work runs on the injected `@IoDispatcher` (`Context.getCacheDir()` included, since it may create the folder); the OkHttp `Cache` is a `dagger.Lazy` resolved there too.
