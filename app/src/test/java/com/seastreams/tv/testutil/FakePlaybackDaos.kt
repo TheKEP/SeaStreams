@@ -45,6 +45,9 @@ class FakeLibraryDao : LibraryDao {
 
     override suspend fun insertAll(items: List<LibraryItemEntity>): List<Long> = items.map { insert(it) }
 
+    override suspend fun tmdbIds(profileId: Long, mediaType: MediaType): List<Int> =
+        rows.value.filter { it.profileId == profileId && it.mediaType == mediaType }.map { it.tmdbId }
+
     override suspend fun remove(profileId: Long, tmdbId: Int, mediaType: MediaType) =
         rows.update { list -> list.filterNot { it.sameKey(profileId, tmdbId, mediaType) } }
 
