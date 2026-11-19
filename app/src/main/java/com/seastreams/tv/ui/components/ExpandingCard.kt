@@ -55,6 +55,8 @@ val PosterSize = DpSize(PosterWidth, CardHeight)
 private val ExpandedSize = DpSize(ExpandedCardWidth, CardHeight)
 private val CardLogoSize = DpSize(216.dp, 68.dp)
 private val CardShape = RoundedCornerShape(12.dp)
+private val CardTitleInset = 12.dp
+private val TitleAboveBarGap = 6.dp
 
 /** Catalog row horizontal glide time (PRD §2): the slow, fluid eased glide as focus steps along a row. */
 const val CATALOG_ROW_GLIDE_MS = 480
@@ -81,6 +83,8 @@ fun ExpandingMediaCard(
     onLongClick: (() -> Unit)? = null,
     /** Poster ↔ backdrop width and cross-fade time. */
     expandDurationMs: Int = CARD_EXPAND_MS,
+    /** [overlay] draws an [ArtworkProgressBar]: the 16:9 title logo sits above its clearance. */
+    reserveProgressBar: Boolean = false,
     overlay: @Composable BoxScope.(expanded: Boolean) -> Unit = {},
 ) {
     ExpandingCardSurface(
@@ -121,7 +125,12 @@ fun ExpandingMediaCard(
                     item,
                     logoSize = CardLogoSize,
                     textStyle = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.align(Alignment.BottomStart).padding(12.dp),
+                    modifier = Modifier.align(Alignment.BottomStart).padding(
+                        start = CardTitleInset,
+                        top = CardTitleInset,
+                        end = CardTitleInset,
+                        bottom = if (reserveProgressBar) ArtworkProgressClearance + TitleAboveBarGap else CardTitleInset,
+                    ),
                 )
             }
         }
