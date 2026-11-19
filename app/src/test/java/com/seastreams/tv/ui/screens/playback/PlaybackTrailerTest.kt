@@ -5,9 +5,11 @@ import com.seastreams.tv.core.datastore.SettingsDataStore
 import com.seastreams.tv.domain.model.PlaybackRequest
 import com.seastreams.tv.domain.model.TrailerSource
 import com.seastreams.tv.domain.model.TrailerStream
+import com.seastreams.tv.domain.playback.LastUsedStreamRecorder
 import com.seastreams.tv.domain.playback.PlaybackProgressRecorder
 import com.seastreams.tv.domain.playback.PlaybackStreamResolver
 import com.seastreams.tv.domain.usecase.ResolveTrailerStreamUseCase
+import com.seastreams.tv.testutil.FakeLastUsedStreamDao
 import com.seastreams.tv.testutil.FakeWatchProgressDao
 import io.mockk.coEvery
 import io.mockk.mockk
@@ -61,6 +63,7 @@ class PlaybackTrailerTest {
         settings = SettingsDataStore(PreferenceDataStoreFactory.create(scope = storeScope) { File(dir, "s.preferences_pb") }),
         streams = mockk<PlaybackStreamResolver>(),
         recorder = PlaybackProgressRecorder(dao, Clock.systemUTC()),
+        lastUsed = LastUsedStreamRecorder(FakeLastUsedStreamDao(), Clock.systemUTC()),
         resolveTrailer = resolveTrailer,
         resolveContinueWatching = mockk(),
         clock = Clock.systemUTC(),

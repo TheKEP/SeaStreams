@@ -29,7 +29,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
-import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
@@ -45,15 +44,18 @@ import com.seastreams.tv.ui.components.LocalTransientMessages
 import com.seastreams.tv.ui.components.MediaMetadataLine
 import com.seastreams.tv.ui.screens.playback.PlaybackViewModel
 import com.seastreams.tv.ui.theme.TextSecondary
-import com.seastreams.tv.ui.theme.onDpadEdgeWrap
+import com.seastreams.tv.ui.theme.rememberListEdgeWrap
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
+import com.seastreams.tv.ui.theme.verticalListEdgeWrap
 import kotlinx.coroutines.launch
 
 /**
  * Episodes (`episodes-page.jpg`): show title, metadata and hover-activated season pills on the left;
  * the selected season's episodes on the right. Focus lands on the next-up episode once its season
  * has loaded. `Left` from an episode returns to the selected season; `Right` from a season enters
- * the list. `Back` (shell) returns to `More episodes` on Details.
+ * the list. Both columns wrap both ways (§1): a fresh `Up` on the first season/episode goes to the
+ * last, a fresh `Down` on the last goes to the first, and a held key stops at the edge. `Back`
+ * (shell) returns to `More episodes` on Details.
  *
  * Holding `OK` on a season pill or an episode opens its action menu ([seasonMenu], [episodeMenu]);
  * `Back` closes the menu and refocuses the pill or episode that opened it.
@@ -162,6 +164,7 @@ private fun EpisodesContent(
                     onSelect = { onSelectSeason(it.number) },
                     selectedFocusRequester = selectedSeason,
                     onLongClick = onSeasonMenu,
+                    wrapUp = true,
                 )
             }
         }
@@ -201,8 +204,8 @@ private fun EpisodeList(
     onMenu: (Episode, FocusRequester) -> Unit,
 ) {
     val listState = rememberLazyListState()
-    val scope = rememberCoroutineScope()
     val first = remember { FocusRequester() }
+    val last = remember { FocusRequester() }
     val nextUp = remember { FocusRequester() }
     val nextUpIndex = episodes.indexOfFirst { it.ref == state.nextUp }
     LaunchedEffect(Unit) {
@@ -211,12 +214,7 @@ private fun EpisodeList(
         if (!(nextUpIndex >= 0 && nextUp.requestFocusAfterFrame())) first.requestFocusAfterFrame()
         onInitialFocus()
     }
-    val wrapToFirst: () -> Unit = {
-        scope.launch {
-            listState.scrollToItem(0)
-            first.requestFocusAfterFrame()
-        }
-    }
+    val wrap = rememberListEdgeWrap(listState, first, last, episodes.lastIndex)
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize().focusRestorer(first),
@@ -233,7 +231,8 @@ private fun EpisodeList(
                 modifier = Modifier
                     .then(if (index == 0) Modifier.focusRequester(first) else Modifier)
                     .then(if (index == nextUpIndex) Modifier.focusRequester(nextUp) else Modifier)
-                    .then(if (index == episodes.lastIndex) Modifier.onDpadEdgeWrap(Key.DirectionDown, wrapToFirst) else Modifier),
+                    .then(if (index == episodes.lastIndex) Modifier.focusRequester(last) else Modifier)
+                    .verticalListEdgeWrap(index, episodes.lastIndex, wrap.toFirst, wrap.toLast),
             )
         }
     }

@@ -17,8 +17,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
@@ -26,7 +27,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ClickableSurfaceDefaults
@@ -38,9 +38,10 @@ import com.seastreams.tv.ui.theme.SurfaceCard
 import com.seastreams.tv.ui.theme.TextSecondary
 import com.seastreams.tv.ui.theme.focusPillColors
 import com.seastreams.tv.ui.theme.ignoreInitialKeyUp
-import com.seastreams.tv.ui.theme.onDpadEdgeWrap
-import com.seastreams.tv.ui.theme.requestFocusAfterFrame
-import kotlinx.coroutines.launch
+import com.seastreams.tv.ui.theme.rememberListEdgeWrap
+import com.seastreams.tv.ui.theme.retryEachFrame
+import com.seastreams.tv.ui.theme.tryRequestFocus
+import com.seastreams.tv.ui.theme.verticalListEdgeWrap
 
 /** What the stream list shows: a loading entry, an empty entry, or the stream cards. */
 internal enum class StreamListContent { LOADING, EMPTY, RESULTS }
@@ -51,12 +52,19 @@ internal fun streamListContent(loading: Boolean, streams: List<StreamSource>): S
     else -> StreamListContent.RESULTS
 }
 
+/** The card that takes initial focus: the `LAST USED` stream when it is listed, else the first. */
+internal fun initialStreamIndex(lastUsedIndex: Int?, count: Int): Int =
+    lastUsedIndex?.takeIf { it in 0 until count } ?: 0
+
 /**
  * The stream selection container shared by the Details stream modal and the in-player `Streams`
  * overlay: a 520dp right-hand panel over a dimmed screen with a "Choose a stream" header and a list
- * of [StreamResultCard]s. Focus stays inside the panel and Down on the last card wraps to the first.
- * `Back` is left to the caller. Every entry ignores a held `OK` that started before it was focused.
- * [showRank] prefixes `#1`, `#2`…; [selectedIndex] marks the playing stream with a check.
+ * of [StreamResultCard]s. Focus stays inside the panel and wraps both ways (§1): a fresh `Down` on the
+ * last card goes to the first, a fresh `Up` on the first goes to the last; a held key stops at the
+ * edge. `Back` is left to the caller. Every entry ignores a held `OK` that started before it was
+ * focused, including the auto-focused one. [showRank] prefixes `#1`, `#2`…; [selectedIndex] marks
+ * the playing stream with a check; [lastUsedIndex] badges the `LAST USED` stream and opens the list
+ * scrolled to and focused on it (the first card when it isn't listed).
  */
 @Composable
 fun StreamListPanel(
@@ -69,20 +77,23 @@ fun StreamListPanel(
     onChoose: (index: Int, stream: StreamSource) -> Unit,
     modifier: Modifier = Modifier,
     selectedIndex: Int? = null,
+    lastUsedIndex: Int? = null,
     showRank: Boolean = false,
     failedAddons: List<String> = emptyList(),
 ) {
     val first = remember { FocusRequester() }
+    val last = remember { FocusRequester() }
+    val initial = remember { FocusRequester() }
     val listState = rememberLazyListState()
-    val scope = rememberCoroutineScope()
-    // The list's content changes when streams arrive: focus its new first entry each time.
-    LaunchedEffect(loading, streams) { first.requestFocusAfterFrame() }
-    val wrapToFirst: () -> Unit = {
-        scope.launch {
-            listState.scrollToItem(0)
-            first.requestFocusAfterFrame()
-        }
+    val content = streamListContent(loading, streams)
+    val initialIndex = if (content == StreamListContent.RESULTS) initialStreamIndex(lastUsedIndex, streams.size) else 0
+    val currentInitialIndex by rememberUpdatedState(initialIndex)
+    // The list's content changes when streams arrive: scroll to and focus its initial entry each time.
+    LaunchedEffect(loading, streams) {
+        listState.scrollToItem(currentInitialIndex)
+        retryEachFrame(RESTORE_FRAMES) { initial.tryRequestFocus() }
     }
+    val wrap = rememberListEdgeWrap(listState, first, last, streams.lastIndex)
 
     Box(modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)), contentAlignment = Alignment.CenterEnd) {
         Column(
@@ -112,12 +123,12 @@ fun StreamListPanel(
                 contentPadding = PaddingValues(vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                when (streamListContent(loading, streams)) {
+                when (content) {
                     StreamListContent.LOADING -> item(key = "loading") {
-                        StatusEntry("Finding streams…", onClick = {}, Modifier.focusRequester(first))
+                        StatusEntry("Finding streams…", onClick = {}, Modifier.focusRequester(initial))
                     }
                     StreamListContent.EMPTY -> item(key = "empty") {
-                        StatusEntry(emptyText, onClick = onEmptyClick, Modifier.focusRequester(first))
+                        StatusEntry(emptyText, onClick = onEmptyClick, Modifier.focusRequester(initial))
                     }
                     StreamListContent.RESULTS -> itemsIndexed(streams, key = { index, stream -> "$index-${stream.url}" }) { index, stream ->
                         StreamResultCard(
@@ -125,9 +136,12 @@ fun StreamListPanel(
                             onClick = { onChoose(index, stream) },
                             modifier = Modifier
                                 .then(if (index == 0) Modifier.focusRequester(first) else Modifier)
-                                .then(if (index == streams.lastIndex) Modifier.onDpadEdgeWrap(Key.DirectionDown, wrapToFirst) else Modifier),
+                                .then(if (index == streams.lastIndex) Modifier.focusRequester(last) else Modifier)
+                                .then(if (index == initialIndex) Modifier.focusRequester(initial) else Modifier)
+                                .verticalListEdgeWrap(index, streams.lastIndex, wrap.toFirst, wrap.toLast),
                             rank = if (showRank) index + 1 else null,
                             selected = index == selectedIndex,
+                            lastUsed = index == lastUsedIndex,
                         )
                     }
                 }

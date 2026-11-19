@@ -1,8 +1,10 @@
 package com.seastreams.tv.testutil
 
+import com.seastreams.tv.core.database.dao.LastUsedStreamDao
 import com.seastreams.tv.core.database.dao.LibraryDao
 import com.seastreams.tv.core.database.dao.LibraryItemWithActivity
 import com.seastreams.tv.core.database.dao.WatchProgressDao
+import com.seastreams.tv.core.database.entity.LastUsedStreamEntity
 import com.seastreams.tv.core.database.entity.LibraryItemEntity
 import com.seastreams.tv.core.database.entity.WatchProgressEntity
 import com.seastreams.tv.domain.model.MediaItem
@@ -49,6 +51,19 @@ class FakeLibraryDao : LibraryDao {
     override suspend fun getAll(profileId: Long): List<LibraryItemEntity> = rows.value.filter { it.profileId == profileId }
 
     override suspend fun clear(profileId: Long) = rows.update { list -> list.filterNot { it.profileId == profileId } }
+}
+
+/** In-memory [LastUsedStreamDao] with the Room table's composite primary key (upsert replaces). */
+class FakeLastUsedStreamDao : LastUsedStreamDao {
+    val rows = MutableStateFlow<List<LastUsedStreamEntity>>(emptyList())
+
+    private fun LastUsedStreamEntity.key() = listOf(profileId, tmdbId, mediaType, seasonNumber, episodeNumber)
+
+    override suspend fun get(profileId: Long, tmdbId: Int, mediaType: MediaType, seasonNumber: Int, episodeNumber: Int): LastUsedStreamEntity? =
+        rows.value.firstOrNull { it.key() == listOf(profileId, tmdbId, mediaType, seasonNumber, episodeNumber) }
+
+    override suspend fun upsert(stream: LastUsedStreamEntity) =
+        rows.update { list -> list.filterNot { it.key() == stream.key() } + stream }
 }
 
 /** In-memory [WatchProgressDao] keyed like the Room table. */

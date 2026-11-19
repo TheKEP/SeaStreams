@@ -158,6 +158,7 @@ class PlayerViewModel @Inject constructor(
                 episodes = it.episodes.following(request.target.episode),
             )
         }
+        switching.loadLastUsed(this, request)
         playIndex(manager, request.streamIndex, request.startPositionMs)
     }
 
@@ -186,6 +187,7 @@ class PlayerViewModel @Inject constructor(
         when (event) {
             PlayerEvent.Ready -> {
                 fallback.onReady()
+                switching.onStreamReady(this)
                 _state.update { it.copy(status = null) }
             }
             PlayerEvent.FirstFrame -> _state.update { it.onFirstFrame() }

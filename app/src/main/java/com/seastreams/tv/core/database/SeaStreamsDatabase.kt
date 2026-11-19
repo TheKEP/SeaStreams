@@ -6,10 +6,12 @@ import androidx.room.DeleteTable
 import androidx.room.RoomDatabase
 import androidx.room.migration.AutoMigrationSpec
 import com.seastreams.tv.core.database.dao.AddonDao
+import com.seastreams.tv.core.database.dao.LastUsedStreamDao
 import com.seastreams.tv.core.database.dao.LibraryDao
 import com.seastreams.tv.core.database.dao.ProfileDao
 import com.seastreams.tv.core.database.dao.WatchProgressDao
 import com.seastreams.tv.core.database.entity.AddonEntity
+import com.seastreams.tv.core.database.entity.LastUsedStreamEntity
 import com.seastreams.tv.core.database.entity.LibraryItemEntity
 import com.seastreams.tv.core.database.entity.ProfileEntity
 import com.seastreams.tv.core.database.entity.WatchProgressEntity
@@ -20,9 +22,11 @@ import com.seastreams.tv.core.database.entity.WatchProgressEntity
         LibraryItemEntity::class,
         WatchProgressEntity::class,
         AddonEntity::class,
+        LastUsedStreamEntity::class,
     ],
     // v5 scopes addons per profile: manual ProfileAddonsMigration (registered in DatabaseModule).
-    version = 5,
+    // v6 adds last_used_streams: manual LastUsedStreamMigration (registered in DatabaseModule).
+    version = 6,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2, spec = SeaStreamsDatabase.DropCustomCatalogs::class),
@@ -36,6 +40,7 @@ abstract class SeaStreamsDatabase : RoomDatabase() {
     abstract fun libraryDao(): LibraryDao
     abstract fun watchProgressDao(): WatchProgressDao
     abstract fun addonDao(): AddonDao
+    abstract fun lastUsedStreamDao(): LastUsedStreamDao
 
     /** v2 removed user-assigned MDBList catalog rows; MDBList is now a one-time Library import only. */
     @DeleteTable(tableName = "custom_catalogs")
