@@ -80,7 +80,7 @@ class ProfileScopedSettingsTest {
         val fresh = settings.settings.first()
         assertEquals(BackgroundSwatches.DEFAULT, fresh.appearance.backgroundArgb)
         assertEquals(PlaybackBufferProfile.LARGE, fresh.player.playbackBufferProfile)
-        assertEquals(3, fresh.player.parallelStreamConnections)
+        assertEquals(4, fresh.player.parallelStreamConnections)
         assertTrue(fresh.player.autoPlayNextEpisode)
         assertTrue(fresh.player.convertDvProfile7ToHdr)
         assertTrue(fresh.player.autoPlayTrailers)
