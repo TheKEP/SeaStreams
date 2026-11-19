@@ -18,5 +18,20 @@ val OnFocusPill = Obsidian
 val SuccessGreen = Color(0xFF3DD68C)
 val ErrorRed = Color(0xFFFF6B6B)
 
+// PRD §9 player seek bar: opaque fills with hue + luminance separation, so bright video behind
+// the HUD can't wash the tiers together.
+/** Played portion (0 → playhead), drawn on top of the buffered fill: pure white. */
+val SeekPlayed = TextPrimary
+/** Buffered read-ahead (to the buffer end): opaque brand wave blue. */
+val SeekBuffered = Color(0xFF2B6CB0)
+/** Unbuffered track: opaque dark slate. */
+val SeekTrack = Color(0xFF1E2430)
+/** 1dp backing outline around the track and the playhead tick, for bright scenes. */
+val SeekTrackBorder = Obsidian
+/** Focused seek-bar thumb fill. */
+val SeekThumb = FocusPill
+/** Thumb outline so it stays legible over the white played fill. */
+val SeekThumbRing = Obsidian
+
 /** The stream list's `LAST USED` pill (`last_used.png`): Obsidian text on gold, focused or not. */
 val LastUsedGold = Color(0xFFF5C518)
