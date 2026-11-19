@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.runtime.Composable
@@ -22,6 +24,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -31,24 +34,18 @@ import com.seastreams.tv.core.datastore.SettingsDataStore
 import com.seastreams.tv.ui.components.SeaIcons
 import com.seastreams.tv.ui.screens.playback.StreamListPanel
 import com.seastreams.tv.ui.screens.settings.RowTrailing
-import com.seastreams.tv.ui.screens.settings.SUBTITLE_COLORS
 import com.seastreams.tv.ui.screens.settings.SettingsRow
 import com.seastreams.tv.ui.screens.settings.SettingsSectionHeader
 import com.seastreams.tv.ui.screens.settings.audioDelayLabel
 import com.seastreams.tv.ui.screens.settings.dialogueLabel
-import com.seastreams.tv.ui.screens.settings.edgeLabel
-import com.seastreams.tv.ui.screens.settings.stepEdge
-import com.seastreams.tv.ui.screens.settings.stepFontScale
-import com.seastreams.tv.ui.screens.settings.stepOpacity
 import com.seastreams.tv.ui.theme.SurfaceCard
-import com.seastreams.tv.ui.theme.TextSecondary
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
 
 /** The open overlay, as a right-hand panel over the still-playing video. */
 @Composable
 fun PlayerPanels(panel: PlayerPanel, state: PlayerUiState, viewModel: PlayerViewModel, modifier: Modifier) {
     when (panel) {
-        PlayerPanel.SUBTITLES -> PanelScaffold("Subtitles", modifier) { first -> subtitleItems(state, viewModel, first) }
+        PlayerPanel.SUBTITLES -> SubtitlesPanel(state, viewModel, modifier)
         PlayerPanel.AUDIO -> PanelScaffold("Audio", modifier) { first -> audioItems(state, viewModel, first) }
         // Same container as the Details stream modal; Back is handled by the player (focus → Streams button).
         PlayerPanel.STREAMS -> StreamListPanel(
@@ -77,9 +74,16 @@ fun PlayerPanels(panel: PlayerPanel, state: PlayerUiState, viewModel: PlayerView
 @Composable
 fun PanelScaffold(title: String, modifier: Modifier, content: LazyListScope.(first: FocusRequester) -> Unit) {
     val first = remember { FocusRequester() }
-    LaunchedEffect(title) { first.requestFocusAfterFrame() }
+    PanelScaffold(title, modifier, rememberLazyListState(), onOpen = { first.requestFocusAfterFrame() }) { content(first) }
+}
+
+/** [PanelScaffold] with its own [listState] and [onOpen] focus action (e.g. focus the active row). */
+@Composable
+fun PanelScaffold(title: String, modifier: Modifier, listState: LazyListState, onOpen: suspend () -> Unit, content: LazyListScope.() -> Unit) {
+    LaunchedEffect(title) { onOpen() }
     Column(
         modifier
+            .padding(bottom = PANEL_BOTTOM_INSET)
             .fillMaxHeight()
             .width(PanelWidth)
             .background(SurfaceCard.copy(alpha = 0.94f))
@@ -89,10 +93,11 @@ fun PanelScaffold(title: String, modifier: Modifier, content: LazyListScope.(fir
     ) {
         Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxWidth().weight(1f),
             contentPadding = PaddingValues(vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) { content(first) }
+        ) { content() }
     }
 }
 
@@ -115,67 +120,6 @@ fun OptionRow(label: String, detail: String?, selected: Boolean, onClick: () -> 
     )
 }
 
-private fun LazyListScope.subtitleItems(state: PlayerUiState, viewModel: PlayerViewModel, first: FocusRequester) {
-    item(key = "off") {
-        OptionRow("Off", null, state.selectedSubtitleId == null, { viewModel.selectSubtitle(null) }, Modifier.focusRequester(first))
-    }
-    state.subtitleOptions.forEach { option ->
-        item(key = "sub-${option.id}") {
-            OptionRow(option.label, option.source.label, option.id == state.selectedSubtitleId, { viewModel.selectSubtitle(option) })
-        }
-    }
-    item(key = "h-sdh") { SettingsSectionHeader("Options") }
-    item(key = "sdh") {
-        SettingsRow(SeaIcons.Subtitles, "Clean SDH", "Hide [sound cues] and SPEAKER: labels", RowTrailing.Toggle(state.cleanSdh), { viewModel.setCleanSdh(!state.cleanSdh) })
-    }
-    item(key = "h-style") { SettingsSectionHeader("Style (this video only)") }
-    val style = state.subtitleStyle
-    item(key = "size") {
-        SettingsRow(
-            SeaIcons.TextSize, "Font size", "${(style.fontScale * PERCENT).toInt()}%",
-            RowTrailing.Stepper(
-                onDecrease = { viewModel.updateSubtitleStyle { it.copy(fontScale = stepFontScale(it.fontScale, -1)) } },
-                onIncrease = { viewModel.updateSubtitleStyle { it.copy(fontScale = stepFontScale(it.fontScale, 1)) } },
-            ),
-            { viewModel.updateSubtitleStyle { it.copy(fontScale = stepFontScale(it.fontScale, 1)) } },
-        )
-    }
-    item(key = "bold") {
-        SettingsRow(null, "Bold", null, RowTrailing.Toggle(style.bold), { viewModel.updateSubtitleStyle { it.copy(bold = !it.bold) } })
-    }
-    item(key = "italic") {
-        SettingsRow(null, "Italic", null, RowTrailing.Toggle(style.italic), { viewModel.updateSubtitleStyle { it.copy(italic = !it.italic) } })
-    }
-    item(key = "color") {
-        val index = SUBTITLE_COLORS.indexOfFirst { it.second == style.textColor }.coerceAtLeast(0)
-        val step: (Int) -> Unit = { direction ->
-            val next = SUBTITLE_COLORS[Math.floorMod(index + direction, SUBTITLE_COLORS.size)].second
-            viewModel.updateSubtitleStyle { it.copy(textColor = next) }
-        }
-        SettingsRow(SeaIcons.Palette, "Text color", SUBTITLE_COLORS[index].first, RowTrailing.Stepper({ step(-1) }, { step(1) }), { step(1) })
-    }
-    item(key = "edge") {
-        SettingsRow(
-            null, "Edge", edgeLabel(style.edgeType),
-            RowTrailing.Stepper(
-                onDecrease = { viewModel.updateSubtitleStyle { it.copy(edgeType = stepEdge(it.edgeType, -1)) } },
-                onIncrease = { viewModel.updateSubtitleStyle { it.copy(edgeType = stepEdge(it.edgeType, 1)) } },
-            ),
-            { viewModel.updateSubtitleStyle { it.copy(edgeType = stepEdge(it.edgeType, 1)) } },
-        )
-    }
-    item(key = "background") {
-        SettingsRow(
-            null, "Background", "${(style.backgroundOpacity * PERCENT).toInt()}%",
-            RowTrailing.Stepper(
-                onDecrease = { viewModel.updateSubtitleStyle { it.copy(backgroundOpacity = stepOpacity(it.backgroundOpacity, -1)) } },
-                onIncrease = { viewModel.updateSubtitleStyle { it.copy(backgroundOpacity = stepOpacity(it.backgroundOpacity, 1)) } },
-            ),
-            { viewModel.updateSubtitleStyle { it.copy(backgroundOpacity = stepOpacity(it.backgroundOpacity, 1)) } },
-        )
-    }
-}
-
 private fun LazyListScope.audioItems(state: PlayerUiState, viewModel: PlayerViewModel, first: FocusRequester) {
     if (state.audioOptions.isEmpty()) {
         item(key = "none") { OptionRow("No audio tracks yet", null, selected = false, onClick = {}, modifier = Modifier.focusRequester(first)) }
@@ -189,16 +133,11 @@ private fun LazyListScope.audioItems(state: PlayerUiState, viewModel: PlayerView
         }
     }
     item(key = "h-dsp") { SettingsSectionHeader("Sound (this video only)") }
-    if (!state.dspAvailable) {
-        item(key = "dsp-off") {
-            Text(
-                "Turn off Audio passthrough in Settings to use Dialogue Boost, Night Mode and Audio Delay.",
-                style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary,
-                modifier = Modifier.padding(horizontal = 8.dp),
-            )
-        }
-        return
+    item(key = "passthrough") {
+        SettingsRow(
+            SeaIcons.Volume, "Audio passthrough", passthroughDetail(state), RowTrailing.Toggle(state.audio.passthrough),
+            { viewModel.updateSessionAudio { it.copy(passthrough = !it.passthrough) } },
+        )
     }
     val audio = state.audio
     item(key = "boost") {
@@ -221,5 +160,27 @@ private fun LazyListScope.audioItems(state: PlayerUiState, viewModel: PlayerView
     }
 }
 
+/** The session passthrough row's detail: while bitstreaming, the effects below don't apply yet. */
+internal fun passthroughDetail(state: PlayerUiState): String = when {
+    !state.audio.passthrough -> "Off: effects below apply"
+    state.dspAvailable -> "On: this track plays as PCM, effects apply"
+    else -> "On: sent to your receiver untouched. Turning on an effect switches this off"
+}
+
 internal val PanelWidth = 500.dp
-private const val PERCENT = 100
+
+/**
+ * Right-hand panels end above the HUD's bottom block (24 dp padding + seek row + 14 dp + 48 dp action
+ * bar ≈ 134 dp), so they never cover the action bar.
+ */
+internal val PANEL_BOTTOM_INSET = 150.dp
+
+/** The HUD's bottom block a panel must clear: vertical padding, seek row (~24 dp), spacing, action bar. */
+internal val HUD_BOTTOM_BLOCK = 24.dp + 24.dp + 14.dp + CIRCLE_SIZE + 24.dp
+
+/** Subtitle side padding; while a right-hand panel is open the cue is drawn left of it, never under it. */
+internal fun cueEndPadding(panel: PlayerPanel?): Dp =
+    if (panel == null || panel == PlayerPanel.STREAMS) CUE_SIDE_PADDING else PanelWidth + CUE_PANEL_GAP
+
+internal val CUE_SIDE_PADDING = 96.dp
+private val CUE_PANEL_GAP = 24.dp

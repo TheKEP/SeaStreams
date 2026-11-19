@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -23,6 +24,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -32,6 +35,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.seastreams.tv.player.subtitle.SubtitleOffset
+import com.seastreams.tv.player.subtitle.sync.hudCaption
 import com.seastreams.tv.ui.components.SeaIcons
 import com.seastreams.tv.ui.theme.focusPillColors
 import com.seastreams.tv.ui.theme.ignoreInitialKeyUp
@@ -90,7 +94,7 @@ fun PlayerActionBar(
     val controls = actionBarControls(state)
     // The divider separates the round transport buttons from the pills (none on the trailer HUD).
     val firstPill = controls.indexOfFirst { it !in CircleControls }
-    Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(BAR_SPACING), verticalAlignment = Alignment.CenterVertically) {
         controls.forEachIndexed { index, control ->
             if (index == firstPill) Divider()
             val edges = Modifier
@@ -126,7 +130,7 @@ private fun BarControlItem(
         )
         BarControl.NEXT_EPISODE -> CircleButton(SeaIcons.SkipNext, "Next episode", viewModel::nextEpisode, modifier)
         BarControl.SUBTITLES -> PanelPill("Subtitles", PlayerPanel.SUBTITLES, state, viewModel, panelButtons, modifier)
-        BarControl.SUBTITLE_SYNC -> SubtitleSync(state.subtitleOffsetMs, viewModel::stepSubtitleOffset, modifier)
+        BarControl.SUBTITLE_SYNC -> SubtitleSync(state.subtitleOffsetMs, state.subtitleSyncStatus.hudCaption(), viewModel::stepSubtitleOffset, modifier)
         BarControl.AUDIO -> PanelPill("Audio", PlayerPanel.AUDIO, state, viewModel, panelButtons, modifier)
         BarControl.STREAMS -> PanelPill("Streams", PlayerPanel.STREAMS, state, viewModel, panelButtons, modifier)
         BarControl.EPISODES -> PanelPill("Episodes", PlayerPanel.EPISODES, state, viewModel, panelButtons, modifier)
@@ -145,12 +149,12 @@ private fun Divider() {
 private fun CircleButton(icon: ImageVector, description: String, onClick: () -> Unit, modifier: Modifier) {
     Surface(
         onClick = onClick,
-        modifier = modifier.size(48.dp),
+        modifier = modifier.size(CIRCLE_SIZE),
         shape = ClickableSurfaceDefaults.shape(CircleShape),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
         colors = focusPillColors(containerColor = Color.Black.copy(alpha = 0.45f)),
     ) {
-        Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(CIRCLE_SIZE), contentAlignment = Alignment.Center) {
             Icon(icon, contentDescription = description, modifier = Modifier.size(26.dp))
         }
     }
@@ -177,38 +181,67 @@ private fun PanelPill(
             label,
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
+            modifier = Modifier.padding(horizontal = PILL_PADDING, vertical = 10.dp),
         )
     }
 }
 
-/** `-  0.0s  +`: `-` delays subtitles by 0.1 s, `+` shows them 0.1 s earlier (±60 s, session only). */
+/**
+ * `-  0.0s  +`: `-` delays subtitles by 0.1 s, `+` shows them 0.1 s earlier (±60 s, session only).
+ * Auto-sync's state shows as a small caption under the value (`Syncing…` while scanning, `Auto` once
+ * locked), inside the same fixed-width slot, so the bar never grows wider (or taller than its 48 dp
+ * buttons).
+ */
 @Composable
-private fun SubtitleSync(offsetMs: Long, onStep: (Int) -> Unit, modifier: Modifier) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+private fun SubtitleSync(offsetMs: Long, caption: String?, onStep: (Int) -> Unit, modifier: Modifier) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(SYNC_SPACING)) {
         SyncButton("−") { onStep(-1) }
-        Text(
-            SubtitleOffset.label(offsetMs),
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            color = Color.White,
-            modifier = Modifier.width(64.dp).padding(horizontal = 4.dp),
-            textAlign = TextAlign.Center,
-        )
+        Column(
+            Modifier.width(SYNC_LABEL_WIDTH).semantics(mergeDescendants = true) { contentDescription = listOfNotNull(SubtitleOffset.label(offsetMs), caption).joinToString(" · ") },
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                SubtitleOffset.label(offsetMs),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                maxLines = 1,
+                textAlign = TextAlign.Center,
+            )
+            if (caption != null) {
+                Text(
+                    caption,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.75f),
+                    maxLines = 1,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
         SyncButton("+", modifier) { onStep(1) }
     }
 }
+
+// Bar geometry (the 960 dp-wide width budget is checked in PlayerActionBarTest).
+internal val BAR_SPACING = 10.dp
+internal val CIRCLE_SIZE = 48.dp
+internal val PILL_PADDING = 18.dp
+internal val SYNC_BUTTON_SIZE = 40.dp
+internal val SYNC_SPACING = 6.dp
+
+/** Fits the widest value, `-60.0s`, in bold `titleSmall`; the `Syncing…`/`Auto` caption sits below it, not beside. */
+internal val SYNC_LABEL_WIDTH = 64.dp
 
 @Composable
 private fun SyncButton(symbol: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
-        modifier = modifier.size(40.dp),
+        modifier = modifier.size(SYNC_BUTTON_SIZE),
         shape = ClickableSurfaceDefaults.shape(CircleShape),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
         colors = focusPillColors(containerColor = Color.Black.copy(alpha = 0.45f)),
     ) {
-        Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(SYNC_BUTTON_SIZE), contentAlignment = Alignment.Center) {
             Text(symbol, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         }
     }

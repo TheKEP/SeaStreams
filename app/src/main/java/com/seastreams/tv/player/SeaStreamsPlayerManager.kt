@@ -1,6 +1,8 @@
 package com.seastreams.tv.player
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
@@ -8,13 +10,22 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
 import androidx.media3.common.text.CueGroup
+import androidx.media3.common.util.Util
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
+import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.seastreams.tv.core.network.withoutDiskCache
 import com.seastreams.tv.domain.model.StreamSource
 import com.seastreams.tv.domain.model.TrailerStream
 import com.seastreams.tv.player.audio.AudioDspConfig
+import com.seastreams.tv.player.audio.AudioRendererReset
+import com.seastreams.tv.player.subtitle.sync.AutoSyncSource
+import com.seastreams.tv.player.subtitle.sync.ReferenceCueCollector
+import com.seastreams.tv.player.subtitle.sync.ReferenceSnapshot
+import com.seastreams.tv.player.subtitle.sync.SpeechEnergyLog
+import com.seastreams.tv.player.subtitle.sync.hasVisibleCue
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,8 +52,9 @@ sealed interface PlayerEvent {
 
 /**
  * The built-in Media3 ExoPlayer (PRD §9): buffer profile `LoadControl`, the parallel HTTP range reader
- * for addon streams, Dolby Vision Profile 7 → HDR10, on-device audio DSP, and `MergingMediaSource`
- * (adaptive video + M4A audio) for YouTube trailers. Main thread only; [release] when the session ends.
+ * for addon streams, Dolby Vision Profile 7 → HDR10, FFmpeg audio fallback + on-device audio DSP,
+ * `MergingMediaSource` (adaptive video + M4A audio) for YouTube trailers, and the timing sources of
+ * subtitle auto-sync ([AutoSyncSource]). Main thread only; [release] when the session ends.
  *
  * Stream fallback, watch progress and auto-next are decided by the session on top of [events].
  */
@@ -50,10 +62,12 @@ class SeaStreamsPlayerManager(
     context: Context,
     okHttpClient: OkHttpClient,
     val config: PlayerEngineConfig,
-) {
+) : AutoSyncSource {
     /** Shared client without the 100 MB disk cache: video bytes must never be cached there. */
     private val client: OkHttpClient = okHttpClient.withoutDiskCache()
-    private val engine = PlayerEngineFactory.create(context.applicationContext, config)
+    override val speechLog = SpeechEnergyLog()
+    private val referenceCues = ReferenceCueCollector()
+    private val engine = PlayerEngineFactory.create(context.applicationContext, config, speechLog)
     val player get() = engine.player
     val trackSelector get() = engine.trackSelector
     val meter = ThroughputMeter()
@@ -73,6 +87,16 @@ class SeaStreamsPlayerManager(
     /** Embedded-track cue texts (external tracks are timed by the session instead). */
     private val _embeddedCues = MutableStateFlow<List<CharSequence?>>(emptyList())
     val embeddedCues: StateFlow<List<CharSequence?>> = _embeddedCues.asStateFlow()
+
+    /** Whether audio currently leaves as PCM (so the DSP applies); `false` while bitstreaming. */
+    private val _pcmOutput = MutableStateFlow(!config.passthrough)
+    val pcmOutput: StateFlow<Boolean> = _pcmOutput.asStateFlow()
+
+    private val analytics = object : AnalyticsListener {
+        override fun onAudioTrackInitialized(eventTime: AnalyticsListener.EventTime, audioTrackConfig: AudioSink.AudioTrackConfig) {
+            _pcmOutput.value = Util.isEncodingLinearPcm(audioTrackConfig.encoding)
+        }
+    }
 
     private val listener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -97,6 +121,7 @@ class SeaStreamsPlayerManager(
         }
 
         override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+            audioReset.onTracksChanged()
             _events.tryEmit(PlayerEvent.TracksChanged)
         }
 
@@ -108,11 +133,60 @@ class SeaStreamsPlayerManager(
 
         override fun onCues(cueGroup: CueGroup) {
             _embeddedCues.value = cueGroup.cues.map { it.text }
+            referenceCues.onCues(cueGroup.presentationTimeUs, hasVisibleCue(cueGroup.cues), player.currentPosition * MICROS_PER_MILLI)
         }
+
+        override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
+            if (reason == Player.DISCONTINUITY_REASON_SEEK || reason == Player.DISCONTINUITY_REASON_SEEK_ADJUSTMENT) {
+                referenceCues.onDiscontinuity()
+            }
+        }
+    }
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val audioReset = AudioRendererReset(
+        setAudioDisabled = { disabled ->
+            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, disabled).build()
+        },
+        audioSelected = { PlayerTracks.selectedAudioId(player.currentTracks) != null },
+        schedule = { delayMs, action -> mainHandler.postDelayed(action, delayMs) },
+    )
+
+    /** Whether HDMI passthrough is currently allowed (session Audio overlay; starts from General Settings). */
+    val passthroughAllowed: Boolean get() = engine.passthroughGate.allowPassthrough
+
+    /**
+     * Switches passthrough during playback: the gate changes what the sink accepts, then the audio
+     * renderer re-decides (bitstream vs. decode to PCM) without restarting the video.
+     */
+    fun setPassthrough(enabled: Boolean) {
+        if (engine.passthroughGate.allowPassthrough == enabled) return
+        engine.passthroughGate.allowPassthrough = enabled
+        if (player.currentTracks.isEmpty) return
+        audioReset.request()
     }
 
     init {
         player.addListener(listener)
+        player.addAnalyticsListener(analytics)
+    }
+
+    /**
+     * Auto-sync's reference: plays embedded text track [id] without drawing it (the overlay ignores
+     * embedded cues while an external track is active, and the HUD/Info read the session's chosen
+     * track, not ExoPlayer's). Only called while an external track is the active subtitle.
+     */
+    override fun setReferenceTrack(id: String?) {
+        if (id == null && !referenceCues.active) return
+        referenceCues.setActive(id != null)
+        PlayerTracks.selectEmbeddedText(player, id)
+    }
+
+    override fun referenceSnapshot(): ReferenceSnapshot = referenceCues.snapshot()
+
+    override fun setSpeechCollecting(on: Boolean) {
+        engine.speechTap.collecting = on
+        if (!on) speechLog.clear()
     }
 
     /** Bytes held by the read-ahead buffer (Info overlay `buffered MB`). */
@@ -146,11 +220,8 @@ class SeaStreamsPlayerManager(
     }
 
     fun setDsp(config: AudioDspConfig) {
-        engine.dsp?.config = config
+        engine.dsp.config = config
     }
-
-    /** Whether on-device DSP is available (passthrough off). */
-    val dspAvailable: Boolean get() = engine.dsp != null
 
     fun stop() {
         player.stop()
@@ -158,13 +229,16 @@ class SeaStreamsPlayerManager(
     }
 
     fun release() {
+        mainHandler.removeCallbacksAndMessages(null)
         player.removeListener(listener)
+        player.removeAnalyticsListener(analytics)
         player.release()
     }
 
     private companion object {
         const val EVENT_BUFFER = 32
         const val DEFAULT_ASPECT = 16f / 9f
+        const val MICROS_PER_MILLI = 1_000L
     }
 }
 
