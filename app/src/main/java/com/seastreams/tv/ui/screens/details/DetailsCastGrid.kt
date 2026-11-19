@@ -31,6 +31,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.seastreams.tv.domain.model.CreditPerson
 import com.seastreams.tv.ui.components.SizedImage
+import com.seastreams.tv.ui.theme.DetailsOutlineMuted
 import com.seastreams.tv.ui.theme.SurfaceCard
 import com.seastreams.tv.ui.theme.TextPrimary
 import com.seastreams.tv.ui.theme.TextSecondary
@@ -50,7 +51,7 @@ fun DetailsCastGrid(people: List<CreditPerson>, modifier: Modifier = Modifier) {
         modifier
             .clip(CardShape)
             .background(MaterialTheme.colorScheme.background.copy(alpha = CARD_TINT_ALPHA))
-            .border(1.dp, Color.White.copy(alpha = 0.10f), CardShape)
+            .border(1.dp, DetailsOutlineMuted, CardShape)
             .padding(horizontal = CardPaddingHorizontal, vertical = CardPaddingVertical),
         verticalArrangement = Arrangement.spacedBy(HeaderGap),
     ) {

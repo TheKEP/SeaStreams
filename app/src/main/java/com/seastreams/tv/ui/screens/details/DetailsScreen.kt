@@ -38,7 +38,6 @@ import com.seastreams.tv.domain.playback.ShuffleMode
 import com.seastreams.tv.ui.components.LocalFocusOrigins
 import com.seastreams.tv.ui.components.LocalLayerCovered
 import com.seastreams.tv.ui.components.LocalTransientMessages
-import com.seastreams.tv.ui.components.MediaMetadataLine
 import com.seastreams.tv.ui.components.SizedImage
 import com.seastreams.tv.ui.components.TitleArt
 import com.seastreams.tv.ui.screens.playback.PlaybackViewModel
@@ -51,7 +50,7 @@ import kotlinx.coroutines.launch
 
 /**
  * Item Details (`movie-page.jpg`, `show-page.jpg`): full-bleed backdrop with a left vignette, title
- * logo, `👍 81%  2026  Comedy  Adventure  [PG]  1h 49m`, a 5-line synopsis and the action stack on the
+ * logo, the [DetailsMetadataBadges] pill row (`[TMDB|81%] [2026] [PG] [1h 49m] [Comedy] [Adventure]`), a 5-line synopsis and the action stack on the
  * left, and the non-focusable Director + Cast card ([DetailsCastGrid]) vertically centred on the right. Focus starts on `Play`; `Back` is handled by the shell, which returns focus to the card
  * that opened this screen.
  *
@@ -143,7 +142,7 @@ fun DetailsScreen(
             verticalArrangement = Arrangement.spacedBy(ColumnSpacing),
         ) {
             TitleArt(media, logoSize = LogoSize, textStyle = MaterialTheme.typography.displaySmall)
-            MediaMetadataLine(media, showCertification = true, maxGenres = MAX_GENRES)
+            DetailsMetadataBadges(media)
             DetailsBody(state, media)
             // Laid out and focusable from frame 1 (focus leaves the covered page at once), but drawn only
             // once Play/Resume is final, so the first visible frame already reads `Resume S1:E5`.
@@ -178,7 +177,6 @@ private fun DetailsBody(state: DetailsUiState, media: MediaItem) {
 
 private val BackdropSize = DpSize(960.dp, 540.dp)
 private val LogoSize = DpSize(340.dp, 80.dp)
-private const val MAX_GENRES = 2
 private const val SYNOPSIS_LINES = 5
 private val LeftColumnWidth = 560.dp
 private val ColumnSpacing = 8.dp
