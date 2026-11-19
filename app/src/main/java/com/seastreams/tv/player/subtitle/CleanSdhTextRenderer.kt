@@ -35,6 +35,9 @@ class ExternalSubtitleTimeline(cues: List<TimedCue>) {
 
     val isEmpty: Boolean get() = sorted.isEmpty()
 
+    /** Every cue in start order (auto-sync rasterises them). */
+    val cues: List<TimedCue> get() = sorted
+
     /** Texts of every cue showing at [positionUs], in start order. */
     fun textsAt(positionUs: Long): List<String> {
         if (sorted.isEmpty()) return emptyList()
@@ -64,13 +67,19 @@ class ExternalSubtitleTimeline(cues: List<TimedCue>) {
     }
 }
 
-/** External subtitle sync offset (PRD §9): `0.1s` steps within `±60.0s`, session-only. */
+/**
+ * External subtitle sync offset (PRD §9): `0.1s` steps within `±60.0s`, session-only. Applied as a
+ * shift of every cue's start/end (in µs) before [CleanSdhTextRenderer] sees the text; auto-sync seeds it.
+ */
 object SubtitleOffset {
     const val STEP_MS = 100L
     const val LIMIT_MS = 60_000L
 
     fun step(currentMs: Long, direction: Int): Long =
-        (currentMs + direction.coerceIn(-1, 1) * STEP_MS).coerceIn(-LIMIT_MS, LIMIT_MS)
+        clamp(currentMs + direction.coerceIn(-1, 1) * STEP_MS)
+
+    /** Snaps [offsetMs] to the `0.1s` grid within `±60.0s` (auto-detected values go through this too). */
+    fun clamp(offsetMs: Long): Long = (Math.round(offsetMs / STEP_MS.toDouble()) * STEP_MS).coerceIn(-LIMIT_MS, LIMIT_MS)
 
     /** `+1.5s`, `-0.3s`, `0.0s`. */
     fun label(offsetMs: Long): String {

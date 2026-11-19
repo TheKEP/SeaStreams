@@ -136,7 +136,7 @@ fun settingsItems(
         add(
             entry(
                 "passthrough", SeaIcons.Volume, "Audio passthrough",
-                if (a.passthroughEnabled) "On: audio goes to your receiver untouched" else "Off: Dialogue Boost, Night Mode and Audio Delay apply",
+                if (a.passthroughEnabled) "On: Dolby/DTS go to your receiver untouched. Turning on an effect below switches this off" else "Off: Dialogue Boost, Night Mode and Audio Delay apply",
                 RowTrailing.Toggle(a.passthroughEnabled),
             ) { vm.updateAudio { it.copy(passthroughEnabled = !it.passthroughEnabled) } },
         )
@@ -164,6 +164,7 @@ fun settingsItems(
         add(toggle("subs-hide", SeaIcons.HiddenEye, "Hide non-preferred languages", sub.hideNonPreferredLanguages) { vm.updateSubtitles { it.copy(hideNonPreferredLanguages = !it.hideNonPreferredLanguages) } })
         add(toggle("subs-sdh", SeaIcons.Subtitles, "Clean SDH", sub.cleanSdh) { vm.updateSubtitles { it.copy(cleanSdh = !it.cleanSdh) } })
         add(entry("subs-style", SeaIcons.TextSize, "Subtitle styling", styleSummary(sub.style.fontScale, sub.style.edgeType), RowTrailing.Chevron) { cb.open(SettingsPanel.SubtitleStyle) })
+        add(toggle("subs-autosync", SeaIcons.Subtitles, "Auto-sync external subtitles", sub.autoSyncExternal) { vm.updateSubtitles { it.copy(autoSyncExternal = !it.autoSyncExternal) } })
 
         add(SettingsItem.Header("h-library", "Library"))
         if (clearSecondsLeft != null) {

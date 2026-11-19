@@ -91,8 +91,38 @@ data class PlayerSettings(
     }
 }
 
+/**
+ * PRD §9: whether this change turns an audio effect **on** — Dialogue Boost to a level other than Off,
+ * Night Mode off → on, or Audio Delay to a new non-zero value. Keeping an effect on, turning one off or
+ * resetting the delay to 0 doesn't count.
+ */
+fun engagesDsp(
+    boostBefore: DialogueBoost,
+    boostAfter: DialogueBoost,
+    nightBefore: Boolean,
+    nightAfter: Boolean,
+    delayBeforeMs: Int,
+    delayAfterMs: Int,
+): Boolean =
+    (boostAfter != boostBefore && boostAfter != DialogueBoost.OFF) ||
+        (nightAfter && !nightBefore) ||
+        (delayAfterMs != delayBeforeMs && delayAfterMs != 0)
+
+/**
+ * Turning an effect on switches passthrough off so it takes effect at once (effects need PCM). Only the
+ * change that engages an effect does this, so passthrough can be switched back on afterwards and stays on.
+ */
+fun AudioSettings.withPassthroughAutoOff(previous: AudioSettings): AudioSettings {
+    val delay = SettingsDataStore.snapAudioDelay(audioDelayMs)
+    val engaged = engagesDsp(previous.dialogueBoost, dialogueBoost, previous.nightMode, nightMode, previous.audioDelayMs, delay)
+    return if (passthroughEnabled && engaged) copy(passthroughEnabled = false) else this
+}
+
 data class AudioSettings(
-    /** When true, audio is bitstreamed over HDMI and on-device DSP is bypassed. */
+    /**
+     * When true, codecs the receiver supports are bitstreamed over HDMI untouched. Turning an effect on
+     * switches it off ([withPassthroughAutoOff]).
+     */
     val passthroughEnabled: Boolean = true,
     val dialogueBoost: DialogueBoost = DialogueBoost.OFF,
     val nightMode: Boolean = false,
@@ -128,6 +158,8 @@ data class SubtitleSettings(
     val hideNonPreferredLanguages: Boolean = false,
     val cleanSdh: Boolean = false,
     val style: SubtitleStyle = SubtitleStyle(),
+    /** Detect and apply the sync offset of external (addon) subtitles during playback (PRD §9). */
+    val autoSyncExternal: Boolean = true,
 )
 
 /** Per-profile look (PRD §1, §10). */

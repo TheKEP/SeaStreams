@@ -8,9 +8,36 @@ import com.seastreams.tv.domain.playback.TrackOrdering
 import com.seastreams.tv.player.subtitle.CleanSdhTextRenderer
 import com.seastreams.tv.player.subtitle.ExternalSubtitleLoader
 import com.seastreams.tv.player.subtitle.ExternalSubtitleTimeline
+import com.seastreams.tv.player.subtitle.sync.ReferenceTrackPicker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+
+/**
+ * The subtitle choice made for the playing title ([OFF] for an explicit Off), re-applied when another
+ * stream of the same title loads (fallback, stream switch): embedded track ids differ per stream, so a
+ * choice is matched by source and language, preferring the same label.
+ */
+data class SubtitleChoice(val source: SubtitleSource?, val language: String?, val label: String?) {
+
+    val isOff: Boolean get() = source == null
+
+    /** The option on the new stream matching this choice, or `null` (none, or this is [OFF]). */
+    fun match(options: List<SubtitleOption>): SubtitleOption? {
+        if (isOff) return null
+        options.firstOrNull { it.source == source && it.label == label && sameLanguage(it) }?.let { return it }
+        return options.firstOrNull { it.source == source && sameLanguage(it) }
+    }
+
+    private fun sameLanguage(option: SubtitleOption): Boolean =
+        ReferenceTrackPicker.normalize(option.language) == ReferenceTrackPicker.normalize(language)
+
+    companion object {
+        val OFF = SubtitleChoice(null, null, null)
+
+        fun of(option: SubtitleOption?): SubtitleChoice = option?.let { SubtitleChoice(it.source, it.language, it.label) } ?: OFF
+    }
+}
 
 /**
  * The subtitle half of a player session: the merged embedded + addon track list (preferred language
@@ -21,6 +48,9 @@ class PlayerSubtitles(private val scope: CoroutineScope, private val loader: sus
 
     val renderer = CleanSdhTextRenderer()
     private var timeline: ExternalSubtitleTimeline? = null
+
+    /** The parsed file of the active addon track, once loaded. */
+    val activeTimeline: ExternalSubtitleTimeline? get() = timeline
     private var loadJob: Job? = null
     private var external: List<SubtitleOption> = emptyList()
 
@@ -43,15 +73,20 @@ class PlayerSubtitles(private val scope: CoroutineScope, private val loader: sus
 
     /**
      * Switches the addon timeline: loads [option]'s file when it is external, or drops the timeline.
-     * [onFailed] runs when the file can't be downloaded or parsed.
+     * [onFailed] runs when the file can't be downloaded or parsed, [onLoaded] once it is ready.
      */
-    fun activate(option: SubtitleOption?, onFailed: () -> Unit) {
+    fun activate(option: SubtitleOption?, onLoaded: (ExternalSubtitleTimeline) -> Unit = {}, onFailed: () -> Unit) {
         loadJob?.cancel()
         timeline = null
         if (option?.source != SubtitleSource.EXTERNAL) return
         loadJob = scope.launch {
             val loaded = orNullUnlessCancelled { loader().load(option.id) }
-            if (loaded == null) onFailed() else timeline = loaded
+            if (loaded == null) {
+                onFailed()
+            } else {
+                timeline = loaded
+                onLoaded(loaded)
+            }
         }
     }
 

@@ -75,6 +75,7 @@ internal object ProfileSettingsKeys {
     val SUBTITLE_TEXT_COLOR = ScopedKey("subs_text_color", ::intPreferencesKey)
     val SUBTITLE_EDGE_TYPE = ScopedKey("subs_edge_type", ::stringPreferencesKey)
     val SUBTITLE_BACKGROUND_OPACITY = ScopedKey("subs_background_opacity", ::floatPreferencesKey)
+    val AUTO_SYNC_SUBTITLES = ScopedKey("subs_auto_sync", ::booleanPreferencesKey)
 
     val ALL: List<ScopedKey<*>> = listOf(
         EXTERNAL_PLAYER, AUTO_PLAY_TOP_STREAM, PREFERRED_AUTOPLAY_ADDON, FALLBACK_TIMEOUT_SECONDS,
@@ -84,6 +85,7 @@ internal object ProfileSettingsKeys {
         PASSTHROUGH_ENABLED, DIALOGUE_BOOST, NIGHT_MODE, AUDIO_DELAY_MS, PREFERRED_AUDIO_LANGUAGE,
         SUBTITLE_MODE, SUBTITLE_LANGUAGE, HIDE_NON_PREFERRED_SUBTITLES, CLEAN_SDH, SUBTITLE_FONT_SCALE,
         SUBTITLE_BOLD, SUBTITLE_ITALIC, SUBTITLE_TEXT_COLOR, SUBTITLE_EDGE_TYPE, SUBTITLE_BACKGROUND_OPACITY,
+        AUTO_SYNC_SUBTITLES,
     )
 }
 
@@ -156,6 +158,7 @@ internal class ProfileSettingsReader(private val prefs: Preferences, private val
                 edgeType = enumOrDefault(get(SUBTITLE_EDGE_TYPE), defaultStyle.edgeType),
                 backgroundOpacity = get(SUBTITLE_BACKGROUND_OPACITY) ?: defaultStyle.backgroundOpacity,
             ),
+            autoSyncExternal = get(AUTO_SYNC_SUBTITLES) ?: defaults.autoSyncExternal,
         )
     }
 
@@ -208,5 +211,6 @@ internal class ProfileSettingsWriter(private val prefs: MutablePreferences, priv
         set(SUBTITLE_TEXT_COLOR, style.textColor)
         set(SUBTITLE_EDGE_TYPE, style.edgeType.name)
         set(SUBTITLE_BACKGROUND_OPACITY, style.backgroundOpacity.coerceIn(0f, 1f))
+        set(AUTO_SYNC_SUBTITLES, updated.autoSyncExternal)
     }
 }
