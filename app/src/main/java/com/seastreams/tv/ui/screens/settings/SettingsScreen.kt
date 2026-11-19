@@ -30,7 +30,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Icon
@@ -40,10 +39,11 @@ import com.seastreams.tv.core.util.MILLIS_PER_SECOND
 import com.seastreams.tv.ui.components.LocalTransientMessages
 import com.seastreams.tv.ui.screens.playback.RESTORE_FRAMES
 import com.seastreams.tv.ui.theme.AppearanceViewModel
-import com.seastreams.tv.ui.theme.onDpadEdgeWrap
+import com.seastreams.tv.ui.theme.rememberListEdgeWrap
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
 import com.seastreams.tv.ui.theme.retryEachFrame
 import com.seastreams.tv.ui.theme.tryRequestFocus
+import com.seastreams.tv.ui.theme.verticalListEdgeWrap
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -56,6 +56,7 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(profileId: Long, viewModel: SettingsViewModel, appearance: AppearanceViewModel) {
     val state by viewModel.state.collectAsState()
     val savedBackground by appearance.saved.collectAsState()
+    val cacheBytes by viewModel.cacheBytes.collectAsState()
     val messages = LocalTransientMessages.current
     val scope = rememberCoroutineScope()
     var panel by remember { mutableStateOf<SettingsPanel>(SettingsPanel.Main) }
@@ -66,7 +67,10 @@ fun SettingsScreen(profileId: Long, viewModel: SettingsViewModel, appearance: Ap
     val requesterFor: (String) -> FocusRequester = { key -> rowRequesters.getOrPut(key) { FocusRequester() } }
     val focusRow: (String) -> Unit = { key -> scope.launch { retryEachFrame(RESTORE_FRAMES) { requesterFor(key).tryRequestFocus() } } }
 
-    LaunchedEffect(viewModel) { viewModel.refreshPlayers() }
+    LaunchedEffect(viewModel) {
+        viewModel.refreshPlayers()
+        viewModel.refreshCacheSize()
+    }
     LaunchedEffect(viewModel) { viewModel.messages.collect { messages?.show(it) } }
     LaunchedEffect(Unit) { requesterFor(FIRST_ROW_KEY).requestFocusAfterFrame() }
     // Leaving a panel: land on the row that opened it.
@@ -108,6 +112,7 @@ fun SettingsScreen(profileId: Long, viewModel: SettingsViewModel, appearance: Ap
                         state = state,
                         swatchesOpen = swatchesOpen,
                         clearSecondsLeft = clearSecondsLeft,
+                        cacheBytes = cacheBytes,
                         cb = SettingsCallbacks(
                             open = { next -> openPanel(keyFor(next), next) },
                             toggleSwatches = { swatchesOpen = !swatchesOpen },
@@ -115,6 +120,7 @@ fun SettingsScreen(profileId: Long, viewModel: SettingsViewModel, appearance: Ap
                             vm = viewModel,
                             clearLibrary = { viewModel.clearLibrary(profileId) },
                             undoClear = viewModel::undoClearLibrary,
+                            clearCache = viewModel::clearCache,
                         ),
                     ),
                     listState = listState,
@@ -160,14 +166,13 @@ private fun MainList(
     requesterFor: (String) -> FocusRequester,
     swatches: @Composable () -> Unit,
 ) {
-    val scope = rememberCoroutineScope()
-    val lastEntry = items.indexOfLast { it is SettingsItem.Entry }
-    val wrapToTop: () -> Unit = {
-        scope.launch {
-            listState.scrollToItem(0)
-            requesterFor(FIRST_ROW_KEY).requestFocusAfterFrame()
-        }
-    }
+    // Two-way §1 wrap between the first and last focusable rows; headers are skipped. Wrapping up
+    // scrolls to item 0 so the `ADDONS & PORTAL` header shows above the first row.
+    val ordinals = remember(items) { settingsEntryOrdinals(items) }
+    val lastOrdinal = ordinals.maxOrNull() ?: -1
+    val firstKey = items.firstOrNull { it is SettingsItem.Entry }?.key ?: FIRST_ROW_KEY
+    val lastKey = items.lastOrNull { it is SettingsItem.Entry }?.key ?: FIRST_ROW_KEY
+    val wrap = rememberListEdgeWrap(listState, requesterFor(firstKey), requesterFor(lastKey), items.lastIndex)
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
@@ -186,7 +191,7 @@ private fun MainList(
                     onClick = item.onClick,
                     modifier = Modifier
                         .focusRequester(requesterFor(item.key))
-                        .then(if (index == lastEntry) Modifier.onDpadEdgeWrap(Key.DirectionDown, wrapToTop) else Modifier),
+                        .verticalListEdgeWrap(ordinals[index], lastOrdinal, wrap.toFirst, wrap.toLast),
                 )
             }
         }
