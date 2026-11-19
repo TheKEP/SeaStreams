@@ -54,8 +54,16 @@ interface LibraryDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(item: LibraryItemEntity): Long
 
+    /**
+     * Batch insert for the MDBList import: a title already saved for the profile is skipped (`-1`),
+     * never overwritten, so its original `addedAtMillis` and metadata stay intact.
+     */
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(items: List<LibraryItemEntity>): List<Long>
+
+    /** TMDB ids of the profile's saved titles of [mediaType]; the MDBList import skips these up front. */
+    @Query("SELECT tmdbId FROM library_items WHERE profileId = :profileId AND mediaType = :mediaType")
+    suspend fun tmdbIds(profileId: Long, mediaType: MediaType): List<Int>
 
     @Query(
         "DELETE FROM library_items WHERE profileId = :profileId AND tmdbId = :tmdbId AND mediaType = :mediaType",
