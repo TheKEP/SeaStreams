@@ -10,7 +10,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -32,9 +31,9 @@ import com.seastreams.tv.ui.components.TvDropdown
 import com.seastreams.tv.ui.theme.OutlineDim
 import com.seastreams.tv.ui.theme.TextPrimary
 import com.seastreams.tv.ui.theme.focusPillColors
-import com.seastreams.tv.ui.theme.onDpadEdgeWrap
-import com.seastreams.tv.ui.theme.requestFocusAfterFrame
-import kotlinx.coroutines.launch
+import com.seastreams.tv.ui.theme.rememberListEdgeWrap
+import com.seastreams.tv.ui.theme.verticalEdgeKeys
+import com.seastreams.tv.ui.theme.verticalListEdgeWrap
 
 /** Top controls: the persisted Sort selector and the Genre filter. */
 @Composable
@@ -69,7 +68,8 @@ fun LibrarySortAndGenre(
 /**
  * Vertical `#`, `A`–`Z` quick-jump strip on the right edge. Focusing a letter scrolls the grid to its
  * first title; OK moves focus onto that title. Letters with no titles are dimmed and do nothing.
- * Holding `Down` stops on `Z`; a fresh `Down` there wraps to `#`.
+ * Two-way §1 edge-stop-then-wrap: a fresh `Up` on `#` scrolls to and focuses `Z`, a fresh `Down` on
+ * `Z` scrolls back to `#`; holding `Up`/`Down` stops on the edge letter and never leaves the bar.
  */
 @Composable
 fun LetterBar(
@@ -79,9 +79,10 @@ fun LetterBar(
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
-    val scope = rememberCoroutineScope()
     val first = remember { FocusRequester() }
+    val last = remember { FocusRequester() }
     val letters = LibraryQuery.LETTERS
+    val wrap = rememberListEdgeWrap(listState, first, last, letters.lastIndex)
     LazyColumn(
         state = listState,
         modifier = modifier.focusRestorer(first),
@@ -98,18 +99,8 @@ fun LetterBar(
                     .size(LETTER_WIDTH, LETTER_HEIGHT)
                     .onFocusChanged { if (it.isFocused) target?.let(onPreview) }
                     .then(if (i == 0) Modifier.focusRequester(first) else Modifier)
-                    .then(
-                        if (i == letters.lastIndex) {
-                            Modifier.onDpadEdgeWrap(Key.DirectionDown) {
-                                scope.launch {
-                                    listState.scrollToItem(0)
-                                    first.requestFocusAfterFrame()
-                                }
-                            }
-                        } else {
-                            Modifier
-                        },
-                    ),
+                    .then(if (i == letters.lastIndex) Modifier.focusRequester(last) else Modifier)
+                    .verticalListEdgeWrap(i, letters.lastIndex, wrap.toFirst, wrap.toLast),
                 shape = ClickableSurfaceDefaults.shape(shape),
                 scale = ClickableSurfaceDefaults.scale(focusedScale = 1.15f),
                 colors = focusPillColors(contentColor = if (target != null) TextPrimary else OutlineDim),
@@ -124,6 +115,13 @@ fun LetterBar(
         }
     }
 }
+
+/**
+ * The edge keys letter [index] of the quick-jump bar ([letters], top to bottom) owns: `Up` on the
+ * top-most letter (`#`), `Down` on the bottom-most (`Z`), both when the bar has a single letter.
+ */
+internal fun letterBarEdgeKeys(index: Int, letters: List<Char> = LibraryQuery.LETTERS): Set<Key> =
+    verticalEdgeKeys(index, letters.lastIndex)
 
 private const val ALL_GENRES = "All Genres"
 val LETTER_WIDTH = 30.dp

@@ -33,7 +33,6 @@ import com.seastreams.tv.ui.components.RowGutter
 import com.seastreams.tv.ui.components.TabScaffold
 import com.seastreams.tv.ui.theme.TextSecondary
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
-import kotlinx.coroutines.launch
 
 /**
  * Library (PRD §7): hover-activated `All` / `Movies` / `TV Shows` filter on the left, Sort (saved
@@ -86,6 +85,10 @@ private fun LibraryBody(
     val jumpTarget = remember { FocusRequester() }
     var jumpIndex by remember { mutableIntStateOf(-1) }
     val hasEntries = state.entries.isNotEmpty()
+    val posters = remember(state.entries) { state.entries.map { it.media } }
+    // One cancellable grid scroll: letter focus is debounced, OK jumps at once (PRD §7).
+    val letterJumps = remember(gridState) { LetterJumpScheduler(scope) { gridState.scrollToItem(it) } }
+    LaunchedEffect(state.entries) { letterJumps.cancel() }
 
     Row(modifier) {
         Column(Modifier.weight(1f).padding(start = 20.dp)) {
@@ -100,7 +103,7 @@ private fun LibraryBody(
             when {
                 state.isLoading -> Unit
                 hasEntries -> PosterGrid(
-                    items = state.entries.map { it.media },
+                    items = posters,
                     onItemClick = onOpenDetails,
                     state = gridState,
                     contentPadding = PaddingValues(top = 4.dp, end = 12.dp, bottom = 48.dp),
@@ -114,13 +117,10 @@ private fun LibraryBody(
         if (hasEntries) {
             LetterBar(
                 letterIndex = state.letterIndex,
-                onPreview = { index -> scope.launch { gridState.scrollToItem(index) } },
+                onPreview = letterJumps::preview,
                 onJump = { index ->
                     jumpIndex = index
-                    scope.launch {
-                        gridState.scrollToItem(index)
-                        jumpTarget.requestFocusAfterFrame()
-                    }
+                    letterJumps.jump(index) { jumpTarget.requestFocusAfterFrame() }
                 },
                 modifier = Modifier.padding(end = 12.dp).width(LETTER_WIDTH).fillMaxHeight(),
             )

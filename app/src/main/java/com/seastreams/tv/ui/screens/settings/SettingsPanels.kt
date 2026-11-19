@@ -9,7 +9,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -24,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ClickableSurfaceDefaults
@@ -37,7 +41,10 @@ import com.seastreams.tv.data.addon.BuiltInAddons
 import com.seastreams.tv.ui.components.QrCode
 import com.seastreams.tv.ui.components.SeaIcons
 import com.seastreams.tv.ui.theme.TextSecondary
+import com.seastreams.tv.ui.theme.rememberListEdgeWrap
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
+import com.seastreams.tv.ui.theme.verticalEdgeKeys
+import com.seastreams.tv.ui.theme.verticalListEdgeWrap
 
 /** Radio-style list; picking an option saves it and returns to the main list via [onDone]. */
 @Composable
@@ -64,7 +71,13 @@ fun ChoicePanel(spec: ChoiceSpec, onDone: () -> Unit) {
     }
 }
 
-/** Enable/disable, reorder and remove installed Stremio addons. New ones are added from the Web Portal. */
+/**
+ * Enable/disable, reorder and remove installed Stremio addons. New ones are added from the Web Portal.
+ *
+ * Two-way §1 edge-stop-then-wrap between the first addon row and the closing `Install more addons`
+ * row: every control of the first row (toggle, move up/down, remove) owns `Up` and wraps to
+ * `Install more addons`; a fresh `Down` there wraps to the first row's toggle. Held keys stop.
+ */
 @Composable
 fun AddonsPanel(
     addons: List<AddonEntity>,
@@ -73,11 +86,16 @@ fun AddonsPanel(
     onRemove: (AddonEntity) -> Unit,
     onOpenPortal: () -> Unit,
 ) {
+    val listState = rememberLazyListState()
     val first = remember { FocusRequester() }
+    val last = remember { FocusRequester() }
+    val lastIndex = addonsPanelLastIndex(addons.size)
+    val wrap = rememberListEdgeWrap(listState, first, last, lastIndex)
     LaunchedEffect(Unit) { first.requestFocusAfterFrame() }
-    PanelColumn("Manage addons") {
+    PanelColumn("Manage addons", listState) {
         itemsIndexed(addons, key = { _, addon -> addon.manifestUrl }) { index, addon ->
             val builtIn = BuiltInAddons.isProtected(addon.manifestUrl)
+            val edge = Modifier.verticalListEdgeWrap(index, lastIndex, wrap.toFirst, wrap.toLast)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 SettingsRow(
                     icon = SeaIcons.Addons,
@@ -85,11 +103,14 @@ fun AddonsPanel(
                     value = if (builtIn) "Built-in" else if (addon.enabled) "Enabled" else "Disabled",
                     trailing = RowTrailing.Toggle(addon.enabled),
                     onClick = { onToggle(addon) },
-                    modifier = Modifier.weight(1f).then(if (index == 0) Modifier.focusRequester(first) else Modifier),
+                    modifier = Modifier
+                        .weight(1f)
+                        .then(if (index == 0) Modifier.focusRequester(first) else Modifier)
+                        .then(edge),
                 )
-                RoundIconButton(Icons.Filled.KeyboardArrowUp, "Move up") { onMove(addon, -1) }
-                RoundIconButton(Icons.Filled.KeyboardArrowDown, "Move down") { onMove(addon, 1) }
-                if (!builtIn) RoundIconButton(Icons.Filled.Close, "Remove") { onRemove(addon) }
+                RoundIconButton(Icons.Filled.KeyboardArrowUp, "Move up", edge) { onMove(addon, -1) }
+                RoundIconButton(Icons.Filled.KeyboardArrowDown, "Move down", edge) { onMove(addon, 1) }
+                if (!builtIn) RoundIconButton(Icons.Filled.Close, "Remove", edge) { onRemove(addon) }
             }
         }
         item(key = "portal-hint") {
@@ -99,10 +120,22 @@ fun AddonsPanel(
                 value = "Paste an addon manifest URL in the Web Portal",
                 trailing = RowTrailing.Chevron,
                 onClick = onOpenPortal,
+                modifier = Modifier
+                    .focusRequester(last)
+                    // With no addons this is the only row, so it is also the first (initial focus + wraps).
+                    .then(if (addons.isEmpty()) Modifier.focusRequester(first) else Modifier)
+                    .verticalListEdgeWrap(lastIndex, lastIndex, wrap.toFirst, wrap.toLast),
             )
         }
     }
 }
+
+/** Lazy index of the closing `Install more addons` row, the last item of the Manage addons list. */
+internal fun addonsPanelLastIndex(addonCount: Int): Int = addonCount
+
+/** The edge keys Manage addons list item [index] owns (addon rows `0 until addonCount`, then the portal row). */
+internal fun addonsPanelEdgeKeys(index: Int, addonCount: Int): Set<Key> =
+    verticalEdgeKeys(index, addonsPanelLastIndex(addonCount))
 
 /** QR code + LAN URL of the Web Portal (PRD §8). */
 @Composable
@@ -136,10 +169,10 @@ fun PortalPanel(link: PortalLink?, onDone: () -> Unit) {
 }
 
 @Composable
-private fun RoundIconButton(icon: ImageVector, description: String, onClick: () -> Unit) {
+private fun RoundIconButton(icon: ImageVector, description: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
-        modifier = Modifier.size(46.dp),
+        modifier = modifier.size(46.dp),
         shape = ClickableSurfaceDefaults.shape(CircleShape),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
         colors = settingsRowColors(),
@@ -149,7 +182,11 @@ private fun RoundIconButton(icon: ImageVector, description: String, onClick: () 
 }
 
 @Composable
-private fun PanelColumn(title: String, content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
+private fun PanelColumn(
+    title: String,
+    listState: LazyListState = rememberLazyListState(),
+    content: LazyListScope.() -> Unit,
+) {
     Column(Modifier.fillMaxSize()) {
         Text(
             title,
@@ -158,6 +195,7 @@ private fun PanelColumn(title: String, content: androidx.compose.foundation.lazy
             modifier = Modifier.padding(top = 40.dp, bottom = 12.dp, start = 8.dp),
         )
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxWidth().weight(1f),
             contentPadding = PaddingValues(bottom = 40.dp, top = 4.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
