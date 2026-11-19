@@ -54,6 +54,15 @@ class PlaybackProgressRecorder @Inject constructor(
     }
 
     /**
+     * Details `Clear progress` (PRD §6): forgets [ref]'s movie record (season/episode `0`) for
+     * [profileId], like Continue Watching `Clear progress`. The LAST USED stream is kept. No-op for shows.
+     */
+    suspend fun clearMovieProgress(profileId: Long, ref: MediaRef) {
+        if (ref.mediaType != MediaType.MOVIE) return
+        watchProgressDao.clearItemProgress(profileId, ref.tmdbId, ref.mediaType, 0, 0)
+    }
+
+    /**
      * Saves [outcome]. A [ProgressSource.PRESERVED] outcome writes nothing, so a player that returned no
      * usable extras never wipes or corrupts what was saved before. Any write un-dismisses the item, so a
      * movie/episode removed from Continue Watching returns once it is played again.

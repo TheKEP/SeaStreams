@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.Composable
@@ -39,16 +40,26 @@ import com.seastreams.tv.ui.theme.rememberSelectLongPress
 import com.seastreams.tv.ui.theme.selectLongPress
 import kotlinx.coroutines.launch
 
-/** One entry of the Details action stack. [onLongClick] is only set on `Play` (PRD §6). */
+const val CLEAR_PROGRESS_LABEL = "Clear progress"
+
+/**
+ * One entry of the Details action stack. [onLongClick] is only set on `Play` (PRD §6). An action with
+ * [focusFirstOnClick] removes its own button, so the stack moves focus to the first button (`Play`)
+ * before running [onClick], while the clicked node still exists.
+ */
 data class DetailsAction(
     val key: String,
     val label: String,
     val icon: ImageVector,
     val onClick: () -> Unit,
     val onLongClick: (() -> Unit)? = null,
+    val focusFirstOnClick: Boolean = false,
 )
 
-/** Builds the stack for [state]: `Play`, `Trailer`, show-only `More episodes` + `Shuffle`, then the library toggle. */
+/**
+ * Builds the stack for [state]: `Play`, `Trailer`, show-only `More episodes` + `Shuffle`, the library
+ * toggle, then — movies in the `Resume` state only — `Clear progress` as the bottom-most button.
+ */
 fun detailsActions(
     state: DetailsUiState,
     onPlay: (forcePicker: Boolean) -> Unit,
@@ -56,6 +67,7 @@ fun detailsActions(
     onMoreEpisodes: () -> Unit,
     onShuffle: () -> Unit,
     onToggleLibrary: () -> Unit,
+    onClearProgress: () -> Unit,
     onRetry: () -> Unit,
     onBack: () -> Unit,
 ): List<DetailsAction> = when (state.content) {
@@ -79,6 +91,9 @@ fun detailsActions(
                 onClick = onToggleLibrary,
             ),
         )
+        if (state.canClearProgress) {
+            add(DetailsAction("clear", CLEAR_PROGRESS_LABEL, Icons.Filled.Close, onClearProgress, focusFirstOnClick = true))
+        }
     }
 }
 
@@ -87,11 +102,15 @@ fun detailsActions(
  * focused. Every button records itself as the focus origin when pressed, so closing what it opened
  * (stream list, Episodes) lands back on it. Edge-stop-then-wrap both ways (PRD §6): a fresh `Down`
  * on the last button wraps to the first, a fresh `Up` on the first wraps to the last; held keys stop.
+ * The last button is `Clear progress` while it is shown, otherwise the library toggle. Buttons are
+ * keyed and never animated: `Resume` → `Play` only swaps the label, and dropping the bottom button
+ * moves nothing above it.
  */
 @Composable
 fun DetailsActionStack(actions: List<DetailsAction>, firstButton: FocusRequester, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
     val lastButton = remember { FocusRequester() }
+    val focusFirst: () -> Unit = remember(firstButton) { { firstButton.requestFocus() } }
     Column(modifier.width(StackWidth), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         actions.forEachIndexed { index, action ->
             key(action.key) {
@@ -99,6 +118,7 @@ fun DetailsActionStack(actions: List<DetailsAction>, firstButton: FocusRequester
                 DetailsActionButton(
                     action = action,
                     origin = origin,
+                    focusFirst = focusFirst,
                     modifier = Modifier
                         .then(
                             if (index == 0) {
@@ -125,7 +145,7 @@ fun DetailsActionStack(actions: List<DetailsAction>, firstButton: FocusRequester
 }
 
 @Composable
-private fun DetailsActionButton(action: DetailsAction, origin: FocusOrigin, modifier: Modifier) {
+private fun DetailsActionButton(action: DetailsAction, origin: FocusOrigin, focusFirst: () -> Unit, modifier: Modifier) {
     // Not the Surface's own onLongClick: its flag outlives the stream list taking focus and would
     // swallow the first click back on `Play` (PRD §6).
     val longPress = rememberSelectLongPress()
@@ -138,7 +158,8 @@ private fun DetailsActionButton(action: DetailsAction, origin: FocusOrigin, modi
     Surface(
         onClick = {
             if (!longPress.consumeClick()) {
-                origin.mark()
+                // Fires on the select KeyUp, so `Play` gaining focus here never sees a phantom click.
+                if (action.focusFirstOnClick) focusFirst() else origin.mark()
                 action.onClick()
             }
         },
