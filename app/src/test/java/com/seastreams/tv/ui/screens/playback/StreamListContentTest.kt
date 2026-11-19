@@ -23,5 +23,19 @@ class StreamListContentTest {
         assertEquals(StreamListContent.RESULTS, streamListContent(loading = false, streams = listOf(stream(1), stream(2))))
     }
 
+    @Test
+    fun `initial focus goes to the LAST USED stream when it is listed`() {
+        assertEquals(2, initialStreamIndex(lastUsedIndex = 2, count = 3))
+        assertEquals(0, initialStreamIndex(lastUsedIndex = 0, count = 3))
+    }
+
+    @Test
+    fun `initial focus falls back to the first stream without a listed LAST USED`() {
+        assertEquals(0, initialStreamIndex(lastUsedIndex = null, count = 3))
+        assertEquals(0, initialStreamIndex(lastUsedIndex = 3, count = 3))
+        assertEquals(0, initialStreamIndex(lastUsedIndex = -1, count = 3))
+        assertEquals(0, initialStreamIndex(lastUsedIndex = 0, count = 0))
+    }
+
     private fun stream(n: Int) = StreamSource("https://addon", "Addon", "https://s/$n", "Stream $n", "", emptyMap())
 }

@@ -6,7 +6,8 @@ import com.seastreams.tv.domain.model.StreamSource
 
 /**
  * Stream selection modal: a [StreamListPanel] listing every stream the enabled addons returned, in
- * addon order. Focus stays inside the panel; `Back` closes it.
+ * addon order, opening focused on the `LAST USED` stream when listed. Focus stays inside the panel
+ * and wraps both ways; `Back` closes it.
  */
 @Composable
 fun StreamPickerModal(state: StreamPickerState, onChoose: (StreamSource) -> Unit, onDismiss: () -> Unit) {
@@ -20,5 +21,6 @@ fun StreamPickerModal(state: StreamPickerState, onChoose: (StreamSource) -> Unit
         onEmptyClick = onDismiss,
         onChoose = { _, stream -> onChoose(stream) },
         failedAddons = state.failedAddons,
+        lastUsedIndex = state.lastUsedIndex,
     )
 }
