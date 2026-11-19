@@ -86,6 +86,7 @@ class ProfileScopedSettingsTest {
         assertTrue(fresh.player.autoPlayTrailers)
         assertTrue(fresh.player.muteAutoPlayTrailers)
         assertEquals(2, fresh.player.trailerAutoPlayDelaySeconds)
+        assertTrue(fresh.subtitles.autoSyncExternal)
     }
 
     @Test
@@ -105,6 +106,43 @@ class ProfileScopedSettingsTest {
         settings.setActiveProfileId(TEN)
         assertEquals(TEAL, settings.settings.first().appearance.backgroundArgb)
         assertEquals("key", settings.currentApiKey())
+    }
+
+    @Test
+    fun `auto-sync external subtitles defaults on and is stored per profile`() = runTest {
+        settings.setActiveProfileId(A)
+        assertTrue(settings.settings.first().subtitles.autoSyncExternal)
+
+        settings.updateSubtitles { it.copy(autoSyncExternal = false) }
+        assertFalse(settings.settings.first().subtitles.autoSyncExternal)
+        assertEquals(false, raw.data.first()[booleanPreferencesKey("p$A/subs_auto_sync")])
+
+        settings.setActiveProfileId(B)
+        assertTrue(settings.settings.first().subtitles.autoSyncExternal, "profile B keeps the default")
+        settings.setActiveProfileId(A)
+        assertFalse(SettingsDataStore(raw).settings.first().subtitles.autoSyncExternal, "re-read from disk")
+
+        settings.clearProfile(A)
+        assertNull(raw.data.first()[booleanPreferencesKey("p$A/subs_auto_sync")])
+        settings.setActiveProfileId(A)
+        assertTrue(settings.settings.first().subtitles.autoSyncExternal)
+    }
+
+    @Test
+    fun `turning an effect on in Settings switches that profile's passthrough off, and it can go back on`() = runTest {
+        settings.setActiveProfileId(A)
+        assertTrue(settings.settings.first().audio.passthroughEnabled)
+
+        settings.updateAudio { it.copy(dialogueBoost = DialogueBoost.PLUS_6) }
+        assertFalse(settings.settings.first().audio.passthroughEnabled)
+
+        settings.updateAudio { it.copy(passthroughEnabled = true) }
+        assertTrue(settings.settings.first().audio.passthroughEnabled, "manual choice sticks")
+        settings.updateAudio { it.copy(nightMode = true) }
+        assertFalse(settings.settings.first().audio.passthroughEnabled)
+
+        settings.setActiveProfileId(B)
+        assertTrue(settings.settings.first().audio.passthroughEnabled, "other profiles untouched")
     }
 
     @Test

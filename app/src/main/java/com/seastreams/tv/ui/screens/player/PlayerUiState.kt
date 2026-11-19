@@ -3,6 +3,7 @@ package com.seastreams.tv.ui.screens.player
 import com.seastreams.tv.core.datastore.AudioSettings
 import com.seastreams.tv.core.datastore.DialogueBoost
 import com.seastreams.tv.core.datastore.SubtitleStyle
+import com.seastreams.tv.core.datastore.engagesDsp
 import com.seastreams.tv.core.util.MILLIS_PER_SECOND
 import com.seastreams.tv.domain.model.Episode
 import com.seastreams.tv.domain.model.EpisodeRef
@@ -14,17 +15,30 @@ import com.seastreams.tv.domain.playback.AudioOption
 import com.seastreams.tv.domain.playback.SubtitleOption
 import com.seastreams.tv.domain.playback.SubtitleSource
 import com.seastreams.tv.player.audio.AudioDspConfig
+import com.seastreams.tv.player.subtitle.sync.AutoSyncStatus
 import com.seastreams.tv.ui.components.MetadataFormat
 
 /** The in-player overlays opened from the bottom bar. */
 enum class PlayerPanel { SUBTITLES, AUDIO, STREAMS, EPISODES, INFO }
 
-/** Session-only audio DSP (PRD §9): starts from General Settings, never written back. */
-data class SessionAudio(val dialogueBoost: DialogueBoost, val nightMode: Boolean, val delayMs: Int) {
+/** Session-only audio DSP and passthrough (PRD §9): starts from General Settings, never written back. */
+data class SessionAudio(
+    val dialogueBoost: DialogueBoost,
+    val nightMode: Boolean,
+    val delayMs: Int,
+    val passthrough: Boolean = false,
+) {
     fun toDsp() = AudioDspConfig(dialogueBoost.gainDb, nightMode, delayMs)
 
+    /** Same rule as General Settings: turning an effect on in this change turns passthrough off. */
+    fun withPassthroughAutoOff(previous: SessionAudio): SessionAudio {
+        val engaged = engagesDsp(previous.dialogueBoost, dialogueBoost, previous.nightMode, nightMode, previous.delayMs, delayMs)
+        return if (passthrough && engaged) copy(passthrough = false) else this
+    }
+
     companion object {
-        fun from(settings: AudioSettings) = SessionAudio(settings.dialogueBoost, settings.nightMode, settings.audioDelayMs)
+        fun from(settings: AudioSettings) =
+            SessionAudio(settings.dialogueBoost, settings.nightMode, settings.audioDelayMs, settings.passthroughEnabled)
     }
 }
 
@@ -67,6 +81,8 @@ data class PlayerUiState(
     val subtitleOptions: List<SubtitleOption> = emptyList(),
     val selectedSubtitleId: String? = null,
     val subtitleOffsetMs: Long = 0,
+    /** Live auto-sync state of the active external track (HUD caption, Info row). */
+    val subtitleSyncStatus: AutoSyncStatus = AutoSyncStatus.Off,
     val cleanSdh: Boolean = false,
     val subtitleStyle: SubtitleStyle = SubtitleStyle(),
     val audioOptions: List<AudioOption> = emptyList(),
@@ -92,6 +108,9 @@ data class PlayerUiState(
 
     /** The `- 0.0s +` sync control shows only for an active external (addon) track. */
     val externalSubtitleActive: Boolean get() = selectedSubtitle?.source == SubtitleSource.EXTERNAL
+
+    /** [subtitleOffsetMs] was set by auto-sync and not nudged since. */
+    val subtitleOffsetAuto: Boolean get() = subtitleSyncStatus is AutoSyncStatus.Locked
 }
 
 /** Position values, published apart from [PlayerUiState] so the twice-a-second tick stays cheap. */

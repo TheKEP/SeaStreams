@@ -4,8 +4,12 @@ import androidx.compose.ui.input.key.Key
 import com.seastreams.tv.ui.theme.EdgeKeyResult
 import com.seastreams.tv.ui.theme.edgeKeyResult
 import com.seastreams.tv.ui.theme.verticalEdgeKeys
+import com.seastreams.tv.core.datastore.SubtitleSettings
 import io.mockk.mockk
+import io.mockk.slot
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -103,6 +107,25 @@ class SettingsItemsTest {
     }
 
     @Test
+    fun `Auto-sync external subtitles is the last Subtitles row, right below Subtitle styling`() {
+        val vm = mockk<SettingsViewModel>(relaxed = true)
+        val items = buildItems(vm = vm)
+        val subtitles = items.dropWhile { it.key != "h-subs" }.drop(1).takeWhile { it !is SettingsItem.Header }
+
+        assertEquals(listOf("subs-style", "subs-autosync"), subtitles.takeLast(2).map { it.key })
+        val row = subtitles.last() as SettingsItem.Entry
+        assertEquals("Auto-sync external subtitles", row.title)
+        assertEquals("Enabled", row.value)
+        assertEquals(RowTrailing.Toggle(true), row.trailing)
+
+        row.onClick()
+        val transform = slot<(SubtitleSettings) -> SubtitleSettings>()
+        verify { vm.updateSubtitles(capture(transform)) }
+        assertFalse(transform.captured(SubtitleSettings()).autoSyncExternal)
+        assertTrue(transform.captured(SubtitleSettings(autoSyncExternal = false)).autoSyncExternal)
+    }
+
+    @Test
     fun `entry ordinals count only focusable rows`() {
         val items = buildItems()
         val ordinals = settingsEntryOrdinals(items)
@@ -123,7 +146,12 @@ class SettingsItemsTest {
         fun keysAt(index: Int): Set<Key> = verticalEdgeKeys(ordinals[index], lastOrdinal)
     }
 
-    private fun buildItems(swatchesOpen: Boolean = false, clearSecondsLeft: Int? = null, onClearCache: () -> Unit = {}) =
+    private fun buildItems(
+        swatchesOpen: Boolean = false,
+        clearSecondsLeft: Int? = null,
+        onClearCache: () -> Unit = {},
+        vm: SettingsViewModel = mockk(relaxed = true),
+    ) =
         settingsItems(
             state = SettingsUiState(),
             swatchesOpen = swatchesOpen,
@@ -133,7 +161,7 @@ class SettingsItemsTest {
                 open = {},
                 toggleSwatches = {},
                 updatePlayer = {},
-                vm = mockk(relaxed = true),
+                vm = vm,
                 clearLibrary = {},
                 undoClear = {},
                 clearCache = onClearCache,

@@ -111,6 +111,8 @@ dependencies {
     implementation(libs.androidx.media3.exoplayer.hls)
     implementation(libs.androidx.media3.exoplayer.dash)
     implementation(libs.androidx.media3.datasource.okhttp)
+    // FFmpeg software decoding of AC-3/E-AC-3/TrueHD/DTS when the sink can't take them (ARCHITECTURE.md §4)
+    implementation(libs.nextlib.media3ext)
     implementation(libs.newpipe.extractor)
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 

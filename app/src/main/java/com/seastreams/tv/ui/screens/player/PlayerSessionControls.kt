@@ -7,7 +7,7 @@ import com.seastreams.tv.domain.playback.SubtitleSource
 import com.seastreams.tv.domain.playback.TrackOrdering
 import com.seastreams.tv.player.PlayerTracks
 import com.seastreams.tv.player.SeaStreamsPlayerManager
-import com.seastreams.tv.player.subtitle.SubtitleOffset
+import com.seastreams.tv.player.subtitle.sync.AutoSyncStatus
 import com.seastreams.tv.domain.playback.PlayerProgressTracker
 import com.seastreams.tv.player.knownOrZero
 import kotlinx.coroutines.delay
@@ -30,22 +30,39 @@ internal fun PlayerViewModel.refreshTracks(manager: SeaStreamsPlayerManager) {
     }
     if (!initialSubtitleDone && !tracks.isEmpty) {
         initialSubtitleDone = true
-        TrackOrdering.initialSubtitle(options, prefs.mode, prefs.preferredLanguage)?.let { selectSubtitle(it) }
+        // A choice already made for this title (before a stream switch) wins over the Always On/Off default.
+        val remembered = subtitleChoice
+        val pick = when {
+            remembered == null -> TrackOrdering.initialSubtitle(options, prefs.mode, prefs.preferredLanguage)
+            remembered.isOff -> null
+            else -> remembered.match(options) ?: TrackOrdering.initialSubtitle(options, prefs.mode, prefs.preferredLanguage)
+        }
+        pick?.let { selectSubtitle(it) }
     }
+    onTracksForAutoSync()
 }
 
 fun PlayerViewModel.selectSubtitle(option: SubtitleOption?) {
     val manager = currentManager() ?: return
-    _state.update { it.copy(selectedSubtitleId = option?.id, subtitleOffsetMs = 0) }
+    // Auto-sync's background reference track goes first, so it can't undo the embedded choice below.
+    autoSync.stop()
+    autoSync.manualOverride = false
+    subtitleChoice = SubtitleChoice.of(option)
+    _state.update { it.copy(selectedSubtitleId = option?.id, subtitleOffsetMs = 0, subtitleSyncStatus = AutoSyncStatus.Off) }
     PlayerTracks.selectEmbeddedText(manager.player, option?.takeIf { it.source == SubtitleSource.EMBEDDED }?.id)
-    subtitles.activate(option) {
+    subtitles.activate(option, onLoaded = { startAutoSync(it) }) {
         _state.update { it.copy(selectedSubtitleId = null) }
         viewModelScope.launch { _messages.send("Couldn't load those subtitles") }
     }
 }
 
-fun PlayerViewModel.stepSubtitleOffset(direction: Int) =
-    _state.update { it.copy(subtitleOffsetMs = SubtitleOffset.step(it.subtitleOffsetMs, direction)) }
+/** HUD `−`/`+`: a manual nudge always wins over auto-sync for the rest of this track. */
+fun PlayerViewModel.stepSubtitleOffset(direction: Int) {
+    autoSync.stop()
+    autoSync.manualOverride = true
+    _state.update { it.withManualStep(direction) }
+    currentManager()?.let { refreshCue(it) }
+}
 
 fun PlayerViewModel.setCleanSdh(enabled: Boolean) {
     subtitles.renderer.cleanSdh = enabled
@@ -61,10 +78,14 @@ fun PlayerViewModel.selectAudio(id: String) {
     _state.update { it.copy(selectedAudioId = id) }
 }
 
+/** Session audio change; turning an effect on also turns passthrough off for this video. */
 fun PlayerViewModel.updateSessionAudio(transform: (SessionAudio) -> SessionAudio) {
-    val updated = transform(_state.value.audio)
+    val previous = _state.value.audio
+    val updated = transform(previous).withPassthroughAutoOff(previous)
     _state.update { it.copy(audio = updated) }
-    currentManager()?.setDsp(updated.toDsp())
+    val manager = currentManager() ?: return
+    manager.setDsp(updated.toDsp())
+    manager.setPassthrough(updated.passthrough)
 }
 
 /** Twice a second: position, progress saves and the Info overlay; cue text every 100 ms. */
@@ -74,8 +95,7 @@ internal suspend fun PlayerViewModel.tick(manager: SeaStreamsPlayerManager) {
         val player = manager.player
         val state = _state.value
         val position = player.currentPosition
-        _cue.value = subtitles.textAt(position, state.subtitleOffsetMs, state.externalSubtitleActive, manager.embeddedCues.value)
-            ?.takeIf { state.selectedSubtitleId != null }
+        refreshCue(manager)
         if (ticks % PROGRESS_EVERY_TICKS == 0) {
             _progress.value = PlayerProgress(position, player.duration.knownOrZero(), player.bufferedPosition)
             val request = state.request

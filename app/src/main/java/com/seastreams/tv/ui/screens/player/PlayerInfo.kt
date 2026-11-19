@@ -6,6 +6,7 @@ import com.seastreams.tv.core.util.MILLIS_PER_SECOND
 import com.seastreams.tv.domain.model.PlaybackRequest
 import com.seastreams.tv.player.PlayerTracks
 import com.seastreams.tv.player.SeaStreamsPlayerManager
+import com.seastreams.tv.player.subtitle.sync.syncInfoText
 import java.util.Locale
 
 /**
@@ -18,7 +19,6 @@ fun buildInfoRows(state: PlayerUiState, manager: SeaStreamsPlayerManager): List<
     val audio = player.audioFormat
     val request = state.request
     val stream = state.streams.getOrNull(state.streamIndex)
-    val subtitle = state.selectedSubtitle
     val bufferedSeconds = player.totalBufferedDuration / MILLIS_PER_SECOND.toDouble()
     val bufferedMb = manager.bufferedBytes / BYTES_PER_MB
     val dv7 = PlayerTracks.hasDolbyVisionProfile7(player.currentTracks)
@@ -37,13 +37,26 @@ fun buildInfoRows(state: PlayerUiState, manager: SeaStreamsPlayerManager): List<
         add(InfoRow("Channels", audio?.let { PlayerTracks.channelLayout(it.channelCount) } ?: "—"))
         add(InfoRow("Sample rate", audio?.sampleRate?.takeIf { it > 0 }?.let { "%.1f kHz".format(Locale.US, it / HZ_PER_KHZ) } ?: "—"))
         add(InfoRow("Audio language", PlayerTracks.languageName(audio?.language) ?: "—"))
-        add(InfoRow("Subtitles", subtitle?.label ?: "Off"))
-        add(InfoRow("Subtitle language", PlayerTracks.languageName(subtitle?.language) ?: subtitle?.language ?: "—"))
-        add(InfoRow("Subtitle source", subtitle?.source?.label ?: "—"))
+        addAll(subtitleInfoRows(state))
         add(InfoRow("Download", "%.1f Mbps".format(Locale.US, manager.meter.megabitsPerSecond())))
         add(InfoRow("Range connections", "${manager.meter.activeConnections.get().coerceAtLeast(0)}x active · ${manager.config.parallelConnections}x max"))
         add(InfoRow("Buffer", "%.1f s · %.1f MB".format(Locale.US, bufferedSeconds, bufferedMb)))
     }
+}
+
+/**
+ * The subtitle rows, read only from the session's chosen track ([PlayerUiState.selectedSubtitle]),
+ * never from ExoPlayer's text selection: auto-sync's background embedded reference track can't show
+ * up here. An active addon track also lists its sync offset.
+ */
+internal fun subtitleInfoRows(state: PlayerUiState): List<InfoRow> {
+    val subtitle = state.selectedSubtitle
+    return listOfNotNull(
+        InfoRow("Subtitles", subtitle?.label ?: "Off"),
+        InfoRow("Subtitle language", PlayerTracks.languageName(subtitle?.language) ?: subtitle?.language ?: "—"),
+        InfoRow("Subtitle source", subtitle?.source?.label ?: "—"),
+        if (state.externalSubtitleActive) InfoRow("Subtitle sync", syncInfoText(state.subtitleOffsetMs, state.subtitleSyncStatus)) else null,
+    )
 }
 
 private fun videoCodec(format: Format?, dolbyVisionProfile7: Boolean): String {
