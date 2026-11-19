@@ -38,9 +38,14 @@ data class LibraryImportResult(
 /**
  * Imports an MDBList list into a profile's Movies or TV Shows Library, once (PRD §8).
  *
- * This is a strictly one-time batch copy: the list is fetched once, its titles are inserted into
- * [LibraryDao] (duplicates ignored) and nothing about the list itself — URL, title, contents — is
- * stored anywhere, so SeaStreams never tracks or re-syncs it afterwards.
+ * This is a strictly one-time batch copy: the list is fetched once, its new titles are inserted into
+ * [LibraryDao] and nothing about the list itself — URL, title, contents — is stored anywhere, so
+ * SeaStreams never tracks or re-syncs it afterwards.
+ *
+ * Duplicate safety: titles already in the target profile's Library are skipped (existence check plus
+ * `OnConflictStrategy.IGNORE`) — never re-fetched, overwritten, deleted or re-dated, so their original
+ * `addedAtMillis` keeps `Last Added` order. Watch progress and LAST USED streams are never touched.
+ * A title repeated within the list is imported once. [MAX_IMPORT_ITEMS] caps the *new* titles.
  *
  * MDBList exports carry no posters or certifications, so each entry's TMDB details are loaded
  * (under [MediaHydrator]'s app-wide concurrency gate, HTTP-cached for 12h). Age restrictions are
@@ -61,12 +66,17 @@ class ImportMdbListUseCase @Inject constructor(
         val entries = fetchOnce(MdbListUrl.CANONICAL_BASE + path)
 
         val matching = entries.filter { it.mediaType == target.mediaType }
-        val tmdbIds = matching.mapNotNull { it.tmdbId }.distinct().take(MAX_IMPORT_ITEMS)
+        // A title listed more than once counts once.
+        val listed = matching.mapNotNull { it.tmdbId }.distinct()
+        // Titles already in this profile's Library are skipped before any TMDB call, so they are
+        // never re-fetched, re-counted as blocked/failed, or overwritten.
+        val existing = libraryDao.tmdbIds(profile.id, target.mediaType).toSet()
+        val newIds = listed.filterNot { it in existing }.take(MAX_IMPORT_ITEMS)
         val restriction = profile.toAgeRestriction()
         val now = clock.millis()
 
         val lookups: List<Lookup> = coroutineScope {
-            tmdbIds.map { id -> async { lookup(id, target.mediaType) } }.awaitAll()
+            newIds.map { id -> async { lookup(id, target.mediaType) } }.awaitAll()
         }
         val resolved = lookups.filterIsInstance<Lookup.Found>()
         if (resolved.isEmpty() && lookups.isNotEmpty()) throw UserFacingException("Couldn't load titles from TMDB")
@@ -84,10 +94,12 @@ class ImportMdbListUseCase @Inject constructor(
                 addedAtMillis = now,
             )
         }
+        // OnConflictStrategy.IGNORE stays the authoritative guard: a title saved concurrently
+        // (e.g. via `Add to library`) after the read above is skipped, not overwritten.
         val inserted = if (rows.isEmpty()) 0 else libraryDao.insertAll(rows).count { it != -1L }
         return LibraryImportResult(
             added = inserted,
-            alreadyInLibrary = rows.size - inserted,
+            alreadyInLibrary = listed.count { it in existing } + (rows.size - inserted),
             skippedOtherType = entries.size - matching.size,
             blockedByAgeRestriction = resolved.size - allowed.size,
             failed = lookups.size - resolved.size,
