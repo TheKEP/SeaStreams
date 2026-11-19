@@ -31,7 +31,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -49,7 +48,6 @@ import androidx.tv.material3.Text
 import com.seastreams.tv.core.util.MILLIS_PER_SECOND
 import com.seastreams.tv.player.PlayerTracks
 import com.seastreams.tv.player.SeaStreamsPlayerManager
-import com.seastreams.tv.ui.theme.FocusPill
 import com.seastreams.tv.ui.theme.TextSecondary
 import com.seastreams.tv.ui.screens.playback.RESTORE_FRAMES
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
@@ -154,14 +152,7 @@ private fun SeekRow(progress: PlayerProgress, viewModel: PlayerViewModel, reques
                 }
                 .focusable(),
         ) {
-            val y = size.height / 2
-            val stroke = if (focused) 6.dp.toPx() else 4.dp.toPx()
-            val duration = progress.durationMs.coerceAtLeast(1).toFloat()
-            fun xFor(ms: Long) = size.width * (ms / duration).coerceIn(0f, 1f)
-            drawLine(Color.White.copy(alpha = 0.25f), Offset(0f, y), Offset(size.width, y), stroke, StrokeCap.Round)
-            drawLine(Color.White.copy(alpha = 0.45f), Offset(0f, y), Offset(xFor(progress.bufferedMs), y), stroke, StrokeCap.Round)
-            drawLine(FocusPill, Offset(0f, y), Offset(xFor(shown), y), stroke, StrokeCap.Round)
-            if (focused) drawCircle(Color.White, radius = 9.dp.toPx(), center = Offset(xFor(shown), y))
+            drawSeekBar(seekBarFractions(shown, progress.bufferedMs, progress.durationMs), focused)
         }
         val remaining = (progress.durationMs - shown).coerceAtLeast(0)
         Text("-${formatPlaybackTime(remaining)} / ${formatPlaybackTime(progress.durationMs)}", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
