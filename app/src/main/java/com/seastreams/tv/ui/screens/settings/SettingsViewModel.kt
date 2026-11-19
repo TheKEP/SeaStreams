@@ -2,6 +2,7 @@ package com.seastreams.tv.ui.screens.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.seastreams.tv.core.cache.CacheManager
 import com.seastreams.tv.core.database.dao.AddonDao
 import com.seastreams.tv.core.database.entity.AddonEntity
 import com.seastreams.tv.core.datastore.AppSettings
@@ -26,6 +27,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
@@ -57,7 +59,14 @@ class SettingsViewModel @Inject constructor(
     private val installedPlayers: InstalledVideoPlayers,
     private val library: LibraryRepository,
     portalLinks: PortalLinkProvider,
+    private val cacheManager: CacheManager,
 ) : ViewModel() {
+
+    private val _cacheBytes = MutableStateFlow<Long?>(null)
+
+    /** Disk space used by `cacheDir`; `null` while it is being measured or cleared. */
+    val cacheBytes: StateFlow<Long?> = _cacheBytes.asStateFlow()
+    private var clearingCache = false
 
     private val players = MutableStateFlow<List<InstalledPlayer>>(emptyList())
     private val portalVisible = MutableStateFlow(false)
@@ -110,6 +119,26 @@ class SettingsViewModel @Inject constructor(
 
     fun undoClearLibrary() {
         viewModelScope.launch { if (library.undoClear()) _messages.send("Library kept") }
+    }
+
+    /** Measures the cache on IO (inside [CacheManager]); called each time Settings opens. */
+    fun refreshCacheSize() {
+        viewModelScope.launch { if (!clearingCache) _cacheBytes.value = cacheManager.totalSizeBytes() }
+    }
+
+    /** Clears the image, HTTP and stray caches; repeated presses while it runs are ignored. */
+    fun clearCache() {
+        if (clearingCache) return
+        clearingCache = true
+        _cacheBytes.value = null
+        viewModelScope.launch {
+            try {
+                _cacheBytes.value = cacheManager.clearAll()
+                _messages.send("Cache cleared")
+            } finally {
+                clearingCache = false
+            }
+        }
     }
 
     /** Runs [block] against the active profile's addon list; does nothing when no profile is active. */

@@ -2,6 +2,11 @@ package com.seastreams.tv
 
 import android.app.Application
 import android.util.Log
+import coil3.ImageLoader
+import coil3.PlatformContext
+import coil3.SingletonImageLoader
+import com.seastreams.tv.core.cache.CacheManager
+import com.seastreams.tv.core.image.buildImageLoader
 import com.seastreams.tv.core.util.ApplicationScope
 import com.seastreams.tv.data.setup.BuiltInAddonGuard
 import com.seastreams.tv.data.setup.DebugProfileSeeder
@@ -14,7 +19,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltAndroidApp
-class SeaStreamsApp : Application() {
+class SeaStreamsApp : Application(), SingletonImageLoader.Factory {
 
     /** Lazy: its graph includes the OkHttp disk cache, which must not be built on the main thread. */
     @Inject
@@ -32,10 +37,17 @@ class SeaStreamsApp : Application() {
     @Inject
     lateinit var newPipe: Lazy<NewPipeInitializer>
 
+    /** Removes stray files from `cacheDir`; lazy because it holds the OkHttp disk cache. */
+    @Inject
+    lateinit var cacheManager: Lazy<CacheManager>
+
     /** Process-lifetime scope (off the main thread) for fire-and-forget startup work. */
     @Inject
     @ApplicationScope
     lateinit var appScope: CoroutineScope
+
+    /** Coil's app-wide loader with fixed 150 MB disk / 25% memory caps (see `ImageLoaderSetup.kt`). */
+    override fun newImageLoader(context: PlatformContext): ImageLoader = buildImageLoader(context)
 
     override fun onCreate() {
         super.onCreate()
@@ -53,6 +65,9 @@ class SeaStreamsApp : Application() {
                 runCatching { debugProfileSeeder.get().seedIfNeeded() }
                     .onFailure { Log.e("SeaStreamsApp", "Seeding the debug profile failed", it) }
             }
+            // The HTTP and image caches bound themselves (LRU); this only drops files nothing owns.
+            runCatching { cacheManager.get().sweepOrphans() }
+                .onFailure { Log.e("SeaStreamsApp", "Sweeping orphaned cache files failed", it) }
         }
     }
 }
