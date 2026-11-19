@@ -117,6 +117,7 @@ private fun HomeSectionContent(
             },
             onViewMore = {},
             cardOverlay = { index, _ -> ContinueWatchingOverlay(section.items[index]) },
+            reserveProgressBar = true,
             onItemLongClick = rowFocus.onContinueWatchingLongPress,
             holdInfo = rowFocus.continueWatchingMenuOpen,
             focusedIndexState = rowFocus.memory.stateFor(section.key, section.items.map { it.media.key }),
