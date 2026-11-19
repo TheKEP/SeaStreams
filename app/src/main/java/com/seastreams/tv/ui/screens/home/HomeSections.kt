@@ -16,6 +16,7 @@ import com.seastreams.tv.domain.model.CatalogRowSpec
 import com.seastreams.tv.domain.model.CatalogRowState
 import com.seastreams.tv.domain.model.ContinueWatchingItem
 import com.seastreams.tv.domain.model.RowContent
+import com.seastreams.tv.ui.components.ArtworkProgressClearance
 import com.seastreams.tv.ui.components.ArtworkProgressIndicator
 import com.seastreams.tv.ui.components.CardHeight
 import com.seastreams.tv.ui.components.MetadataFormat
@@ -74,7 +75,8 @@ fun homeRowRestore(sections: List<HomeSection>, rowId: String): RowRestoreStep {
 
 /**
  * `S7:E10` badge plus the shared watch indicator on a Continue Watching card: the bottom bar while
- * in progress (every row here is `< 90%` by query), never a full-width "finished" line.
+ * in progress (every row here is `< 90%` by query), never a full-width "finished" line. The badge
+ * sits above the bar's [ArtworkProgressClearance] so neither covers the other.
  */
 @Composable
 fun ContinueWatchingOverlay(item: ContinueWatchingItem) {
@@ -86,11 +88,13 @@ fun ContinueWatchingOverlay(item: ContinueWatchingItem) {
                 style = MaterialTheme.typography.labelMedium,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 8.dp, bottom = 12.dp)
+                    .padding(end = 8.dp, bottom = ArtworkProgressClearance + BadgeAboveBarGap)
                     .background(Obsidian.copy(alpha = 0.7f), RoundedCornerShape(4.dp))
                     .padding(horizontal = 6.dp, vertical = 2.dp),
             )
         }
     }
 }
+
+private val BadgeAboveBarGap = 5.dp
 

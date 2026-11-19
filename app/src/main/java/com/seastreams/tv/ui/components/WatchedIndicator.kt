@@ -5,7 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -17,14 +17,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Icon
 import com.seastreams.tv.domain.model.MediaItem
 import com.seastreams.tv.domain.model.MediaRef
 import com.seastreams.tv.domain.playback.isCompleted
-import com.seastreams.tv.ui.theme.FocusPill
+import com.seastreams.tv.ui.theme.SeekBuffered
+import com.seastreams.tv.ui.theme.SeekTrack
+import com.seastreams.tv.ui.theme.SeekTrackBorder
+import kotlin.math.hypot
 import kotlin.math.roundToLong
 
 /**
@@ -79,12 +87,46 @@ fun WatchedCheckmarkBadge(modifier: Modifier = Modifier) {
     }
 }
 
-/** Thin bottom bar for an in-progress title only; finished titles get [WatchedCheckmarkBadge] instead. */
+/**
+ * In-progress bar (PRD §1 Artwork Progress Bar Styling), finished titles get [WatchedCheckmarkBadge]
+ * instead. Same opaque tokens as the player seek bar's unbuffered/buffered tiers: a 1dp Obsidian
+ * backing, the slate track and the blue watched fill. Inset above and inside the 3dp focus ring so a
+ * focused card's ring never covers it. One draw-only node, so the card's width animation only redraws.
+ */
 @Composable
 fun ArtworkProgressBar(fraction: Float, modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxWidth().height(BarHeight).background(Color.White.copy(alpha = TRACK_ALPHA))) {
-        Box(Modifier.fillMaxHeight().fillMaxWidth(fraction.coerceIn(0f, 1f)).background(FocusPill))
-    }
+    val watched = fraction.coerceIn(0f, 1f)
+    Spacer(
+        modifier
+            .padding(start = ProgressBarSideInset, end = ProgressBarSideInset, bottom = ProgressBarBottomInset)
+            .fillMaxWidth()
+            .height(ProgressBarHeight)
+            .drawBehind {
+                val border = ProgressBarBorder.toPx()
+                drawRoundRect(SeekTrackBorder, cornerRadius = CornerRadius(size.height / 2))
+                val inner = Size(size.width - 2 * border, size.height - 2 * border)
+                val radius = CornerRadius(inner.height / 2)
+                val origin = Offset(border, border)
+                drawRoundRect(SeekTrack, origin, inner, radius)
+                // A zero-width round rect would still paint a stray dot.
+                val fill = inner.width * watched
+                if (fill > 0f) drawRoundRect(SeekBuffered, origin, Size(fill, inner.height), radius)
+            },
+    )
+}
+
+/**
+ * Whether a bar inset [bottomInset] from the bottom and [sideInset] from each side of artwork with
+ * [cornerRadius] corners clears a [ring]-wide focus border: above its straight bottom edge and, near
+ * a corner, inside the ring's inner arc (radius `cornerRadius - ring`). The bar's box corner is
+ * checked, which is conservative for its round caps.
+ */
+internal fun progressBarClearsFocusRing(cornerRadius: Dp, ring: Dp, bottomInset: Dp, sideInset: Dp): Boolean {
+    if (bottomInset <= ring || sideInset <= ring) return false
+    if (sideInset >= cornerRadius || bottomInset >= cornerRadius) return true
+    val dx = (cornerRadius - sideInset).value
+    val dy = (cornerRadius - bottomInset).value
+    return hypot(dx, dy) < (cornerRadius - ring).value
 }
 
 /** Bottom bar or top-right checkmark for [progress] on the enclosing artwork box. */
@@ -100,9 +142,20 @@ fun BoxScope.ArtworkProgressIndicator(progress: ArtworkProgress) {
 private const val FRACTION_SCALE = 10_000L
 private const val BADGE_ALPHA = 0.7f
 private const val BORDER_ALPHA = 0.35f
-private const val TRACK_ALPHA = 0.3f
 internal val BadgeInset = 7.dp
 internal val BadgeSize = 26.dp
 private val IconSize = 18.dp
 private val BadgeShadow = 3.dp
-private val BarHeight = 4.dp
+
+/** Bar thickness including its [ProgressBarBorder] backing on both sides (a 6dp fill). */
+internal val ProgressBarHeight = 8.dp
+internal val ProgressBarBorder = 1.dp
+
+/** The 3dp focus ring plus a 2dp gap. */
+internal val ProgressBarBottomInset = 5.dp
+
+/** Inside the ring's curve at the cards' 12dp rounded corners. */
+internal val ProgressBarSideInset = 10.dp
+
+/** Height from the artwork's bottom edge to the bar's top: overlays anchored at the bottom sit above it. */
+internal val ArtworkProgressClearance = ProgressBarBottomInset + ProgressBarHeight

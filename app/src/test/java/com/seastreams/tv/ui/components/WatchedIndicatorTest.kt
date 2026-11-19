@@ -1,6 +1,9 @@
 package com.seastreams.tv.ui.components
 
+import androidx.compose.ui.unit.dp
+import com.seastreams.tv.ui.theme.FocusBorderWidth
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -37,5 +40,46 @@ class WatchedIndicatorTest {
     fun `manually marked watched (position equals duration) shows the checkmark`() {
         assertEquals(ArtworkProgress.Watched, artworkProgress(positionMs = 2_700_000, durationMs = 2_700_000))
         assertEquals(ArtworkProgress.Watched, artworkProgress(1f))
+    }
+
+    @Test
+    fun `the bar flips to the checkmark exactly at 90 percent for both overloads`() {
+        assertTrue(artworkProgress(positionMs = 8_999, durationMs = 10_000) is ArtworkProgress.InProgress)
+        assertEquals(ArtworkProgress.Watched, artworkProgress(positionMs = 9_000, durationMs = 10_000))
+        assertTrue(artworkProgress(0.899f) is ArtworkProgress.InProgress)
+        assertEquals(ArtworkProgress.Watched, artworkProgress(0.90f))
+    }
+
+    @Test
+    fun `out-of-range fractions and positions clamp instead of drawing a broken bar`() {
+        assertEquals(ArtworkProgress.None, artworkProgress(-0.2f))
+        assertEquals(ArtworkProgress.Watched, artworkProgress(1.5f))
+        assertEquals(ArtworkProgress.None, artworkProgress(positionMs = -500, durationMs = 1_000))
+        assertEquals(ArtworkProgress.Watched, artworkProgress(positionMs = 1_500, durationMs = 1_000))
+
+        val sliver = artworkProgress(0.0001f)
+        assertTrue(sliver is ArtworkProgress.InProgress, "a just-started title still gets its bar")
+        val nearlyDone = artworkProgress(0.8999f) as ArtworkProgress.InProgress
+        assertEquals(0.8999f, nearlyDone.fraction, 1e-4f)
+        assertTrue(nearlyDone.fraction in 0f..1f)
+    }
+
+    @Test
+    fun `the bar sits fully clear of the focused card's 3dp ring`() {
+        assertTrue(progressBarClearsFocusRing(CardCorner, FocusBorderWidth, ProgressBarBottomInset, ProgressBarSideInset))
+        assertTrue(ProgressBarBottomInset > FocusBorderWidth)
+        assertEquals(ProgressBarBottomInset + ProgressBarHeight, ArtworkProgressClearance)
+    }
+
+    @Test
+    fun `a flush or corner-hugging bar would be covered by the ring`() {
+        assertFalse(progressBarClearsFocusRing(CardCorner, FocusBorderWidth, bottomInset = 0.dp, sideInset = 0.dp))
+        assertFalse(progressBarClearsFocusRing(CardCorner, FocusBorderWidth, bottomInset = 3.dp, sideInset = 10.dp))
+        // Above the ring's straight edge but out in the corner, where the ring curves up over it.
+        assertFalse(progressBarClearsFocusRing(CardCorner, FocusBorderWidth, bottomInset = 5.dp, sideInset = 4.dp))
+    }
+
+    private companion object {
+        val CardCorner = 12.dp
     }
 }
