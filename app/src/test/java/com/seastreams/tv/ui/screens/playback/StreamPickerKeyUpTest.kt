@@ -82,4 +82,22 @@ class StreamPickerKeyUpTest {
         picker.ok(isKeyDown = false)
         assertEquals(1, picker.chosen)
     }
+
+    @Test
+    fun `focus jumping to the LAST USED card mid-press never chooses it on release`() {
+        val picker = Picker()
+        picker.ok(isKeyDown = true)
+        picker.ok(isKeyDown = true, repeatCount = 1)
+        picker.focus(InitialKeyUpGuard())
+        // Results arrive: focus goes straight to the LAST USED card (not #1) while OK is still held.
+        val lastUsedCard = InitialKeyUpGuard()
+        picker.focus(lastUsedCard)
+        (2..5).forEach { picker.ok(isKeyDown = true, repeatCount = it) }
+        picker.ok(isKeyDown = false)
+        assertEquals(0, picker.chosen, "releasing OK must not pick the auto-focused LAST USED stream")
+
+        picker.ok(isKeyDown = true)
+        picker.ok(isKeyDown = false)
+        assertEquals(1, picker.chosen)
+    }
 }

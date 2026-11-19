@@ -17,6 +17,7 @@ import com.seastreams.tv.domain.playback.AutoNextPolicy
 import com.seastreams.tv.domain.playback.ExternalPlaybackLaunch
 import com.seastreams.tv.domain.playback.ExternalPlaybackProgress
 import com.seastreams.tv.domain.playback.ExternalPlayerExtras
+import com.seastreams.tv.domain.playback.LastUsedStreamRecorder
 import com.seastreams.tv.domain.playback.NextEpisode
 import com.seastreams.tv.domain.playback.PlaybackProgressRecorder
 import com.seastreams.tv.domain.playback.PlaybackStreamResolver
@@ -44,13 +45,17 @@ import kotlinx.coroutines.launch
 import java.time.Clock
 import javax.inject.Inject
 
-/** The stream list modal. [streams] is empty while [loading]. */
+/**
+ * The stream list modal. [streams] is empty while [loading]; [lastUsedIndex] is the stream that last
+ * started for this movie/episode on this profile (`LAST USED` badge and initial focus), if listed.
+ */
 data class StreamPickerState(
     val title: String,
     val subtitle: String?,
     val loading: Boolean,
     val streams: List<StreamSource> = emptyList(),
     val failedAddons: List<String> = emptyList(),
+    val lastUsedIndex: Int? = null,
 )
 
 data class PlaybackUiState(
@@ -88,6 +93,7 @@ class PlaybackViewModel @Inject constructor(
     private val settings: SettingsDataStore,
     private val streams: PlaybackStreamResolver,
     private val recorder: PlaybackProgressRecorder,
+    private val lastUsed: LastUsedStreamRecorder,
     private val resolveTrailer: ResolveTrailerStreamUseCase,
     private val resolveContinueWatching: ResolveContinueWatchingTargetUseCase,
     private val clock: Clock,
@@ -154,6 +160,8 @@ class PlaybackViewModel @Inject constructor(
         } else {
             pickerContext = resolved
             val resolution = resolved.resolution
+            // Computed before the update so the cards and their initial focus arrive together.
+            val lastUsedIndex = lastUsed.indexIn(resolved.target, resolution.streams)
             _state.update {
                 it.copy(
                     picker = it.picker?.copy(
@@ -162,6 +170,7 @@ class PlaybackViewModel @Inject constructor(
                         loading = false,
                         streams = resolution.streams,
                         failedAddons = resolution.failedAddons,
+                        lastUsedIndex = lastUsedIndex,
                     ),
                 )
             }
@@ -242,6 +251,8 @@ class PlaybackViewModel @Inject constructor(
         val ordered = TrackOrdering.subtitles(options, prefs.preferredLanguage, prefs.hideNonPreferredLanguages).take(MAX_SUBTITLES)
         val byUrl = resolution.subtitles.associateBy(SubtitleTrack::url)
         val enabled = TrackOrdering.initialSubtitle(ordered, prefs.mode, prefs.preferredLanguage)?.let { byUrl[it.id] }
+        // The external player gives no start signal: the hand-off is when this stream becomes LAST USED.
+        lastUsed.record(target, stream)
         active = ActivePlayback(target, ExternalPlaybackLaunch(startPosition, target.knownDurationMs, clock.millis()))
         _events.send(
             PlaybackEvent.Launch(ExternalLaunchSpec(choice, stream, target.title(), startPosition, ordered.mapNotNull { byUrl[it.id] }, enabled)),
