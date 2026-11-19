@@ -3,6 +3,7 @@ package com.seastreams.tv.ui.screens.playback
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.seastreams.tv.core.datastore.PlayerChoice
 import com.seastreams.tv.core.datastore.SettingsDataStore
+import com.seastreams.tv.domain.model.StreamAddon
 import com.seastreams.tv.domain.model.StreamSource
 import com.seastreams.tv.domain.playback.LastUsedStreamRecorder
 import com.seastreams.tv.domain.playback.PlaybackProgressRecorder
@@ -49,6 +50,7 @@ class PlaybackLastUsedTest {
     private val lastUsed = LastUsedStreamRecorder(dao, Clock.systemUTC())
     private val target = PlaybackTarget(PROFILE_ID, testDetails(tmdbId = 7), "tt0000007", episode = null)
     private val streams = listOf(stream("a"), stream("b"), stream("c"))
+    private val addons = listOf(StreamAddon("https://addon", "Addon"), StreamAddon("https://empty", "Empty"))
 
     @BeforeEach
     fun setUp() {
@@ -57,7 +59,7 @@ class PlaybackLastUsedTest {
         settings = SettingsDataStore(PreferenceDataStoreFactory.create(scope = storeScope) { File(dir, "s.preferences_pb") })
         runBlocking { settings.setActiveProfileId(PROFILE_ID) }
         coEvery { resolver.resolve(any(), any()) } returns
-            ResolvedPlayback(target, StreamResolution(streams, emptyList(), emptyList()), topIndex = 0)
+            ResolvedPlayback(target, StreamResolution(streams, emptyList(), emptyList(), addons), topIndex = 0)
     }
 
     @AfterEach
@@ -85,6 +87,7 @@ class PlaybackLastUsedTest {
         val picker = withTimeout(TIMEOUT_MS) { vm.state.first { it.picker?.loading == false } }.picker
 
         assertEquals(streams, picker?.streams)
+        assertEquals(addons, picker?.streamAddons)
         assertEquals(2, picker?.lastUsedIndex)
     }
 

@@ -62,6 +62,7 @@ fun PlayerPanels(panel: PlayerPanel, state: PlayerUiState, viewModel: PlayerView
             modifier = modifier,
             selectedIndex = state.streamIndex,
             lastUsedIndex = state.lastUsedIndex,
+            addons = state.streamAddons,
             showRank = true,
         )
         PlayerPanel.EPISODES -> EpisodesPanel(state, viewModel, modifier)

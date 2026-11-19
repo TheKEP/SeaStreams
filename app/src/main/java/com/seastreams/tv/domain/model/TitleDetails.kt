@@ -71,5 +71,11 @@ data class StreamSource(
     val headers: Map<String, String>,
 )
 
+/**
+ * An enabled addon that can serve streams for the title being resolved (it was asked, whatever it
+ * returned). [url] matches [StreamSource.addonUrl]; [name] is its custom name, else the manifest name.
+ */
+data class StreamAddon(val url: String, val name: String)
+
 /** A subtitle file returned by a subtitle addon. */
 data class SubtitleTrack(val url: String, val language: String, val addonName: String)
