@@ -28,7 +28,8 @@ import com.seastreams.tv.ui.theme.TextPrimary
 import com.seastreams.tv.ui.theme.TextSecondary
 
 /**
- * `👍 74%  2026  Comedy  [PG-13]  1h 47m` — shared by the hero and the expanded-card info panel.
+ * `👍 74%  2026  Comedy  [PG-13]  1h 47m` — shared by the hero, the expanded-card info panel and the
+ * Episodes header (Details uses its own pill row, `DetailsMetadataBadges`).
  * Missing fields are simply skipped.
  */
 @Composable
@@ -37,8 +38,6 @@ fun MediaMetadataLine(
     showCertification: Boolean,
     modifier: Modifier = Modifier,
     style: TextStyle = MaterialTheme.typography.titleSmall,
-    /** Details shows up to two genres (PRD §6); rows and the hero show one. */
-    maxGenres: Int = 1,
 ) {
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
         item.ratingPercent?.let { percent ->
@@ -48,7 +47,7 @@ fun MediaMetadataLine(
             }
         }
         item.year?.let { Text(it.toString(), style = style, fontWeight = FontWeight.SemiBold) }
-        item.genres.take(maxGenres).forEach { Text(it, style = style, fontWeight = FontWeight.SemiBold) }
+        item.genres.take(1).forEach { Text(it, style = style, fontWeight = FontWeight.SemiBold) }
         if (showCertification) item.certification?.takeIf { it.isNotBlank() }?.let { CertificationBadge(it) }
         MetadataFormat.runtime(item.runtimeMinutes)?.let { Text(it, style = style, fontWeight = FontWeight.SemiBold) }
     }

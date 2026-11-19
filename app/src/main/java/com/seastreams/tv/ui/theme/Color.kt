@@ -33,5 +33,16 @@ val SeekThumb = FocusPill
 /** Thumb outline so it stays legible over the white played fill. */
 val SeekThumbRing = Obsidian
 
+/** Details TMDB rating pill (PRD §6): TMDB user-score green + TMDB dark navy. */
+val TmdbGreen = Color(0xFF21D07A)
+val TmdbNavy = Color(0xFF081C22)
+/** Details Year / Certification / Duration / Genre pills (PRD §6): smoked 48% surface. */
+val MetadataPillSurface = SurfaceCard.copy(alpha = 0.48f)
+/**
+ * Muted cool off-white (`#727B8C`) for the Details non-TMDB pills' outline + text and the Cast card outline.
+ * Deliberately deeper than [TextSecondary], which reads near-white on TV panels; [TextSecondary] itself stays global.
+ */
+val DetailsOutlineMuted = Color(0xFF727B8C)
+
 /** The stream list's `LAST USED` pill (`last_used.png`): Obsidian text on gold, focused or not. */
 val LastUsedGold = Color(0xFFF5C518)
