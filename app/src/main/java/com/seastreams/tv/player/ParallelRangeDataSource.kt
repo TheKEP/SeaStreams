@@ -20,9 +20,10 @@ import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Multi-connection HTTP byte-range [DataSource] (PRD §9): splits sequential reads of an HTTP(S)
- * stream into concurrent `Range: bytes=start-end` requests of [chunkSize] bytes via
- * [ParallelRangeReader]. It wraps an [OkHttpDataSource], which takes over transparently when the
- * reader can't be used: one connection configured, a non-HTTP URI, a non-GET request, or a server
+ * stream into concurrent `Range: bytes=start-end` requests laid out by [readAhead] via
+ * [ParallelRangeReader], whose workers keep downloading ahead of ExoPlayer up to the buffer profile's
+ * high-water mark. It wraps an [OkHttpDataSource], which takes over transparently when the reader
+ * can't be used: one connection configured (no [readAhead]), a non-HTTP URI, a non-GET request, or a server
  * that doesn't answer the first ranged request with `206 Partial Content`. Such hosts are remembered
  * in [singleStreamHosts], so later opens (e.g. every HLS segment) skip the probe.
  */
@@ -30,7 +31,7 @@ class ParallelRangeDataSource(
     private val client: OkHttpClient,
     private val upstream: HttpDataSource,
     private val connections: Int,
-    private val chunkSize: Int,
+    private val readAhead: RangeReadAhead?,
     private val defaultHeaders: Map<String, String>,
     private val meter: ThroughputMeter?,
     private val singleStreamHosts: MutableSet<String> = ConcurrentHashMap.newKeySet(),
@@ -87,15 +88,16 @@ class ParallelRangeDataSource(
 
     private fun canSplit(dataSpec: DataSpec): Boolean {
         val scheme = dataSpec.uri.scheme?.lowercase()
-        return connections > 1 && (scheme == "http" || scheme == "https") && dataSpec.httpMethod == DataSpec.HTTP_METHOD_GET &&
+        return connections > 1 && readAhead != null && (scheme == "http" || scheme == "https") && dataSpec.httpMethod == DataSpec.HTTP_METHOD_GET &&
             dataSpec.uri.host !in singleStreamHosts
     }
 
     /** Probes with the first chunk's range; `null` falls back to the single-stream upstream. */
     private fun openParallel(dataSpec: DataSpec): ParallelRangeReader? {
+        val window = readAhead ?: return null
         val headers = defaultHeaders + dataSpec.httpRequestHeaders
         val fetcher = OkHttpRangeFetcher(client, dataSpec.uri.toString(), headers)
-        val probeEnd = dataSpec.position + chunkSize - 1
+        val probeEnd = dataSpec.position + window.startupChunkSize - 1
         val probe = fetcher.probe(dataSpec.position, probeEnd)
         if (probe == null) {
             dataSpec.uri.host?.let(singleStreamHosts::add)
@@ -111,7 +113,7 @@ class ParallelRangeDataSource(
             fetcher = fetcher,
             start = dataSpec.position,
             end = end,
-            chunkSize = chunkSize,
+            readAhead = window,
             connections = connections,
             executor = RangeExecutor.instance,
             meter = meter,
@@ -122,8 +124,8 @@ class ParallelRangeDataSource(
     class Factory(
         private val client: OkHttpClient,
         private val connections: Int,
+        private val readAhead: RangeReadAhead?,
         private val meter: ThroughputMeter?,
-        private val chunkSize: Int = ParallelRangeReader.DEFAULT_CHUNK_SIZE,
     ) : DataSource.Factory {
         private var headers: Map<String, String> = emptyMap()
         private val singleStreamHosts: MutableSet<String> = ConcurrentHashMap.newKeySet()
@@ -133,7 +135,7 @@ class ParallelRangeDataSource(
 
         override fun createDataSource(): DataSource {
             val upstream = OkHttpDataSource.Factory(client).setDefaultRequestProperties(headers).createDataSource()
-            return ParallelRangeDataSource(client, upstream, connections, chunkSize, headers, meter, singleStreamHosts)
+            return ParallelRangeDataSource(client, upstream, connections, readAhead, headers, meter, singleStreamHosts)
         }
     }
 }

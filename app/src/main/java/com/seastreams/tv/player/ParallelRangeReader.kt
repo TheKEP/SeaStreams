@@ -27,21 +27,24 @@ fun interface RangeFetcher {
 }
 
 /**
- * Reads `[start, end)` of a resource as consecutive [chunkSize] byte ranges, with up to [connections]
- * of them downloading at once on [executor] while the caller reads sequentially (PRD §9 Parallel HTTP
- * Range Reader).
+ * Reads `[start, end)` of a resource as consecutive byte ranges laid out by [readAhead] (small chunks
+ * first, then larger ones) while the caller reads sequentially (PRD §9 Parallel HTTP Range Reader).
  *
- * - Memory is bounded: at most [connections] chunk buffers exist, recycled through a small pool.
+ * - Sliding window: up to [connections] chunks download at once, and a worker that finishes a chunk
+ *   immediately starts the next one, independently of the caller's read pace, until the
+ *   downloaded-but-unread bytes reach [RangeReadAhead.highWaterBytes]. Reading frees room and resumes it.
+ * - Memory is strictly bounded: every chunk buffer, in flight or pooled, counts towards the high-water
+ *   mark, and buffers are recycled by size.
  * - The reader can consume a chunk while it is still arriving, so start-up latency matches one connection.
- * - [close] is deterministic: it cancels every in-flight connection (unblocking its socket read) and
- *   no worker touches a buffer afterwards. ExoPlayer closes and reopens the data source on seek.
+ * - [close] is deterministic: it cancels every in-flight connection (unblocking its socket read) and no
+ *   chunk is scheduled afterwards. ExoPlayer closes and reopens the data source on seek.
  * - A chunk whose connection drops is retried from where it stopped, [MAX_RETRIES] times.
  */
 class ParallelRangeReader(
     private val fetcher: RangeFetcher,
     private val start: Long,
     private val end: Long,
-    private val chunkSize: Int,
+    private val readAhead: RangeReadAhead,
     private val connections: Int,
     private val executor: ExecutorService,
     private val meter: ThroughputMeter?,
@@ -49,44 +52,50 @@ class ParallelRangeReader(
     firstConnection: RangeConnection? = null,
 ) : Closeable {
 
-    private val lock = Any()
-    private val chunkCount = ((end - start + chunkSize - 1) / chunkSize).toInt()
-    private val pool = ArrayDeque<ByteArray>()
+    private val lock = ReentrantLock()
+    private val scheduled: Condition = lock.newCondition()
+    private val chunkCount: Int
+    private val pool = HashMap<Int, ArrayDeque<ByteArray>>()
     private val inFlight = HashMap<Int, Chunk>()
     private var nextToSchedule = 0
+    private var downloading = 0
+    private var inFlightBytes = 0L
+    private var pooledBytes = 0L
+    private var readIndex = 0
     private var position = start
+    private var pendingFirst: RangeConnection? = firstConnection
+
+    /** Most bytes ever held in chunk buffers (in flight + pooled); never above the high-water mark. */
+    @Volatile
+    internal var peakRetainedBytes = 0L
+        private set
 
     @Volatile
     private var closed = false
 
     init {
         require(end > start) { "empty range" }
-        require(connections >= 1 && chunkSize > 0)
-        synchronized(lock) {
-            val initial = minOf(connections, chunkCount)
-            for (i in 0 until initial) schedule(if (i == 0) firstConnection else null)
-        }
-        if (chunkCount == 0) firstConnection?.close()
+        require(connections >= 1)
+        chunkCount = readAhead.chunkCount(end - start)
+        lock.withLock { pump() }
     }
 
     /** Bytes left to read. */
     val remaining: Long get() = end - position
 
+    /** Chunks scheduled so far (downloading, downloaded or already read). */
+    internal val chunksScheduled: Int get() = lock.withLock { nextToSchedule }
+
     @Throws(IOException::class)
     fun read(buffer: ByteArray, offset: Int, length: Int): Int {
         if (length == 0) return 0
         if (position >= end) return END_OF_INPUT
-        val index = ((position - start) / chunkSize).toInt()
-        val chunk = synchronized(lock) { inFlight[index] } ?: throw IOException("chunk $index not scheduled")
+        val index = readIndex
+        val chunk = awaitScheduled(index)
         val offsetInChunk = (position - chunk.start).toInt()
         val copied = chunk.lock.withLock {
             while (chunk.filled <= offsetInChunk && chunk.error == null && !closed) {
-                try {
-                    chunk.changed.await(WAIT_SLICE_MS, TimeUnit.MILLISECONDS)
-                } catch (e: InterruptedException) {
-                    Thread.currentThread().interrupt()
-                    throw InterruptedIOException("range read interrupted")
-                }
+                awaitSlice(chunk.changed)
             }
             if (closed) throw IOException("reader closed")
             if (chunk.filled <= offsetInChunk) throw chunk.error ?: IOException("chunk $index failed")
@@ -102,7 +111,17 @@ class ParallelRangeReader(
     override fun close() {
         if (closed) return
         closed = true
-        val chunks = synchronized(lock) { inFlight.values.toList().also { inFlight.clear(); pool.clear() } }
+        val chunks = lock.withLock {
+            pendingFirst?.close()
+            pendingFirst = null
+            inFlight.values.toList().also {
+                inFlight.clear()
+                pool.clear()
+                inFlightBytes = 0
+                pooledBytes = 0
+                scheduled.signalAll()
+            }
+        }
         chunks.forEach { chunk ->
             chunk.future?.cancel(true)
             chunk.connection?.cancel()
@@ -110,25 +129,74 @@ class ParallelRangeReader(
         }
     }
 
-    /** The reader finished [chunk]: recycle its buffer and start the next chunk in line. */
-    private fun finish(index: Int, chunk: Chunk) {
-        synchronized(lock) {
-            if (closed) return
-            inFlight.remove(index)
-            pool.addLast(chunk.buffer)
-            if (nextToSchedule < chunkCount) schedule(null)
+    /** Waits until chunk [index] is scheduled (the worker freeing its slot may still be wrapping up). */
+    private fun awaitScheduled(index: Int): Chunk = lock.withLock {
+        while (!closed) {
+            inFlight[index]?.let { return it }
+            awaitSlice(scheduled)
+        }
+        throw IOException("reader closed")
+    }
+
+    private fun awaitSlice(condition: Condition) {
+        try {
+            condition.await(WAIT_SLICE_MS, TimeUnit.MILLISECONDS)
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+            throw InterruptedIOException("range read interrupted")
         }
     }
 
+    /** The reader finished [chunk]: recycle its buffer and refill the window. */
+    private fun finish(index: Int, chunk: Chunk) {
+        lock.withLock {
+            readIndex = index + 1
+            if (closed) return
+            inFlight.remove(index)
+            inFlightBytes -= chunk.buffer.size
+            pool.getOrPut(chunk.buffer.size) { ArrayDeque() }.addLast(chunk.buffer)
+            pooledBytes += chunk.buffer.size
+            pump()
+        }
+    }
+
+    /** Schedules chunks while a connection is free and the window has room. Called with [lock] held. */
+    private fun pump() {
+        while (!closed && nextToSchedule < chunkCount && downloading < connections) {
+            val size = readAhead.chunkSize(nextToSchedule)
+            if (inFlightBytes + size > readAhead.highWaterBytes && inFlight.isNotEmpty()) return
+            schedule(takeBuffer(size))
+        }
+    }
+
+    /** A pooled buffer of [size], or a new one after evicting pooled buffers to stay under the mark. */
+    private fun takeBuffer(size: Int): ByteArray {
+        pool[size]?.removeFirstOrNull()?.let {
+            pooledBytes -= size
+            return it
+        }
+        for (queue in pool.values) {
+            while (inFlightBytes + pooledBytes + size > readAhead.highWaterBytes) {
+                val evicted = queue.removeFirstOrNull() ?: break
+                pooledBytes -= evicted.size
+            }
+        }
+        return ByteArray(size)
+    }
+
     /** Called with [lock] held. */
-    private fun schedule(preOpened: RangeConnection?) {
+    private fun schedule(buffer: ByteArray) {
         val index = nextToSchedule++
-        val chunkStart = start + index.toLong() * chunkSize
-        val chunkLength = minOf(chunkSize.toLong(), end - chunkStart).toInt()
-        val buffer = pool.removeFirstOrNull() ?: ByteArray(chunkSize)
+        val chunkStart = start + readAhead.chunkOffset(index)
+        val chunkLength = minOf(buffer.size.toLong(), end - chunkStart).toInt()
         val chunk = Chunk(chunkStart, chunkLength, buffer)
         inFlight[index] = chunk
+        inFlightBytes += buffer.size
+        peakRetainedBytes = maxOf(peakRetainedBytes, inFlightBytes + pooledBytes)
+        downloading++
+        val preOpened = if (index == 0) pendingFirst.also { pendingFirst = null } else null
         chunk.future = executor.submit { download(chunk, preOpened) }
+        scheduled.signalAll()
     }
 
     private fun download(chunk: Chunk, preOpened: RangeConnection?) {
@@ -156,6 +224,11 @@ class ParallelRangeReader(
         } finally {
             pending?.close()
             meter?.activeConnections?.decrementAndGet()
+            // The worker slot is free: start the next chunk right away, whatever the reader's pace.
+            lock.withLock {
+                downloading--
+                pump()
+            }
         }
     }
 
@@ -199,7 +272,6 @@ class ParallelRangeReader(
 
     companion object {
         const val END_OF_INPUT = -1
-        const val DEFAULT_CHUNK_SIZE = 4 * 1024 * 1024
         const val MAX_RETRIES = 2
         private const val READ_SLICE = 64 * 1024
         private const val WAIT_SLICE_MS = 250L
