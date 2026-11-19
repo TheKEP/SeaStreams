@@ -50,7 +50,7 @@ class PlaybackSettingsDataStoreTest {
         assertTrue(player.muteAutoPlayTrailers)
         assertEquals(2, player.trailerAutoPlayDelaySeconds)
         assertEquals(PlaybackBufferProfile.LARGE, player.playbackBufferProfile)
-        assertEquals(3, player.parallelStreamConnections)
+        assertEquals(4, player.parallelStreamConnections)
         assertTrue(player.convertDvProfile7ToHdr)
         assertTrue(player.autoPlayNextEpisode)
         assertEquals(5, player.fallbackTimeoutSeconds)

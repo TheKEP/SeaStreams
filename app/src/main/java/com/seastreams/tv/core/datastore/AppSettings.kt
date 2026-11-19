@@ -84,7 +84,7 @@ data class PlayerSettings(
     companion object {
         const val DEFAULT_FALLBACK_TIMEOUT_SECONDS = 5
         val FALLBACK_TIMEOUT_RANGE: IntRange = 1..10
-        const val DEFAULT_PARALLEL_CONNECTIONS = 3
+        const val DEFAULT_PARALLEL_CONNECTIONS = 4
         val PARALLEL_CONNECTIONS_RANGE: IntRange = 1..4
         const val DEFAULT_TRAILER_DELAY_SECONDS = 2
         val TRAILER_DELAY_RANGE: IntRange = 1..7

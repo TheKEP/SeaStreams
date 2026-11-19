@@ -36,8 +36,10 @@ app/src/main/java/com/seastreams/tv/
 │   │   └── SdhSubtitleCleaner.kt     # Pure Kotlin SDH cue stripper
 │   └── usecase/                      # GetHomeCatalogsUseCase, ResolveStreamsUseCase (`StreamResolution.streams` = one flat list in addon `sortOrder` — auto-play `topStream` and fallback use it unchanged; `streamAddons` = every enabled addon that can serve `stream` for the title's type + id, in `sortOrder`, kept even with 0 results or a failure), ResolveTrailerStreamUseCase, ResolveContinueWatchingTargetUseCase (CW card -> age-checked PlaybackTarget, single-title /external_ids), ImportMdbListUseCase
 ├── player/
-│   ├── SeaStreamsPlayerManager.kt    # ExoPlayer wrapper + LoadControl buffer profiles + Stream Fallback Timer (1s-10s) + MergingMediaSource trailers
-│   ├── ParallelRangeDataSource.kt    # Multi-connection HTTP Byte-Range DataSource wrapper (1-4 concurrent chunks) + live throughput tracker
+│   ├── SeaStreamsPlayerManager.kt    # ExoPlayer wrapper + LoadControl buffer profiles (BufferProfiles.kt: byte target wins, min = max duration) + Stream Fallback Timer (1s-10s) + MergingMediaSource trailers
+│   ├── ParallelRangeDataSource.kt    # Multi-connection HTTP Byte-Range DataSource wrapper (1-4 concurrent connections, default 4) + live throughput tracker; 206 probe with single-stream fallback
+│   ├── ParallelRangeReader.kt        # Sliding-window ring: N workers pipeline sequential ranges ahead of ExoPlayer up to the high-water mark; deterministic cancel on seek/close
+│   ├── RangeReadAhead.kt             # Ring window per buffer profile: 24/64/128 MB high-water (heap-clamped), 4 MB chunks for the first 16 MB, then 8 MB
 │   ├── InlineTrailerController.kt    # Hover delay/cancellation + preview state, keyed by InlineTrailerSlot(rowKey, index, itemKey) — never by title alone; playsIn(slot, cardFocused) gates surface attachment
 │   ├── InlineTrailerPlayerManager.kt # Single shared lifecycle-aware ExoPlayer for 16:9 catalog row hover previews (card-agnostic; ownership lives in InlineTrailerController's slot)
 │   ├── audio/

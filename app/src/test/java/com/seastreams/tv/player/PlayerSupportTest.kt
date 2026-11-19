@@ -26,7 +26,7 @@ class PlayerSupportTest {
     fun `buffer profiles match PRD sizes and rebuffer thresholds`() {
         val mb = 1024 * 1024
         assertEquals(LoadControlSpec(50_000, 50_000, 2_500, 5_000, 64 * mb), PlaybackBufferProfile.STANDARD.loadControlSpec())
-        assertEquals(LoadControlSpec(120_000, 150_000, 2_500, 5_000, 150 * mb), PlaybackBufferProfile.LARGE.loadControlSpec())
+        assertEquals(LoadControlSpec(150_000, 150_000, 2_500, 5_000, 150 * mb), PlaybackBufferProfile.LARGE.loadControlSpec())
         assertEquals(LoadControlSpec(300_000, 300_000, 2_500, 8_000, 250 * mb), PlaybackBufferProfile.MAX.loadControlSpec())
     }
 
