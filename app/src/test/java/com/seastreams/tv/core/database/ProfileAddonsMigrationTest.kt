@@ -1,15 +1,11 @@
 package com.seastreams.tv.core.database
 
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
+import com.seastreams.tv.testutil.exportedSchemaSql
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import java.io.File
 import java.sql.Connection
 import java.sql.DriverManager
 
@@ -25,7 +21,7 @@ class ProfileAddonsMigrationTest {
     fun setUp() {
         db = DriverManager.getConnection("jdbc:sqlite::memory:")
         exec("PRAGMA foreign_keys = ON")
-        schema(4).forEach(::exec)
+        exportedSchemaSql(4).forEach(::exec)
     }
 
     @AfterEach
@@ -61,7 +57,7 @@ class ProfileAddonsMigrationTest {
         migrate()
 
         // Room validates columns, keys and foreign keys on open; compare them with a table built from v5's createSql.
-        exec(schema(5).first { it.contains("TABLE IF NOT EXISTS `addons`") }.replace("`addons`", "`expected`"))
+        exec(exportedSchemaSql(5).first { it.contains("TABLE IF NOT EXISTS `addons`") }.replace("`addons`", "`expected`"))
         assertEquals(query("PRAGMA table_info(`expected`)"), query("PRAGMA table_info(`addons`)"))
         assertEquals(query("PRAGMA foreign_key_list(`expected`)"), query("PRAGMA foreign_key_list(`addons`)"))
         val indices = query("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'addons' AND sql IS NOT NULL ORDER BY name")
@@ -104,20 +100,4 @@ class ProfileAddonsMigrationTest {
             "VALUES ('$url', 'id.$name', '$name', ${customName?.let { "'$it'" } ?: "NULL"}, ${if (enabled) 1 else 0}, " +
             "$sortOrder, '{}', ${1000 + sortOrder})",
     )
-
-    /** Table and index DDL from Room's exported schema for [version]. */
-    private fun schema(version: Int): List<String> {
-        val file = File("schemas/com.seastreams.tv.core.database.SeaStreamsDatabase/$version.json")
-        val entities = Json.parseToJsonElement(file.readText()).jsonObject.getValue("database").jsonObject.getValue("entities").jsonArray
-        return entities.flatMap { element ->
-            val entity = element.jsonObject
-            val table = entity.getValue("tableName").jsonPrimitive.content
-            val indices = entity["indices"]?.jsonArray.orEmpty().map { it.jsonObject.getValue("createSql").jsonPrimitive.content }
-            (listOf(entity.getValue("createSql").jsonPrimitive.content) + indices).map { it.replace(TABLE_NAME, "`$table`") }
-        }
-    }
-
-    private companion object {
-        const val TABLE_NAME = "`\${TABLE_NAME}`"
-    }
 }

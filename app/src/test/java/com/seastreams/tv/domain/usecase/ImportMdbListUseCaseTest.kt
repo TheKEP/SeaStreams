@@ -66,6 +66,7 @@ class ImportMdbListUseCaseTest {
         coEvery { tmdb.getMovieDetails(2) } returns movie(2, "Alien", "R")
         coEvery { tmdb.getMovieDetails(3) } returns movie(3, "Indie Short", null)
         coEvery { tmdb.getMovieDetails(4) } throws IOException("timeout")
+        coEvery { libraryDao.tmdbIds(any(), any()) } returns emptyList()
         coEvery { libraryDao.insertAll(capture(inserted)) } answers { inserted.captured.map { 1L } }
     }
 
