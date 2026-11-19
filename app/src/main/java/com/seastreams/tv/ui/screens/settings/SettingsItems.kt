@@ -67,16 +67,19 @@ class SettingsCallbacks(
     val vm: SettingsViewModel,
     val clearLibrary: () -> Unit,
     val undoClear: () -> Unit,
+    val clearCache: () -> Unit,
 )
 
 /**
  * The main list (PRD §10), grouped under `ADDONS & PORTAL`, `UI & APPEARANCE`, `PLAYBACK`, `AUDIO`,
- * `SUBTITLES` and `LIBRARY`. [clearSecondsLeft] is non-null while a Clear Library can still be undone.
+ * `SUBTITLES`, `LIBRARY` and `STORAGE`. [clearSecondsLeft] is non-null while a Clear Library can still be
+ * undone; [cacheBytes] is null while the cache is being measured or cleared.
  */
 fun settingsItems(
     state: SettingsUiState,
     swatchesOpen: Boolean,
     clearSecondsLeft: Int?,
+    cacheBytes: Long?,
     cb: SettingsCallbacks,
 ): List<SettingsItem> {
     val s: AppSettings = state.settings
@@ -168,10 +171,32 @@ fun settingsItems(
         } else {
             add(entry(CLEAR_ROW_KEY, Icons.Filled.Delete, "Clear library", "Removes every title saved to this profile", RowTrailing.None, cb.clearLibrary))
         }
+
+        add(SettingsItem.Header("h-storage", "Storage"))
+        add(entry(CLEAR_CACHE_ROW_KEY, Icons.Filled.Delete, "Clear cache", cacheSizeLabel(cacheBytes), RowTrailing.None, cb.clearCache))
     }
 }
 
+/**
+ * For each list index, the row's position among the focusable [SettingsItem.Entry] rows, or `-1` for a
+ * header or the swatch strip. Feeds `verticalListEdgeWrap`, so the §1 two-way wrap runs between the
+ * first and last *entries* and never lands on a non-focusable header.
+ */
+internal fun settingsEntryOrdinals(items: List<SettingsItem>): IntArray {
+    var next = 0
+    return IntArray(items.size) { index -> if (items[index] is SettingsItem.Entry) next++ else -1 }
+}
+
+/** `Calculating…` while measuring, `0 MB` when (practically) empty, otherwise `N MB used`. */
+internal fun cacheSizeLabel(bytes: Long?): String {
+    if (bytes == null) return "Calculating…"
+    val mb = (bytes + BYTES_PER_MB / 2) / BYTES_PER_MB
+    return if (mb == 0L) "0 MB" else "$mb MB used"
+}
+
 const val CLEAR_ROW_KEY = "clear-library"
+const val CLEAR_CACHE_ROW_KEY = "clear-cache"
+private const val BYTES_PER_MB = 1024L * 1024
 const val FIRST_ENABLED_ADDON = "First enabled addon"
 private const val AUDIO_STEP = 25
 
