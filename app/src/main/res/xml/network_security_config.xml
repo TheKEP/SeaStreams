@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Stremio addons, the stream/subtitle URLs they return and self-hosted LAN servers are arbitrary
+  user-chosen hosts (often plain-HTTP IP addresses). <domain-config> matches host names only, not
+  IP ranges, so cleartext is permitted globally. TLS connections still trust only system CAs.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

@@ -82,6 +82,18 @@ class StremioManifestParserTest {
         "https://addon.example.com/, https://addon.example.com/manifest.json",
         "addon.example.com/path, https://addon.example.com/path/manifest.json",
         "http://192.168.1.5:11470/manifest.json#frag, http://192.168.1.5:11470/manifest.json",
+        // Cleartext LAN / self-hosted addons: bare LAN hosts default to http, explicit http is kept.
+        "192.168.4.173:3000, http://192.168.4.173:3000/manifest.json",
+        "192.168.4.173:3000/manifest.json, http://192.168.4.173:3000/manifest.json",
+        "http://192.168.4.173:3000/manifest.json, http://192.168.4.173:3000/manifest.json",
+        "HTTP://10.0.0.2:7000/cfg, http://10.0.0.2:7000/cfg/manifest.json",
+        "localhost:11470, http://localhost:11470/manifest.json",
+        "nas.local:7000/, http://nas.local:7000/manifest.json",
+        "[::1]:3000, http://[::1]:3000/manifest.json",
+        "stremio://192.168.1.5:7000/manifest.json, http://192.168.1.5:7000/manifest.json",
+        "http://addon.example.com/manifest.json, http://addon.example.com/manifest.json",
+        "8.8.8.8:3000, https://8.8.8.8:3000/manifest.json",
+        "172.32.0.1:3000, https://172.32.0.1:3000/manifest.json",
     )
     fun `normalises addon URLs`(input: String, expected: String) {
         assertEquals(expected, StremioAddonUrl.normalize(input))
@@ -98,6 +110,20 @@ class StremioManifestParserTest {
         assertEquals(
             "https://addon.example.com/cfg=abc",
             StremioAddonUrl.transportBase("https://addon.example.com/cfg=abc/manifest.json"),
+        )
+    }
+
+    @Test
+    fun `resource URLs of a cleartext LAN addon keep http and the port`() {
+        val manifestUrl = "http://192.168.4.173:3000/cfg/manifest.json"
+        assertEquals("http://192.168.4.173:3000/cfg", StremioAddonUrl.transportBase(manifestUrl))
+        assertEquals(
+            "http://192.168.4.173:3000/cfg/stream/movie/tt0111161.json",
+            StremioAddonClient.resourceUrl(manifestUrl, "stream", "movie", "tt0111161"),
+        )
+        assertEquals(
+            "http://192.168.4.173:3000/cfg/subtitles/series/tt1:1:2.json",
+            StremioAddonClient.resourceUrl(manifestUrl, "subtitles", "series", "tt1:1:2"),
         )
     }
 

@@ -121,7 +121,7 @@ ul.list li.disabled .title { color: var(--muted); text-decoration: line-through;
 
   <section id="addons">
     <h2>Stremio addons</h2>
-    <p class="hint">Each profile has its own addons. Paste an addon's manifest URL (https://…/manifest.json or stremio://…). Order sets stream priority and the order of addon catalog rows on Home.</p>
+    <p class="hint">Each profile has its own addons. Paste an addon's manifest URL (https://…/manifest.json, http://… for self-hosted addons, or stremio://…). A bare LAN address such as 192.168.1.20:7000 is treated as http://. Order sets stream priority and the order of addon catalog rows on Home.</p>
     <div class="row">
       <label for="addon-profile">Editing addons for</label>
       <select class="grow" id="addon-profile" aria-label="Profile whose addons are edited"></select>
@@ -129,7 +129,7 @@ ul.list li.disabled .title { color: var(--muted); text-decoration: line-through;
     <p class="hint" id="addon-profile-hint"></p>
     <form id="addon-form" autocomplete="off">
       <div class="row">
-        <input class="grow" type="url" id="addon-url" placeholder="https://example.com/manifest.json" inputmode="url" required>
+        <input class="grow" type="text" id="addon-url" placeholder="https://example.com/manifest.json or 192.168.1.20:7000" inputmode="url" autocapitalize="off" spellcheck="false" required>
         <button class="primary" type="submit" id="addon-submit">Install</button>
       </div>
     </form>

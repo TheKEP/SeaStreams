@@ -108,28 +108,39 @@ object StremioManifestParser {
         (this[key] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content }
 }
 
-/** Normalises user-entered addon links into canonical `https://…/manifest.json` URLs. */
+/** Normalises user-entered addon links into canonical `http(s)://…/manifest.json` URLs. */
 object StremioAddonUrl {
 
     private const val MANIFEST = "manifest.json"
+    private const val STREMIO_SCHEME = "stremio://"
 
     /**
      * Accepts `stremio://`, `http(s)://` or scheme-less links. Returns `null` for anything that is
      * not a plausible addon URL. A missing `/manifest.json` suffix is appended.
+     *
+     * An explicit `http://` or `https://` is kept as given (never upgraded). Scheme-less and
+     * `stremio://` links get `http://` when the host is on the LAN or loopback ([LocalNetworkHost]),
+     * where self-hosted addons rarely have TLS, and `https://` otherwise.
      */
     fun normalize(input: String): String? {
         var url = input.trim()
         if (url.isEmpty() || url.any { it.isWhitespace() }) return null
         url = when {
-            url.startsWith("stremio://", ignoreCase = true) -> "https://" + url.substring("stremio://".length)
+            url.startsWith(STREMIO_SCHEME, ignoreCase = true) -> withDefaultScheme(url.substring(STREMIO_SCHEME.length))
             url.startsWith("https://", ignoreCase = true) || url.startsWith("http://", ignoreCase = true) -> url
             url.contains("://") -> return null
-            else -> "https://$url"
-        }
+            else -> withDefaultScheme(url)
+        } ?: return null
         val parsed = url.toHttpUrlOrNull() ?: return null
         val path = parsed.encodedPath.trimEnd('/')
         val withManifest = if (path.endsWith("/$MANIFEST")) path else "$path/$MANIFEST"
         return parsed.newBuilder().encodedPath(withManifest).fragment(null).build().toString()
+    }
+
+    /** `http://` for LAN/loopback hosts, `https://` for everything else; `null` when unparseable. */
+    private fun withDefaultScheme(rest: String): String? {
+        val host = "http://$rest".toHttpUrlOrNull()?.host ?: return null
+        return (if (LocalNetworkHost.isLocal(host)) "http://" else "https://") + rest
     }
 
     /** Base URL that resource paths (`/stream/…`, `/subtitles/…`) are resolved against. */

@@ -19,7 +19,9 @@ app/src/main/java/com/seastreams/tv/
 │   │   ├── OkHttpDownloader.kt       # NewPipeExtractor Downloader backed by shared OkHttpClient
 │   │   ├── TmdbApiService.kt         # /discover, /search, /movie/{id}, /tv/{id}, /external_ids
 │   │   ├── MdbListApiService.kt      # Fetches built-in Home chart JSONs & one-time Library import lists
-│   │   └── StremioAddonClient.kt     # Fetches manifest.json, /catalog (Home only), /stream, /subtitles
+│   │   ├── StremioManifest.kt        # Manifest parser + StremioAddonUrl (normalise: explicit scheme kept; bare/stremio:// LAN hosts → http://, else https://)
+│   │   ├── LocalNetworkHost.kt       # Literal-only LAN/loopback host check (no DNS) used by StremioAddonUrl
+│   │   └── StremioAddonClient.kt     # Fetches manifest.json, /catalog (Home only), /stream, /subtitles (http:// or https://)
 │   ├── database/
 │   │   ├── SeaStreamsDatabase.kt     # Room DB (v6; schemas exported to app/schemas/)
 │   │   ├── ProfileAddonsMigration.kt # Manual v4→v5 migration: rebuilds `addons` per profile and copies every legacy app-wide addon row into every existing profile in one SQL step (inside Room's migration transaction, before any read). Its SQL is unit-tested against real SQLite via test-only `org.xerial:sqlite-jdbc`.
@@ -114,6 +116,12 @@ app/src/main/res/
 └── drawable/ic_seastreams_icon.png      # Splash-only (SplashScreen.kt); unrelated to the launcher icon
 ```
 - `AndroidManifest.xml`: `<application>` sets `android:enableOnBackInvokedCallback="false"` (targetSdk 37 would otherwise enable predictive back on Android 16+, where `ViewRootImpl` routes `KEYCODE_BACK` to `OnBackInvokedCallback` before the Activity/Compose see the key, breaking `MainActivity`'s long-press gate and the player's `onPreviewKeyEvent` Back handling; TV remotes have no back gesture), and sets `android:icon="@mipmap/ic_launcher"`, `android:roundIcon="@mipmap/ic_launcher_round"`, `android:banner="@drawable/tv_banner"`; the `LEANBACK_LAUNCHER` `MainActivity` repeats `android:banner` (launchers read either `ActivityInfo.banner` or `ApplicationInfo.banner`) and inherits the icon.
+- `AndroidManifest.xml` also sets `android:networkSecurityConfig="@xml/network_security_config"`. `res/xml/network_security_config.xml` has one `<base-config cleartextTrafficPermitted="true">` that trusts only `system` CAs (user-installed CAs stay untrusted). Cleartext is permitted globally rather than per domain because:
+  - targetSdk 28+ blocks cleartext by default. OkHttp then fails with `UnknownServiceException: CLEARTEXT … not permitted`, which the addon installer reports as "Couldn't reach the addon server".
+  - Self-hosted and LAN Stremio addons are often plain `http://` on IP literals, and `<domain-config>` matches host names only, not IP ranges.
+  - The stream and subtitle URLs that addons return can point at any HTTP host.
+
+  The policy covers every outbound client: the shared `OkHttpClient` (and the Ktor `HttpClient` on top of it) used for addon JSON, external subtitles, `ParallelRangeDataSource`/`OkHttpDataSource` playback and trailers. `android:usesCleartextTraffic` is deliberately left out because API 24+ ignores it when a network security config is present (minSdk 26). `NetworkSecurityConfigTest` guards both files.
 - The Android 12+ system splash never shows the launcher icon: `values-v31/themes.xml` pins `windowSplashScreenAnimatedIcon` to `@android:color/transparent`.
 
 ## 3. Storage Bounds & Cache Management
