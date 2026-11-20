@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -43,8 +44,10 @@ import com.seastreams.tv.ui.components.SeaIcons
 import com.seastreams.tv.ui.theme.TextSecondary
 import com.seastreams.tv.ui.theme.rememberListEdgeWrap
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
+import com.seastreams.tv.ui.theme.tryRequestFocus
 import com.seastreams.tv.ui.theme.verticalEdgeKeys
 import com.seastreams.tv.ui.theme.verticalListEdgeWrap
+import kotlinx.coroutines.launch
 
 /** Radio-style list; picking an option saves it and returns to the main list via [onDone]. */
 @Composable
@@ -77,6 +80,9 @@ fun ChoicePanel(spec: ChoiceSpec, onDone: () -> Unit) {
  * Two-way §1 edge-stop-then-wrap between the first addon row and the closing `Install more addons`
  * row: every control of the first row (toggle, move up/down, remove) owns `Up` and wraps to
  * `Install more addons`; a fresh `Down` there wraps to the first row's toggle. Held keys stop.
+ *
+ * `Remove` first moves focus to [addonRemovalFocus]'s target (the next addon's `Remove`, or its toggle
+ * for a built-in; `Install more addons` after the last addon), then removes, so focus is never lost.
  */
 @Composable
 fun AddonsPanel(
@@ -92,6 +98,27 @@ fun AddonsPanel(
     val lastIndex = addonsPanelLastIndex(addons.size)
     val wrap = rememberListEdgeWrap(listState, first, last, lastIndex)
     LaunchedEffect(Unit) { first.requestFocusAfterFrame() }
+    val scope = rememberCoroutineScope()
+    // Rows are keyed by manifest URL, so a row's requesters follow it when the rows above change.
+    val rowFocus = remember { HashMap<String, AddonRowFocus>() }
+    val focusOf: (AddonEntity) -> AddonRowFocus = { rowFocus.getOrPut(it.manifestUrl) { AddonRowFocus() } }
+    val removeKeepingFocus: (Int, AddonEntity) -> Unit = { index, addon ->
+        val (targetIndex, target) = when (
+            val next = addonRemovalFocus(index, addons.size) { !BuiltInAddons.isProtected(addons[it].manifestUrl) }
+        ) {
+            is AddonRemovalFocus.Row -> next.index to focusOf(addons[next.index]).let {
+                if (next.control == AddonRowControl.REMOVE) it.remove else it.toggle
+            }
+            AddonRemovalFocus.InstallMore -> lastIndex to last
+        }
+        scope.launch {
+            if (!target.tryRequestFocus()) {
+                listState.scrollToItem(targetIndex)
+                target.requestFocusAfterFrame()
+            }
+            onRemove(addon)
+        }
+    }
     PanelColumn("Manage addons", listState) {
         itemsIndexed(addons, key = { _, addon -> addon.manifestUrl }) { index, addon ->
             val builtIn = BuiltInAddons.isProtected(addon.manifestUrl)
@@ -105,12 +132,17 @@ fun AddonsPanel(
                     onClick = { onToggle(addon) },
                     modifier = Modifier
                         .weight(1f)
+                        .focusRequester(focusOf(addon).toggle)
                         .then(if (index == 0) Modifier.focusRequester(first) else Modifier)
                         .then(edge),
                 )
                 RoundIconButton(Icons.Filled.KeyboardArrowUp, "Move up", edge) { onMove(addon, -1) }
                 RoundIconButton(Icons.Filled.KeyboardArrowDown, "Move down", edge) { onMove(addon, 1) }
-                if (!builtIn) RoundIconButton(Icons.Filled.Close, "Remove", edge) { onRemove(addon) }
+                if (!builtIn) {
+                    RoundIconButton(Icons.Filled.Close, "Remove", edge.focusRequester(focusOf(addon).remove)) {
+                        removeKeepingFocus(index, addon)
+                    }
+                }
             }
         }
         item(key = "portal-hint") {
@@ -128,6 +160,12 @@ fun AddonsPanel(
             )
         }
     }
+}
+
+/** Focus handles of one Manage addons row: its toggle pill and (non-built-ins only) its `Remove` button. */
+private class AddonRowFocus {
+    val toggle = FocusRequester()
+    val remove = FocusRequester()
 }
 
 /** Lazy index of the closing `Install more addons` row, the last item of the Manage addons list. */
