@@ -66,6 +66,19 @@ class AddonRepositoryTest : AddonRepositoryTestBase() {
     }
 
     @Test
+    fun `install accepts a scheme-less LAN address over plain HTTP`() = runTest {
+        val bareAddress = server.url("/good").removePrefix("http://")
+        assertTrue(bareAddress.startsWith("127.0.0.1:"), bareAddress)
+
+        val installed = repository.install(p, bareAddress)
+
+        assertEquals(server.url("/good/manifest.json"), installed.manifestUrl)
+        assertTrue(installed.manifestUrl.startsWith("http://"))
+        assertEquals("Good Addon", installed.name)
+        assertEquals(listOf(installed.manifestUrl), urls(p))
+    }
+
+    @Test
     fun `install reports invalid manifests and HTTP errors without saving`() = runTest {
         assertTrue(assertThrows<UserFacingException> { repository.install(p, server.url("/bad/manifest.json")) }
             .message.orEmpty().startsWith("Invalid addon manifest"))
