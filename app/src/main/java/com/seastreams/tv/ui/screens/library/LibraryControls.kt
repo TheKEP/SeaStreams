@@ -6,13 +6,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
@@ -31,6 +28,7 @@ import com.seastreams.tv.ui.components.TvDropdown
 import com.seastreams.tv.ui.theme.OutlineDim
 import com.seastreams.tv.ui.theme.TextPrimary
 import com.seastreams.tv.ui.theme.focusPillColors
+import com.seastreams.tv.ui.theme.onDpadEdgeWrap
 import com.seastreams.tv.ui.theme.rememberListEdgeWrap
 import com.seastreams.tv.ui.theme.verticalEdgeKeys
 import com.seastreams.tv.ui.theme.verticalListEdgeWrap
@@ -70,17 +68,22 @@ fun LibrarySortAndGenre(
  * first title; OK moves focus onto that title. Letters with no titles are dimmed and do nothing.
  * Two-way §1 edge-stop-then-wrap: a fresh `Up` on `#` scrolls to and focuses `Z`, a fresh `Down` on
  * `Z` scrolls back to `#`; holding `Up`/`Down` stops on the edge letter and never leaves the bar.
+ * `Left` returns to the grid; a fresh `Right` on any letter runs [onWrapRight] (back to the filter
+ * sidebar), while a held `Right` stops on the bar. [focus] is hoisted so the sidebar can wrap in.
  */
 @Composable
 fun LetterBar(
     letterIndex: Map<Char, Int>,
     onPreview: (index: Int) -> Unit,
     onJump: (index: Int) -> Unit,
+    focus: LetterBarFocus,
+    onLetterFocused: (index: Int) -> Unit,
+    onWrapRight: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val listState = rememberLazyListState()
-    val first = remember { FocusRequester() }
-    val last = remember { FocusRequester() }
+    val listState = focus.listState
+    val first = focus.requesters.first()
+    val last = focus.requesters.last()
     val letters = LibraryQuery.LETTERS
     val wrap = rememberListEdgeWrap(listState, first, last, letters.lastIndex)
     LazyColumn(
@@ -97,10 +100,15 @@ fun LetterBar(
                 onClick = { target?.let(onJump) },
                 modifier = Modifier
                     .size(LETTER_WIDTH, LETTER_HEIGHT)
-                    .onFocusChanged { if (it.isFocused) target?.let(onPreview) }
-                    .then(if (i == 0) Modifier.focusRequester(first) else Modifier)
-                    .then(if (i == letters.lastIndex) Modifier.focusRequester(last) else Modifier)
-                    .verticalListEdgeWrap(i, letters.lastIndex, wrap.toFirst, wrap.toLast),
+                    .onFocusChanged {
+                        if (it.isFocused) {
+                            onLetterFocused(i)
+                            target?.let(onPreview)
+                        }
+                    }
+                    .focusRequester(focus.requesters[i])
+                    .verticalListEdgeWrap(i, letters.lastIndex, wrap.toFirst, wrap.toLast)
+                    .onDpadEdgeWrap(Key.DirectionRight, onWrapRight),
                 shape = ClickableSurfaceDefaults.shape(shape),
                 scale = ClickableSurfaceDefaults.scale(focusedScale = 1.15f),
                 colors = focusPillColors(contentColor = if (target != null) TextPrimary else OutlineDim),

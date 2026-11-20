@@ -45,6 +45,7 @@ import com.seastreams.tv.ui.theme.verticalListEdgeWrap
  *   With [wrapUp] (Episodes seasons) it is two-way: a fresh `Up` on the first entry wraps to the last
  *   (held `Up` stops there). Without it, `Up` on the first entry is ordinary focus search.
  * - [onLongClick] (optional) runs when `OK` is held on an entry, with that entry's focus requester.
+ * - [entryModifier] (optional) adds per-entry modifiers, e.g. Library's `Left` wrap to the A–Z bar.
  */
 @Composable
 fun <T> HoverSidebar(
@@ -59,6 +60,7 @@ fun <T> HoverSidebar(
     trailing: (T) -> String? = { null },
     onLongClick: ((entry: T, requester: FocusRequester) -> Unit)? = null,
     wrapUp: Boolean = false,
+    entryModifier: (index: Int, entry: T) -> Modifier = { _, _ -> Modifier },
 ) {
     val listState = rememberLazyListState()
     val lastEntry = remember { FocusRequester() }
@@ -89,7 +91,8 @@ fun <T> HoverSidebar(
                             index == entries.lastIndex -> Modifier.onDpadEdgeWrap(Key.DirectionDown, wrap.toFirst)
                             else -> Modifier
                         },
-                    ),
+                    )
+                    .then(entryModifier(index, entry)),
             )
         }
     }

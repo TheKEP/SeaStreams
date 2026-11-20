@@ -15,10 +15,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,6 +61,9 @@ fun BackgroundSwatchStrip(
     var hadFocus by remember { mutableStateOf(false) }
     var confirmed by remember { mutableStateOf(false) }
     BackHandler { onCancel(true) }
+    // Leaving composition unconfirmed (e.g. long-press Back closes Settings, PRD §1) drops the preview.
+    val cancelOnDispose by rememberUpdatedState(onCancel)
+    DisposableEffect(Unit) { onDispose { if (!confirmed) cancelOnDispose(false) } }
     LaunchedEffect(Unit) {
         val savedIndex = BackgroundSwatches.ALL.indexOf(savedArgb).coerceAtLeast(0)
         requesters[savedIndex].requestFocusAfterFrame()

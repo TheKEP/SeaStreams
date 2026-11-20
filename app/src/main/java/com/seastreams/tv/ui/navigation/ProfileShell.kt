@@ -10,6 +10,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -89,13 +90,22 @@ internal fun routeHomeDestination(
  *
  * Covers keep the page beneath composed (only hidden and unfocusable), so on `Back` focus goes
  * straight back to the exact card or button that opened them (PRD §6 Exact Focus Restoration).
+ *
+ * Holding `Back` anywhere here (outside playback) closes every cover and opens Search with the
+ * microphone focused ([RegisterBackLongPress], PRD §1).
  */
 @Composable
-fun ProfileShell(profileId: Long, homeViewModel: HomeViewModel, onSwitchProfile: () -> Unit) {
+fun ProfileShell(
+    profileId: Long,
+    homeViewModel: HomeViewModel,
+    backLongPress: BackLongPressRouter,
+    onSwitchProfile: () -> Unit,
+) {
     var tab by rememberSaveable { mutableStateOf(NavTab.HOME) }
     var overlays by remember { mutableStateOf(emptyList<Overlay>()) }
     var covers by remember { mutableStateOf(emptyList<CoverEntry>()) }
     var nextCoverId by remember { mutableLongStateOf(0L) }
+    var micFocusRequest by remember { mutableIntStateOf(0) }
     val tabStates = rememberSaveableStateHolder()
     // The row whose View More is open, kept while that page is popped so its first card regains focus.
     var rowReturn by remember { mutableStateOf<RowReturnTarget?>(null) }
@@ -135,6 +145,11 @@ fun ProfileShell(profileId: Long, homeViewModel: HomeViewModel, onSwitchProfile:
         rowReturn = RowReturnTarget(origin, row.id)
         push(Overlay.ViewMore(row.title, row.source))
     }
+    RegisterBackLongPress(backLongPress, allowed = backLongPressAllowed(playbackState)) {
+        covers = emptyList()
+        overlays = overlaysForSearch(overlays)
+        micFocusRequest++
+    }
     val returnFocusFor: (NavTab) -> ReturnRowFocus = { origin ->
         ReturnRowFocus(rowReturn.rowIdFor(origin)) { if (rowReturn?.tab == origin) rowReturn = null }
     }
@@ -165,6 +180,7 @@ fun ProfileShell(profileId: Long, homeViewModel: HomeViewModel, onSwitchProfile:
                             viewModel = activityViewModel(),
                             onOpenDetails = openDetails,
                             onProfileMissing = onSwitchProfile,
+                            micFocusRequest = micFocusRequest,
                         )
                     }
                     is Overlay.ViewMore -> {
