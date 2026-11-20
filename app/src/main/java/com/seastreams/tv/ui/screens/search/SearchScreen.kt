@@ -19,13 +19,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.unit.dp
 import com.seastreams.tv.domain.model.MediaItem
 import com.seastreams.tv.domain.usecase.SearchCategory
 import com.seastreams.tv.ui.components.HoverSidebar
+import com.seastreams.tv.ui.components.POSTER_GRID_COLUMNS
 import com.seastreams.tv.ui.components.PosterGrid
 import com.seastreams.tv.ui.components.PosterGridPlaceholder
 import com.seastreams.tv.ui.components.RowGutter
+import com.seastreams.tv.ui.theme.onDpadKeyDown
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
 import kotlinx.coroutines.launch
 
@@ -38,6 +41,7 @@ import kotlinx.coroutines.launch
  * - With a query: `Movies` and `TV Shows` result rows replace the browser. `Down` from the top bar
  *   and the bottom-row wrap both land on item #1 of the top results row ([SearchResultsFocus]).
  * - `Back` is handled by the caller (it returns to the previous tab).
+ * - Each new [micFocusRequest] (long-press `Back` while already here, PRD §1) refocuses the microphone.
  */
 @Composable
 fun SearchScreen(
@@ -45,6 +49,7 @@ fun SearchScreen(
     viewModel: SearchViewModel,
     onOpenDetails: (MediaItem) -> Unit,
     onProfileMissing: () -> Unit,
+    micFocusRequest: Int = 0,
 ) {
     LaunchedEffect(profileId) { viewModel.open(profileId) }
     val latest by viewModel.uiState.collectAsState()
@@ -54,7 +59,8 @@ fun SearchScreen(
     LaunchedEffect(latest.missingProfileId) { if (latest.missingProfileId == profileId) onProfileMissing() }
 
     val mic = remember { FocusRequester() }
-    LaunchedEffect(Unit) { mic.requestFocusAfterFrame() }
+    val topBarFocus = remember { SearchTopBarFocus() }
+    LaunchedEffect(micFocusRequest) { mic.requestFocusAfterFrame() }
     val voice = rememberVoiceSearch(
         onPartial = { viewModel.onQueryChange(it) },
         onResult = { viewModel.submit(it) },
@@ -80,11 +86,17 @@ fun SearchScreen(
                 // Results showing: always enter item #1 of the top row, never a row further down.
                 resultsFocus.hasRows.also { if (it) scope.launch { resultsFocus.focusTopRow() } }
             },
+            focus = topBarFocus,
         )
         Box(Modifier.padding(top = 16.dp)) {
             val results = state.results
             if (results == null) {
-                CategoryBrowser(state, onSelect = viewModel::selectCategory, onOpenDetails = onOpenDetails)
+                // `Up` from the first category or a top-row poster: chip #1, else the top bar (PRD §7).
+                val upToTopBar = Modifier.onDpadKeyDown(Key.DirectionUp) {
+                    scope.launch { topBarFocus.enterFromContent(state.recentSearches.isNotEmpty(), query.isNotEmpty(), mic) }
+                    true
+                }
+                CategoryBrowser(state, onSelect = viewModel::selectCategory, onOpenDetails = onOpenDetails, upToTopBar = upToTopBar)
             } else {
                 SearchResultsContent(results, query, resultsFocus, onOpenDetails)
             }
@@ -93,13 +105,19 @@ fun SearchScreen(
 }
 
 @Composable
-private fun CategoryBrowser(state: SearchUiState, onSelect: (SearchCategory) -> Unit, onOpenDetails: (MediaItem) -> Unit) {
+private fun CategoryBrowser(
+    state: SearchUiState,
+    onSelect: (SearchCategory) -> Unit,
+    onOpenDetails: (MediaItem) -> Unit,
+    upToTopBar: Modifier,
+) {
     Row(Modifier.fillMaxSize()) {
         HoverSidebar(
             entries = state.categories,
             selected = state.selectedCategory,
             label = { it.title },
             onSelect = onSelect,
+            entryModifier = { index, _ -> if (index == 0) upToTopBar else Modifier },
             modifier = Modifier.width(SIDEBAR_WIDTH).fillMaxHeight().padding(start = RowGutter - SIDEBAR_INSET),
         )
         val gridPadding = PaddingValues(start = 20.dp, end = RowGutter, top = 4.dp, bottom = 48.dp)
@@ -117,6 +135,7 @@ private fun CategoryBrowser(state: SearchUiState, onSelect: (SearchCategory) -> 
                     onItemClick = onOpenDetails,
                     contentPadding = gridPadding,
                     modifier = Modifier.fillMaxSize(),
+                    itemModifier = { index -> if (index < POSTER_GRID_COLUMNS) upToTopBar else Modifier },
                 )
             }
         }

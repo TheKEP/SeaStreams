@@ -26,7 +26,7 @@ private const val EDITOR_CLOSED = -1L
 private const val EDITOR_NEW = 0L
 
 @Composable
-fun SeaStreamsNavGraph() {
+fun SeaStreamsNavGraph(backLongPress: BackLongPressRouter) {
     val gateViewModel: AppGateViewModel = activityViewModel()
     val gate by gateViewModel.gate.collectAsState()
     // Saveable so the splash shows once per process, not again after activity recreation.
@@ -52,19 +52,24 @@ fun SeaStreamsNavGraph() {
             // The gate flips to Ready on its own once the profile row and key both exist.
             onFinished = {},
         )
-        AppGate.Ready -> ProfileGate()
+        AppGate.Ready -> ProfileGate(backLongPress)
     }
 }
 
 /** Profile switcher, and once a profile is chosen, that profile's tabs (starting on Home). */
 @Composable
-private fun ProfileGate() {
+private fun ProfileGate(backLongPress: BackLongPressRouter) {
     var homeProfileId by rememberSaveable { mutableStateOf<Long?>(null) }
     val openProfileId = homeProfileId
     if (openProfileId != null) {
         val homeViewModel: HomeViewModel = activityViewModel()
         HomeRevealGate(profileId = openProfileId, viewModel = homeViewModel, onBack = { homeProfileId = null }) {
-            ProfileShell(profileId = openProfileId, homeViewModel = homeViewModel, onSwitchProfile = { homeProfileId = null })
+            ProfileShell(
+                profileId = openProfileId,
+                homeViewModel = homeViewModel,
+                backLongPress = backLongPress,
+                onSwitchProfile = { homeProfileId = null },
+            )
         }
         return
     }
