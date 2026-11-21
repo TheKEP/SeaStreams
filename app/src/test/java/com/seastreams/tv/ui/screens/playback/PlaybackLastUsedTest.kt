@@ -3,6 +3,9 @@ package com.seastreams.tv.ui.screens.playback
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.seastreams.tv.core.datastore.PlayerChoice
 import com.seastreams.tv.core.datastore.SettingsDataStore
+import com.seastreams.tv.domain.model.EpisodeRef
+import com.seastreams.tv.domain.model.MediaType
+import com.seastreams.tv.domain.model.PlaybackRequest
 import com.seastreams.tv.domain.model.StreamAddon
 import com.seastreams.tv.domain.model.StreamSource
 import com.seastreams.tv.domain.playback.LastUsedStreamRecorder
@@ -123,6 +126,64 @@ class PlaybackLastUsedTest {
         withTimeout(TIMEOUT_MS) { vm.events.first() }
 
         assertEquals("https://s/b", lastUsed.lastUsed(target)?.url)
+    }
+
+    @Test
+    fun `Resume with Auto-play top stream starts the LAST USED stream, not the top one`() = runBlocking {
+        settings.updatePlayer { it.copy(autoPlayTopStream = true, playerChoice = PlayerChoice.BuiltIn) }
+        lastUsed.record(target, stream("c"))
+        val vm = viewModel()
+
+        vm.play(target, forcePicker = false)
+        val request = withTimeout(TIMEOUT_MS) { vm.state.first { it.player != null } }.player as PlaybackRequest.Media
+
+        assertEquals(2, request.streamIndex)
+    }
+
+    @Test
+    fun `auto-play without a LAST USED starts the top stream`() = runBlocking {
+        settings.updatePlayer { it.copy(autoPlayTopStream = true, playerChoice = PlayerChoice.BuiltIn) }
+        coEvery { resolver.resolve(any(), any()) } returns
+            ResolvedPlayback(target, StreamResolution(streams, emptyList(), emptyList(), addons), topIndex = 1)
+        val vm = viewModel()
+
+        vm.play(target, forcePicker = false)
+        val request = withTimeout(TIMEOUT_MS) { vm.state.first { it.player != null } }.player as PlaybackRequest.Media
+
+        assertEquals(1, request.streamIndex)
+    }
+
+    @Test
+    fun `an episode's forced auto-play starts that episode's LAST USED stream`() = runBlocking {
+        settings.updatePlayer { it.copy(autoPlayTopStream = false, playerChoice = PlayerChoice.BuiltIn) }
+        val episode = PlaybackTarget(PROFILE_ID, testDetails(tmdbId = 9, type = MediaType.TV), "tt9", EpisodeRef(2, 4))
+        coEvery { resolver.resolve(any(), any()) } returns
+            ResolvedPlayback(episode, StreamResolution(streams, emptyList(), emptyList(), addons), topIndex = 0)
+        lastUsed.record(episode, stream("b"))
+        lastUsed.record(episode.copy(episode = EpisodeRef(1, 1)), stream("c"))
+        val vm = viewModel()
+
+        vm.play(episode, forcePicker = false, forceAutoPlay = true)
+        val request = withTimeout(TIMEOUT_MS) { vm.state.first { it.player != null } }.player as PlaybackRequest.Media
+
+        assertEquals(1, request.streamIndex)
+    }
+
+    @Test
+    fun `a re-fetched list with re-signed URLs and new seeder counts still shows LAST USED`() = runBlocking {
+        lastUsed.record(target, StreamSource("https://addon", "Addon", "https://s/b?sig=old", "Addon · 4k", "Movie.DV\n👤 12", emptyMap()))
+        val refetched = listOf(
+            StreamSource("https://addon", "Addon", "https://s/a?sig=new", "Addon · 4k", "Movie.HDR\n👤 40", emptyMap()),
+            StreamSource("https://addon", "Addon", "https://s/b?sig=new", "Addon · 4k", "Movie.DV\n👤 15", emptyMap()),
+        )
+        coEvery { resolver.resolve(any(), any()) } returns
+            ResolvedPlayback(target, StreamResolution(refetched, emptyList(), emptyList(), addons), topIndex = 0)
+        val vm = viewModel()
+
+        vm.play(target, forcePicker = true)
+        val picker = withTimeout(TIMEOUT_MS) { vm.state.first { it.picker?.loading == false } }.picker
+
+        assertEquals(1, picker?.lastUsedIndex)
     }
 
     private fun stream(id: String) = StreamSource("https://addon", "Addon", "https://s/$id", "Addon · $id", "file-$id", emptyMap())

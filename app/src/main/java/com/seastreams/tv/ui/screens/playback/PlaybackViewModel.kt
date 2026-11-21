@@ -85,8 +85,9 @@ sealed interface PlaybackEvent {
 
 /**
  * Starts playback for Details, Episodes and Continue Watching auto-play (PRD §3, §9): looks up
- * streams from every enabled addon, then auto-plays the top one (preferred addon first) or opens the stream list; a long-press on `Play`
- * always opens the list. Streams open in the built-in player ([PlaybackUiState.player]) or go to the
+ * streams from every enabled addon, then auto-plays the `LAST USED` stream when the fresh list holds
+ * it, else the top one (preferred addon first) — [LastUsedStreamRecorder.autoPlayIndex] — or opens the
+ * stream list; a long-press on `Play` always opens the list. Streams open in the built-in player ([PlaybackUiState.player]) or go to the
  * configured external player; when that returns, its result is saved as watch progress and, for a
  * finished episode, Auto-Play Next Episode starts the next one. Details trailers always use the
  * built-in player, falling back to YouTube only when extraction fails.
@@ -117,7 +118,7 @@ class PlaybackViewModel @Inject constructor(
 
     /**
      * Plays [target]; [forcePicker] (long-press, `View streams`) always shows the stream list, and
-     * [forceAutoPlay] (the episode menu's `Auto-play`) always plays the top stream.
+     * [forceAutoPlay] (the episode menu's `Auto-play`) always auto-plays (LAST USED, else top stream).
      */
     fun play(target: PlaybackTarget, forcePicker: Boolean, forceAutoPlay: Boolean = false) {
         lookup?.cancel()
@@ -126,8 +127,8 @@ class PlaybackViewModel @Inject constructor(
 
     /**
      * A Continue Watching card with *Auto-play from Continue Watching* on (PRD §3): straight from Home
-     * to the card's movie or episode — the top stream (preferred addon first, whatever *Auto-play top
-     * stream* says) at its saved position — without opening Details. On failure only a message shows,
+     * to the card's movie or episode — its `LAST USED` stream, else the top stream (preferred addon
+     * first), whatever *Auto-play top stream* says — at its saved position — without opening Details. On failure only a message shows,
      * so focus stays on the card.
      */
     fun playContinueWatching(profileId: Long, item: ContinueWatchingItem) {
@@ -159,7 +160,7 @@ class PlaybackViewModel @Inject constructor(
         val resolved = streams.resolve(target, current.player.preferredAutoPlayAddonUrl)
         if (autoPlay) {
             _state.update { it.copy(busyLabel = null) }
-            if (resolved.top == null) stopLoading(noStreamsMessage(resolved)) else start(resolved, resolved.topIndex, current)
+            if (resolved.top == null) stopLoading(noStreamsMessage(resolved)) else start(resolved, lastUsed.autoPlayIndex(resolved), current)
         } else {
             pickerContext = resolved
             val resolution = resolved.resolution
@@ -274,7 +275,7 @@ class PlaybackViewModel @Inject constructor(
             is NextEpisode.Found -> {
                 val resolved = next.playback
                 message("Up next: ${resolved.target.subtitle()}")
-                if (resolved.top == null) stopLoading(noStreamsMessage(resolved)) else start(resolved, resolved.topIndex, current)
+                if (resolved.top == null) stopLoading(noStreamsMessage(resolved)) else start(resolved, lastUsed.autoPlayIndex(resolved), current)
             }
         }
     }

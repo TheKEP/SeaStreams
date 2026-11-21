@@ -9,6 +9,7 @@ import com.seastreams.tv.domain.model.EpisodeRef
 import com.seastreams.tv.domain.model.MediaType
 import com.seastreams.tv.domain.model.SeasonInfo
 import com.seastreams.tv.domain.playback.PlaybackProgressRecorder
+import com.seastreams.tv.domain.playback.ProgressPoint
 import com.seastreams.tv.domain.playback.ShuffleMode
 import com.seastreams.tv.domain.playback.ShuffleSession
 import com.seastreams.tv.testutil.FakeLibraryDao
@@ -17,9 +18,12 @@ import com.seastreams.tv.testutil.testDetails
 import com.seastreams.tv.testutil.testProfile
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -259,6 +263,28 @@ class DetailsViewModelTest {
         val play = vm.awaitPlayTarget()
         assertEquals(EpisodeRef(1, 1), play?.episode)
         assertEquals(ShuffleSession.Sequential, play?.shuffle)
+    }
+
+    @Test
+    fun `Resume waits for saved progress so a show resumes its in-progress episode, not S1E1`() = runTest(UnconfinedTestDispatcher()) {
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
+        val show = testDetails(11, MediaType.TV, seasons = listOf(SeasonInfo(1, "Season 1", 4), SeasonInfo(2, "Season 2", 4)))
+        coEvery { titles.load(show.ref, profile.toAgeRestriction()) } returns show
+        coEvery { titles.imdbIdForDetails(show.ref) } returns "tt0000011"
+        // Progress arrives only after the title and its IMDb id (e.g. a slow first Room emission).
+        val progressFlow = MutableSharedFlow<List<ProgressPoint>>()
+        val recorder = mockk<PlaybackProgressRecorder>()
+        every { recorder.observe(1, show.ref) } returns progressFlow
+        val library = LibraryRepository(libraryDao, Clock.systemUTC(), backgroundScope)
+        val vm = DetailsViewModel(profiles, titles, library, recorder)
+        vm.open(1, show.media)
+        assertTrue(vm.state.value.imdbResolved)
+
+        val target = async { vm.awaitPlayTarget() }
+        assertFalse(target.isCompleted)
+        progressFlow.emit(listOf(ProgressPoint(EpisodeRef(2, 4), positionMs = 40_000, durationMs = 100_000, updatedAtMillis = 5)))
+
+        assertEquals(EpisodeRef(2, 4), target.await()?.episode)
     }
 
     @Test
