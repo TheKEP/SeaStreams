@@ -70,21 +70,26 @@ enum class SubtitleEdgeType { NONE, OUTLINE, DROP_SHADOW }
 
 data class PlayerSettings(
     val playerChoice: PlayerChoice = PlayerChoice.BuiltIn,
-    val autoPlayTopStream: Boolean = false,
-    /** Addon whose top stream wins auto-play; `null` means the first enabled addon. */
+    /** Plays the top stream on `Play`/`Resume` instead of opening the stream list (PRD §11: on by default). */
+    val autoPlayTopStream: Boolean = true,
+    /**
+     * Addon whose top stream wins auto-play; `null` (the default) means the active profile's first enabled
+     * stream addon in addon (`sortOrder`) order that returns streams.
+     */
     val preferredAutoPlayAddonUrl: String? = null,
     /** Plays the next episode's top stream when an episode finishes (PRD §9: on by default). */
     val autoPlayNextEpisode: Boolean = true,
     /** Advances to the next stream on a start timeout or playback error (PRD §9: on by default). */
     val autoStreamFailover: Boolean = true,
     val fallbackTimeoutSeconds: Int = DEFAULT_FALLBACK_TIMEOUT_SECONDS,
-    val autoPlayFromContinueWatching: Boolean = false,
+    /** `Continue Watching` cards play directly from Home, bypassing Details (PRD §3/§11: on by default). */
+    val autoPlayFromContinueWatching: Boolean = true,
     val blurUnwatchedThumbnails: Boolean = false,
     /** Plays Dolby Vision Profile 7 tracks as their HDR10 base layer (PRD §9: on by default). */
     val convertDvProfile7ToHdr: Boolean = true,
     val dolbyVisionPlayback: DolbyVisionPlayback = DolbyVisionPlayback.AUTO,
-    /** Dims the player UI (never the video) during HDR10/HDR10+/HLG/Dolby Vision playback (PRD §10). */
-    val hdrWhiteDimming: Boolean = false,
+    /** Dims the player UI (never the video) during HDR10/HDR10+/HLG/Dolby Vision playback (PRD §10: on by default). */
+    val hdrWhiteDimming: Boolean = true,
     val playbackBufferProfile: PlaybackBufferProfile = PlaybackBufferProfile.DEFAULT,
     /** Concurrent HTTP byte-range connections per stream; `1` turns the parallel reader off. */
     val parallelStreamConnections: Int = DEFAULT_PARALLEL_CONNECTIONS,
@@ -148,9 +153,10 @@ data class AudioSettings(
     }
 }
 
+/** Global subtitle styling; defaults (PRD §9/§11): 100% size, bold, upright, white, outline, no background box. */
 data class SubtitleStyle(
     val fontScale: Float = 1.0f,
-    val bold: Boolean = false,
+    val bold: Boolean = true,
     val italic: Boolean = false,
     /** ARGB colour int. */
     val textColor: Int = WHITE_ARGB,
@@ -168,8 +174,10 @@ data class SubtitleStyle(
 data class SubtitleSettings(
     val mode: SubtitleMode = SubtitleMode.ALWAYS_OFF,
     val preferredLanguage: String = DEFAULT_LANGUAGE,
-    val hideNonPreferredLanguages: Boolean = false,
-    val cleanSdh: Boolean = false,
+    /** Lists only tracks in [preferredLanguage] (PRD §9/§11: on by default). */
+    val hideNonPreferredLanguages: Boolean = true,
+    /** Strips SDH annotations such as `[DOOR CREAKS]` from cues (PRD §9/§11: on by default). */
+    val cleanSdh: Boolean = true,
     val style: SubtitleStyle = SubtitleStyle(),
     /** Detect and apply the sync offset of external (addon) subtitles during playback (PRD §9). */
     val autoSyncExternal: Boolean = true,

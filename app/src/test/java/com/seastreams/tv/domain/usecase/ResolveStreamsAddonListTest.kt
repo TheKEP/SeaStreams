@@ -85,6 +85,27 @@ class ResolveStreamsAddonListTest {
     }
 
     @Test
+    fun `the default preferred addon resolves to the first enabled stream addon in sortOrder`() = runTest {
+        val dao = FakeAddonDao(
+            listOf(
+                addon("later", sortOrder = 3),
+                addon("off", sortOrder = 0, enabled = false),
+                addon("subs", sortOrder = 1, resources = """["subtitles"]"""),
+                addon("first", sortOrder = 2),
+            ),
+        )
+        coEvery { client.fetchStreams(any(), any(), any()) } answers {
+            listOf(StremioStream("${firstArg<String>()}/s.mkv", "S", "", emptyMap()))
+        }
+        coEvery { client.fetchSubtitles(any(), any(), any()) } returns emptyList()
+
+        val result = ResolveStreamsUseCase(dao, Lazy { client })(movie)
+
+        // PlayerSettings.preferredAutoPlayAddonUrl defaults to null = "First enabled addon".
+        assertEquals("https://first/manifest.json", topStream(result.streams, null)?.addonUrl)
+    }
+
+    @Test
     fun `no enabled stream addons means no cards`() = runTest {
         val dao = FakeAddonDao(listOf(addon("subs", sortOrder = 0, resources = """["subtitles"]""")))
         coEvery { client.fetchSubtitles(any(), any(), any()) } returns emptyList()
