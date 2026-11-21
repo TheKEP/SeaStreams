@@ -258,4 +258,25 @@ class InlineTrailerControllerTest {
         readyFromRowA()
         assertEquals(InlineTrailerState.Idle, trailers.state.value, "row A's callback never claims row B's preview")
     }
+
+    @Test
+    fun `a held Left stopped on the first card restarts the hover delay on release`() = runTest {
+        val trailers = controller()
+        // Held Left lands on item 0 (it arms), then trailing repeats on the edge cancel it.
+        trailers.onCardFocused(duneRowA, dune)
+        trailers.cancel()
+        advanceTimeBy(5_000)
+        runCurrent()
+        assertTrue(playback.started.isEmpty(), "held repeats keep the preview cancelled")
+
+        // KeyUp: the row's HeldKeyTrailerGate re-arms item 0's hover delay.
+        trailers.onCardFocused(duneRowA, dune)
+        advanceTimeBy(1_999)
+        runCurrent()
+        assertTrue(playback.started.isEmpty())
+        advanceTimeBy(2)
+        runCurrent()
+        playback.onReady()
+        assertEquals(InlineTrailerState.Playing(duneRowA, muted = true), trailers.state.value)
+    }
 }

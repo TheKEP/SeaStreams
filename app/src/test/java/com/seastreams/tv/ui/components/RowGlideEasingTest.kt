@@ -2,6 +2,7 @@ package com.seastreams.tv.ui.components
 
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
+import com.seastreams.tv.ui.theme.HORIZONTAL_REPEAT_INTERVAL_MS
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -32,9 +33,10 @@ class RowGlideEasingTest {
     }
 
     @Test
-    fun `rows always use the slow glide timing`() {
-        assertEquals(480, CATALOG_ROW_GLIDE_MS)
-        assertEquals(450, CARD_EXPAND_MS)
+    fun `rows use the snappy fixed-slot timing`() {
+        assertEquals(120, CATALOG_ROW_GLIDE_MS)
+        assertEquals(120, SLOT_CROSSFADE_MS)
+        assertTrue(CATALOG_ROW_GLIDE_MS in 110..140)
     }
 
     @Test
@@ -45,7 +47,15 @@ class RowGlideEasingTest {
     }
 
     @Test
-    fun `a card finishes widening before its row's glide settles`() {
-        assertTrue(CARD_EXPAND_MS in 1..CATALOG_ROW_GLIDE_MS)
+    fun `held scrolling never outruns the leading-edge anchor`() {
+        // Each glide (and the slot's crossfade) settles before the next paced held step fires.
+        assertTrue(CATALOG_ROW_GLIDE_MS < HORIZONTAL_REPEAT_INTERVAL_MS)
+        assertTrue(SLOT_CROSSFADE_MS < HORIZONTAL_REPEAT_INTERVAL_MS)
+    }
+
+    @Test
+    fun `poster and backdrop share one height`() {
+        assertEquals(CardHeight, PosterSize.height)
+        assertEquals(CardHeight, ExpandedSize.height)
     }
 }
