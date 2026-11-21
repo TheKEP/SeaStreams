@@ -48,3 +48,22 @@ class LetterBarFocus(val listState: LazyListState = LazyListState()) {
         }
     }
 }
+
+/**
+ * The grid index a `Left` press on letter [index] of the quick-jump bar focuses (PRD §7): the first
+ * title filed under that letter in [letterIndex] (the same lookup `OK` uses), else the first title of
+ * the nearest populated letter on the bar, with a tie going to the following letter. `null` when no
+ * letter has titles, so `Left` is left to ordinary focus search and focus is never trapped.
+ */
+internal fun letterLeftTarget(letterIndex: Map<Char, Int>, index: Int, letters: List<Char> = LibraryQuery.LETTERS): Int? {
+    if (index !in letters.indices) return null
+    for (distance in 0..letters.lastIndex) {
+        letters.getOrNull(index + distance)?.let { letterIndex[it] }?.let { return it }
+        letters.getOrNull(index - distance)?.let { letterIndex[it] }?.let { return it }
+    }
+    return null
+}
+
+/** [letterLeftTarget] for every letter on the bar, top to bottom. */
+internal fun letterLeftTargets(letterIndex: Map<Char, Int>, letters: List<Char> = LibraryQuery.LETTERS): List<Int?> =
+    letters.indices.map { letterLeftTarget(letterIndex, it, letters) }

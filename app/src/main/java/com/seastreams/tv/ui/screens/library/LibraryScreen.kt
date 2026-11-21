@@ -13,10 +13,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -112,10 +110,10 @@ private fun LibraryBody(
 ) {
     val gridState = rememberLazyGridState()
     val scope = rememberCoroutineScope()
-    val jumpTarget = remember { FocusRequester() }
-    var jumpIndex by remember { mutableIntStateOf(-1) }
     val hasEntries = state.entries.isNotEmpty()
     val posters = remember(state.entries) { state.entries.map { it.media } }
+    // Every poster has its own jump requester: a jump can only ever focus its own target (PRD §7).
+    val jumpTargets = remember(posters) { JumpFocusTargets() }
     // One cancellable grid scroll: letter focus is debounced, OK jumps at once (PRD §7).
     val letterJumps = remember(gridState) { LetterJumpScheduler(scope) { gridState.scrollToItem(it) } }
     LaunchedEffect(state.entries) { letterJumps.cancel() }
@@ -138,7 +136,7 @@ private fun LibraryBody(
                     state = gridState,
                     contentPadding = PaddingValues(top = 4.dp, end = 12.dp, bottom = 48.dp),
                     modifier = Modifier.fillMaxSize(),
-                    itemModifier = { index -> if (index == jumpIndex) Modifier.focusRequester(jumpTarget) else Modifier },
+                    itemModifier = { index -> Modifier.focusRequester(jumpTargets.requesterFor(index)) },
                 )
                 state.genreId != null || state.filter != LibraryFilter.ALL -> EmptyNote("No titles match these filters.")
                 else -> EmptyNote("Your library is empty. Titles you add from a movie or show page will appear here.")
@@ -148,10 +146,8 @@ private fun LibraryBody(
             LetterBar(
                 letterIndex = state.letterIndex,
                 onPreview = letterJumps::preview,
-                onJump = { index ->
-                    jumpIndex = index
-                    letterJumps.jump(index) { jumpTarget.requestFocusAfterFrame() }
-                },
+                // OK and Left: the poster attaches after the scroll, possibly a frame late on a far jump.
+                onJump = { index -> letterJumps.jump(index) { jumpTargets.focus(index, JUMP_FOCUS_FRAMES) } },
                 focus = letterBar,
                 onLetterFocused = memory::onLetterFocused,
                 onWrapRight = onWrapToFilters,
@@ -169,3 +165,6 @@ private fun EmptyNote(text: String) {
 }
 
 private val SIDEBAR_WIDTH = 200.dp
+
+/** Frames an `OK`/`Left` letter jump keeps trying to focus its poster before leaving focus on the letter. */
+private const val JUMP_FOCUS_FRAMES = 10
