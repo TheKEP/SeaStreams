@@ -6,6 +6,7 @@ import com.seastreams.tv.core.util.MILLIS_PER_SECOND
 import com.seastreams.tv.domain.model.PlaybackRequest
 import com.seastreams.tv.player.PlayerTracks
 import com.seastreams.tv.player.SeaStreamsPlayerManager
+import com.seastreams.tv.player.VideoDynamicRange
 import com.seastreams.tv.player.subtitle.sync.syncInfoText
 import java.util.Locale
 
@@ -21,7 +22,7 @@ fun buildInfoRows(state: PlayerUiState, manager: SeaStreamsPlayerManager): List<
     val stream = state.streams.getOrNull(state.streamIndex)
     val bufferedSeconds = player.totalBufferedDuration / MILLIS_PER_SECOND.toDouble()
     val bufferedMb = manager.bufferedBytes / BYTES_PER_MB
-    val dv7 = PlayerTracks.hasDolbyVisionProfile7(player.currentTracks)
+    val range = VideoDynamicRange.label(PlayerTracks.selectedVideoFormat(player.currentTracks), video, manager.config.dolbyVision)
     return buildList {
         if (request is PlaybackRequest.Media && stream != null) {
             add(InfoRow("Stream", "#${state.streamIndex + 1} of ${state.streams.size} · ${stream.label}"))
@@ -30,7 +31,8 @@ fun buildInfoRows(state: PlayerUiState, manager: SeaStreamsPlayerManager): List<
         }
         add(InfoRow("Player engine", "Media3 ExoPlayer"))
         add(InfoRow("File", fileName(stream?.description, stream?.url) ?: "—"))
-        add(InfoRow("Video codec", videoCodec(video, dv7)))
+        add(InfoRow("Video codec", videoCodec(video)))
+        add(InfoRow("Dynamic range", range))
         add(InfoRow("Resolution", video?.takeIf { it.width > 0 }?.let { "${it.width}×${it.height}${frameRate(it)}" } ?: "—"))
         add(InfoRow("Bitrate", bitrate(video)))
         add(InfoRow("Audio codec", PlayerTracks.codecName(audio?.sampleMimeType) ?: "—"))
@@ -59,10 +61,9 @@ internal fun subtitleInfoRows(state: PlayerUiState): List<InfoRow> {
     )
 }
 
-private fun videoCodec(format: Format?, dolbyVisionProfile7: Boolean): String {
+private fun videoCodec(format: Format?): String {
     val name = PlayerTracks.codecName(format?.sampleMimeType) ?: return "—"
-    val codecs = format?.codecs?.let { " ($it)" }.orEmpty()
-    return if (dolbyVisionProfile7) "$name$codecs · Dolby Vision 7 → HDR10" else "$name$codecs"
+    return name + format?.codecs?.let { " ($it)" }.orEmpty()
 }
 
 private fun frameRate(format: Format): String =

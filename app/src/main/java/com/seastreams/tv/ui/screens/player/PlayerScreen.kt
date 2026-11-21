@@ -49,7 +49,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
-import androidx.media3.common.C
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
@@ -58,6 +57,8 @@ import com.seastreams.tv.domain.model.PlaybackRequest
 import com.seastreams.tv.ui.components.LocalTransientMessages
 import com.seastreams.tv.ui.components.SeaIcons
 import com.seastreams.tv.ui.components.SubtitleCueText
+import com.seastreams.tv.ui.components.TransientMessages
+import com.seastreams.tv.ui.components.hdrUiDim
 import com.seastreams.tv.ui.theme.SelectKeys
 import com.seastreams.tv.ui.screens.playback.RESTORE_FRAMES
 import com.seastreams.tv.ui.theme.retryEachFrame
@@ -84,6 +85,8 @@ fun PlayerScreen(request: PlaybackRequest, viewModel: PlayerViewModel, onExit: (
     LaunchedEffect(viewModel) { viewModel.exits.collect { onExit() } }
     LaunchedEffect(viewModel) { viewModel.messages.collect { messages?.show(it) } }
     KeepScreenOn()
+    ResetHdrWindowOnExit()
+    DimToastsForHdr(messages, state.dimUi)
     PauseWhenBackgrounded(viewModel)
     // Fallback only: with Compose focus anywhere in the player, the root preview pass below handles Back.
     BackHandler { viewModel.back() }
@@ -163,33 +166,42 @@ fun PlayerScreen(request: PlaybackRequest, viewModel: PlayerViewModel, onExit: (
             .focusable(),
     ) {
         val current = manager
-        if (current != null) {
+        // Exiting: the SurfaceView (and its last HDR frame) goes now, not when the screen is removed (PRD §10).
+        if (current != null && !state.videoDetached) {
             val player = current.player
             val aspect by current.videoAspect.collectAsState()
             key(player) { VideoSurface(player, aspect) }
-            if (state.hdrWhiteDimming && player.isHdr()) {
-                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = HDR_DIM_ALPHA)))
+        }
+        val containerHeight = maxHeight
+        // Everything drawn over the video; HDR White Dimming dims this layer only, never the picture.
+        Box(Modifier.fillMaxSize().hdrUiDim(state.dimUi)) {
+            val visual = loadingVisual(request is PlaybackRequest.Trailer, state.started, state.buffering)
+            // The session's current request: episode switches and auto-next replace the opening one.
+            ((state.request ?: request) as? PlaybackRequest.Media)?.let { media -> PlayerLoadingOverlay(media.artwork, visual) }
+            cue?.let { text ->
+                val bottom = if (state.hudVisible) SUBTITLE_RAISED else SUBTITLE_BOTTOM
+                SubtitleCueText(
+                    text = text,
+                    style = state.subtitleStyle,
+                    containerHeight = containerHeight,
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottom, start = CUE_SIDE_PADDING, end = cueEndPadding(state.panel)),
+                )
             }
+            CenterIndicator(state, isTrailer = request is PlaybackRequest.Trailer, visual, Modifier.align(Alignment.Center))
+            state.status?.let { StatusPill(it, Modifier.align(Alignment.TopCenter).padding(top = 28.dp)) }
+            if (state.hudVisible) {
+                PlayerOverlayControls(state = state, viewModel = viewModel, initialFocus = hudFocus)
+            }
+            state.panel?.let { panel -> PlayerPanels(panel, state, viewModel, Modifier.align(Alignment.CenterEnd)) }
         }
-        val visual = loadingVisual(request is PlaybackRequest.Trailer, state.started, state.buffering)
-        // The session's current request: episode switches and auto-next replace the opening one.
-        ((state.request ?: request) as? PlaybackRequest.Media)?.let { media -> PlayerLoadingOverlay(media.artwork, visual) }
-        cue?.let { text ->
-            val bottom = if (state.hudVisible) SUBTITLE_RAISED else SUBTITLE_BOTTOM
-            SubtitleCueText(
-                text = text,
-                style = state.subtitleStyle,
-                containerHeight = maxHeight,
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottom, start = CUE_SIDE_PADDING, end = cueEndPadding(state.panel)),
-            )
-        }
-        CenterIndicator(state, isTrailer = request is PlaybackRequest.Trailer, visual, Modifier.align(Alignment.Center))
-        state.status?.let { StatusPill(it, Modifier.align(Alignment.TopCenter).padding(top = 28.dp)) }
-        if (state.hudVisible) {
-            PlayerOverlayControls(state = state, viewModel = viewModel, initialFocus = hudFocus)
-        }
-        state.panel?.let { panel -> PlayerPanels(panel, state, viewModel, Modifier.align(Alignment.CenterEnd)) }
     }
+}
+
+/** Toasts are drawn by the shell above the player; they follow the player's HDR White Dimming too. */
+@Composable
+private fun DimToastsForHdr(messages: TransientMessages?, dim: Boolean) {
+    LaunchedEffect(messages, dim) { messages?.hdrDim = dim }
+    DisposableEffect(messages) { onDispose { messages?.hdrDim = false } }
 }
 
 /** Remote media keys work whether or not the HUD is showing. */
@@ -277,16 +289,10 @@ private fun PauseWhenBackgrounded(viewModel: PlayerViewModel) {
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { viewModel.onHostPaused() }
 }
 
-private fun ExoPlayer.isHdr(): Boolean {
-    val transfer = videoFormat?.colorInfo?.colorTransfer
-    return transfer == C.COLOR_TRANSFER_ST2084 || transfer == C.COLOR_TRANSFER_HLG
-}
-
 private val DpadKeyCodes = setOf(KEYCODE_DPAD_UP, KEYCODE_DPAD_DOWN, KEYCODE_DPAD_LEFT, KEYCODE_DPAD_RIGHT)
 
 const val SEEK_STEP_MS = 10_000L
 private const val FAST_FORWARD_MS = 30_000L
 private const val HUD_TIMEOUT_MS = 5_000L
-private const val HDR_DIM_ALPHA = 0.18f
 private val SUBTITLE_BOTTOM = 48.dp
 private val SUBTITLE_RAISED = 170.dp

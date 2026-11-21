@@ -38,6 +38,9 @@ class TransientMessages {
         private set
     private var nextId = 0L
 
+    /** Set by the player while HDR White Dimming applies, so toasts over HDR video are dimmed too (PRD §10). */
+    var hdrDim by mutableStateOf(false)
+
     fun show(text: String) {
         current = TransientMessage(text, nextId++)
     }
@@ -60,7 +63,7 @@ fun TransientMessageHost(messages: TransientMessages) {
         delay(TRANSIENT_MESSAGE_MILLIS)
         messages.dismiss(message)
     }
-    Box(Modifier.fillMaxSize().padding(bottom = 40.dp), contentAlignment = Alignment.BottomCenter) {
+    Box(Modifier.fillMaxSize().hdrUiDim(messages.hdrDim).padding(bottom = 40.dp), contentAlignment = Alignment.BottomCenter) {
         AnimatedVisibility(
             visible = message != null,
             enter = fadeIn() + slideInVertically { it / 2 },

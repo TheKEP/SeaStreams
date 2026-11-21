@@ -24,7 +24,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
 
-/** PRD §10 colour picker: preview / Enter / Back act on the active profile's background only. */
+/** PRD §11 colour picker: preview / Enter / Back act on the active profile's background only. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class AppearanceViewModelTest {
 

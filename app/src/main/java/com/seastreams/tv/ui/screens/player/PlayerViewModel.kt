@@ -12,6 +12,7 @@ import com.seastreams.tv.domain.playback.AutoNextPolicy
 import com.seastreams.tv.domain.playback.PlayerProgressTracker
 import com.seastreams.tv.domain.playback.PlayerStop
 import com.seastreams.tv.domain.playback.SubtitleSource
+import com.seastreams.tv.player.DisplayHdrSupport
 import com.seastreams.tv.player.FallbackReason
 import com.seastreams.tv.player.PlayerEngineConfig
 import com.seastreams.tv.player.PlayerEvent
@@ -111,8 +112,11 @@ class PlayerViewModel @Inject constructor(
         sessionJob = viewModelScope.launch {
             settings = settingsStore.settings.first()
             val client = withContext(Dispatchers.IO) { okHttp.get() }
+            // Cancelled during the initial load: never build (or show) a player for a session already left.
+            if (exiting) return@launch
             val audio = SessionAudio.from(settings.audio)
-            val manager = SeaStreamsPlayerManager(context, client, PlayerEngineConfig.from(settings, audio.toDsp()))
+            val config = PlayerEngineConfig.from(settings, audio.toDsp(), DisplayHdrSupport.supportsDolbyVision(context))
+            val manager = SeaStreamsPlayerManager(context, client, config)
             _manager.value = manager
             _state.value = PlayerUiState(
                 audio = audio,
@@ -126,6 +130,7 @@ class PlayerViewModel @Inject constructor(
             launch { manager.isPlaying.collect { playing -> _state.update { it.copy(playing = playing) } } }
             launch { manager.buffering.collect { buffering -> _state.update { it.copy(buffering = buffering) } } }
             launch { manager.pcmOutput.collect { pcm -> _state.update { it.copy(dspAvailable = pcm) } } }
+            launch { manager.dynamicRange.collect { range -> _state.update { it.copy(dynamicRange = range) } } }
             launch { tick(manager) }
             when (request) {
                 is PlaybackRequest.Media -> startMedia(request)
@@ -283,11 +288,15 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    /** Leaves playback; progress has already been saved by the caller. */
+    /**
+     * Leaves playback; progress has already been saved by the caller. The video surface goes first,
+     * in this frame, so no HDR/Dolby Vision layer stays on screen while the previous screen returns.
+     */
     internal fun exit() {
         if (exiting) return
         exiting = true
         fallback.cancel()
+        _state.update { it.copy(videoDetached = true) }
         _manager.value?.stop()
         _exits.trySend(Unit)
     }

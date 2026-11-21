@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * The active profile's page background (PRD §10 Visual Background Color Picker). [background] is
+ * The active profile's page background (PRD §11 Visual Background Color Picker). [background] is
  * that profile's saved colour, or the swatch being previewed while the picker has focus on it.
  * Saves go to the active profile only (see [SettingsDataStore]).
  */

@@ -25,7 +25,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
 
-/** General Settings are stored per profile (PRD §10): isolation, switching, deletion, migration. */
+/** General Settings are stored per profile (PRD §11): isolation, switching, deletion, migration. */
 class ProfileScopedSettingsTest {
 
     @TempDir

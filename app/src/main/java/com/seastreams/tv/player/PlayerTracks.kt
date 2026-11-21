@@ -25,9 +25,10 @@ object PlayerTracks {
     /** Id of the playing audio track, if any. */
     fun selectedAudioId(tracks: Tracks): String? = selectedId(tracks, C.TRACK_TYPE_AUDIO)
 
-    /** Whether any track reports Dolby Vision Profile 7 (the Info overlay notes the HDR10 conversion). */
-    fun hasDolbyVisionProfile7(tracks: Tracks): Boolean = tracksOf(tracks, C.TRACK_TYPE_VIDEO).any { (_, format) ->
-        DolbyVisionCompat.isProfile7(format.sampleMimeType, format.codecs)
+    /** The playing video track's source format (before any Dolby Vision base-layer rewrite), if any. */
+    fun selectedVideoFormat(tracks: Tracks): Format? {
+        val group = tracks.groups.firstOrNull { it.type == C.TRACK_TYPE_VIDEO && it.isSelected } ?: return null
+        return (0 until group.length).firstOrNull { group.isTrackSelected(it) }?.let(group::getTrackFormat)
     }
 
     fun selectAudio(player: Player, id: String) = override(player, C.TRACK_TYPE_AUDIO, id)
