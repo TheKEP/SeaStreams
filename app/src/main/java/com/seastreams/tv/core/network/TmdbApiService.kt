@@ -1,5 +1,7 @@
 package com.seastreams.tv.core.network
 
+import com.seastreams.tv.domain.filter.DateWindow
+import com.seastreams.tv.domain.filter.FamilyRule
 import com.seastreams.tv.domain.model.MediaType
 import com.seastreams.tv.domain.model.StreamingProvider
 import io.ktor.client.HttpClient
@@ -70,6 +72,35 @@ class TmdbApiService @Inject constructor(
             parameter("certification.lte", maxCertification)
             parameter("without_genres", excludedGenres.joinToString(","))
             discoverParameters(provider = null, page = 1, genreId = null)
+        }
+
+    /**
+     * Kids `Trending Family Movies` (PRD §3): US digital releases (`with_release_type=4`) inside
+     * [released] that can be streamed, rented or bought in the US ([FAMILY_MOVIE_MONETIZATION]),
+     * pre-filtered by [rule]'s certification ceiling and genres.
+     */
+    suspend fun discoverFamilyMovies(page: Int, rule: FamilyRule, released: DateWindow): TmdbPage<TmdbMovieSummary> =
+        get("discover", "movie") {
+            parameter("region", WATCH_REGION)
+            parameter("with_release_type", RELEASE_TYPE_DIGITAL)
+            parameter("release_date.gte", released.from.toString())
+            parameter("release_date.lte", released.to.toString())
+            parameter("watch_region", WATCH_REGION)
+            parameter("with_watch_monetization_types", FAMILY_MOVIE_MONETIZATION)
+            familyParameters(page, rule)
+        }
+
+    /**
+     * Kids `Trending Family Shows` (PRD §3): returning series (`with_status=0`) with an episode airing
+     * inside [aired], pre-filtered by [rule]'s certification ceiling and genres.
+     */
+    suspend fun discoverFamilyTv(page: Int, rule: FamilyRule, aired: DateWindow): TmdbPage<TmdbTvSummary> =
+        get("discover", "tv") {
+            parameter("with_status", STATUS_RETURNING_SERIES)
+            parameter("air_date.gte", aired.from.toString())
+            parameter("air_date.lte", aired.to.toString())
+            parameter("include_null_first_air_dates", false)
+            familyParameters(page, rule)
         }
 
     /** This week's trending movies (Search's default `Trending Movies` category). */
@@ -156,6 +187,17 @@ class TmdbApiService @Inject constructor(
         pageParameters(page)
     }
 
+    /** Allowlist genres are ORed (`|`), blocklist genres comma-joined, as TMDB expects. */
+    private fun HttpRequestBuilder.familyParameters(page: Int, rule: FamilyRule) {
+        parameter("sort_by", "popularity.desc")
+        parameter("certification_country", WATCH_REGION)
+        parameter("certification.lte", rule.maxCertification)
+        parameter("with_genres", rule.includedGenres.joinToString("|"))
+        parameter("without_genres", rule.excludedGenres.joinToString(","))
+        parameter("include_adult", false)
+        pageParameters(page)
+    }
+
     private fun HttpRequestBuilder.pageParameters(page: Int) {
         parameter("language", LANGUAGE)
         parameter("page", page)
@@ -172,6 +214,15 @@ class TmdbApiService @Inject constructor(
         const val LANGUAGE = "en-US"
         const val WATCH_REGION = "US"
         const val TRENDING_WINDOW = "week"
+
+        /** Subscription streaming plus digital rental and purchase (PVOD/VOD), ORed. */
+        const val FAMILY_MOVIE_MONETIZATION = "flatrate|rent|buy"
+
+        /** TMDB release type `4` = Digital. */
+        const val RELEASE_TYPE_DIGITAL = 4
+
+        /** TMDB TV status `0` = Returning Series. */
+        const val STATUS_RETURNING_SERIES = 0
 
         /** TMDB list endpoints return at most this many results per page. */
         const val PAGE_SIZE = 20

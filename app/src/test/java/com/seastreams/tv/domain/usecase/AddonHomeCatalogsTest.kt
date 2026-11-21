@@ -75,11 +75,27 @@ class AddonHomeCatalogsTest : HomeCatalogsTestBase() {
     }
 
     @Test
-    fun `kids Home shows addon catalogs directly beneath Latest Family Shows`() = runTest {
+    fun `kids Home shows addon catalogs directly beneath Trending Family Shows`() = runTest {
         val ids = useCase.observeRows(kids).first().map { it.spec.id }
 
+        assertEquals(2, HomeCatalogSources.KIDS_ROWS.size)
         assertEquals(HomeCatalogSources.KIDS_ROWS.map { it.id } + alphaIds + betaId, ids)
-        assertEquals("latest-family-shows", ids[HomeCatalogSources.KIDS_ROWS.lastIndex])
+        assertEquals("trending-family-shows", ids[HomeCatalogSources.KIDS_ROWS.lastIndex])
+    }
+
+    @Test
+    fun `kids Home rows are only the two TMDB family rows followed by addon catalogs`() = runTest {
+        val specs = useCase.observeRows(kids).first().map { it.spec }
+
+        assertEquals(listOf("trending-family-movies", "trending-family-shows") + alphaIds + betaId, specs.map { it.id })
+        assertTrue(specs.none { it.source is CatalogSource.MdbList }, "no Kids Home row may come from MDBList")
+        assertEquals(listOf("Trending Family Movies", "Trending Family Shows"), specs.take(2).map { it.title })
+        assertEquals(CatalogSource.FamilyTrending(MediaType.MOVIE), specs[0].source)
+        assertEquals(CatalogSource.FamilyTrending(MediaType.TV), specs[1].source)
+
+        val adultSpecs = useCase.observeRows(adult).first().map { it.spec }
+        assertEquals(listOf("most-watched-movies", "most-watched-shows") + alphaIds + betaId, adultSpecs.map { it.id })
+        assertTrue(adultSpecs.none { it.source is CatalogSource.FamilyTrending })
     }
 
     @Test

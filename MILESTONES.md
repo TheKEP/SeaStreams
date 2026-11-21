@@ -230,6 +230,19 @@
 ---
 
 
+## Post-Launch Feature: Kids Trending Family Rows (`feat/kids-trending-family-rows`)
+**Scope:** Two TMDB-backed rows become the only built-in Kids Home catalog rows, directly below `Continue Watching`. They replace the four MDBList Kids rows (`Trending Kids Movies`, `Trending Kids Shows`, `Latest Family Movies`, `Latest Family Shows`); the Kids hero keeps its MDBList pool (`snoak/trending-kids-movies` + `tvgeniekodi/trending-kids-tv-shows`). The rows: `Trending Family Movies` (`/discover/movie` digital releases from the last 90 days that can be streamed, rented or bought in the US, `G`/`PG`) and `Trending Family Shows` (`/discover/tv` Returning Series that aired in the last 60 days or air within the next 7, `TV-Y`…`TV-PG`). Exact parameters and genre allow/block lists are in PRD §3 and ARCHITECTURE §9.
+
+**Acceptance Criteria:**
+- Kids Home order: Hero → `Continue Watching` → `Trending Family Movies` → `Trending Family Shows` → enabled Stremio metadata addon catalogs (strictly age-filtered through `AgeRestrictionEngine`). No Kids Home row comes from MDBList. The Adult Home order is unchanged.
+- A title that carries any blocked genre (even a secondary one) or none of the allowed genres never appears in either row or its View More grid.
+- Only US `G`/`PG` movies and `TV-Y`/`TV-Y7`/`TV-G`/`TV-PG` shows appear, also intersected with the profile's own ceiling (a `G` profile sees no `PG`, a `TV-Y7` profile sees no `TV-G`/`TV-PG`). Unrated titles never appear, even with `Allow Unrated` on.
+- Rows fetch only `page=1` and show `View More` when `total_pages > 1`. View More grows to up to 100 titles (pages 2–5) with the same filtering. No `/external_ids` call is made on load.
+- `./gradlew testDebugUnitTest` and `./gradlew assembleDebug` pass.
+
+---
+
+
 ## Post-Launch Workflow (Every new feature or change)
 1. Create a Git Branch First: Before making any changes to a working app, tell Claude Code:
 
