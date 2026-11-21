@@ -143,14 +143,14 @@ class SettingsDataStoreTest {
         settings.updateSubtitles {
             it.copy(
                 mode = SubtitleMode.ALWAYS_ON,
-                cleanSdh = true,
+                cleanSdh = false,
                 style = it.style.copy(fontScale = 9f, backgroundOpacity = -1f, edgeType = SubtitleEdgeType.DROP_SHADOW),
             )
         }
 
         val subs = settings.settings.first().subtitles
         assertEquals(SubtitleMode.ALWAYS_ON, subs.mode)
-        assertEquals(true, subs.cleanSdh)
+        assertEquals(false, subs.cleanSdh)
         assertEquals(SubtitleStyle.MAX_FONT_SCALE, subs.style.fontScale)
         assertEquals(0f, subs.style.backgroundOpacity)
         assertEquals(SubtitleEdgeType.DROP_SHADOW, subs.style.edgeType)
