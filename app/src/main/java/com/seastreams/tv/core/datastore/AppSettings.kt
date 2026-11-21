@@ -94,8 +94,9 @@ data class PlayerSettings(
     val trailerAutoPlayDelaySeconds: Int = DEFAULT_TRAILER_DELAY_SECONDS,
 ) {
     companion object {
-        const val DEFAULT_FALLBACK_TIMEOUT_SECONDS = 5
-        val FALLBACK_TIMEOUT_RANGE: IntRange = 1..10
+        const val DEFAULT_FALLBACK_TIMEOUT_SECONDS = 10
+        /** PRD §9/§11: the only selectable Stream Fallback Timeout values, ascending. */
+        val FALLBACK_TIMEOUT_OPTIONS: List<Int> = listOf(10, 15, 20)
         const val DEFAULT_PARALLEL_CONNECTIONS = 4
         val PARALLEL_CONNECTIONS_RANGE: IntRange = 1..4
         const val DEFAULT_TRAILER_DELAY_SECONDS = 2

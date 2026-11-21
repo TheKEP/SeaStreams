@@ -21,7 +21,7 @@ class StreamFallbackControllerTest {
     /** The Automatic Stream Failover setting as the controller reads it on each stream start. */
     private var failover = true
 
-    private fun TestScope.controller(timeoutSeconds: Int = 5) = StreamFallbackController(
+    private fun TestScope.controller(timeoutSeconds: Int = 10) = StreamFallbackController(
         scope = backgroundScope,
         timeoutMs = { timeoutSeconds * 1_000L },
         failover = { failover },

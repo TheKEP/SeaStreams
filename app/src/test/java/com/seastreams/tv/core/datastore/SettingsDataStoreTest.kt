@@ -50,7 +50,7 @@ class SettingsDataStoreTest {
         val defaults = settings.settings.first()
 
         assertEquals(AppSettings(), defaults)
-        assertEquals(5, defaults.player.fallbackTimeoutSeconds)
+        assertEquals(10, defaults.player.fallbackTimeoutSeconds)
         assertEquals(true, defaults.player.autoStreamFailover)
         assertEquals(PlayerChoice.BuiltIn, defaults.player.playerChoice)
         assertEquals(DialogueBoost.OFF, defaults.audio.dialogueBoost)
@@ -85,19 +85,26 @@ class SettingsDataStoreTest {
     }
 
     @ParameterizedTest(name = "{0}s -> {1}s")
-    @CsvSource("0, 1", "1, 1", "5, 5", "10, 10", "42, 10", "-3, 1")
-    fun `stream fallback timeout is clamped to 1-10 seconds`(input: Int, expected: Int) = runTest {
+    @CsvSource("0, 10", "1, 10", "5, 10", "10, 10", "12, 10", "13, 15", "15, 15", "17, 15", "18, 20", "20, 20", "42, 20", "-3, 10")
+    fun `stream fallback timeout snaps to 10, 15 or 20 seconds`(input: Int, expected: Int) = runTest {
         settings.updatePlayer { it.copy(fallbackTimeoutSeconds = input) }
+        assertEquals(expected, settings.settings.first().player.fallbackTimeoutSeconds)
+    }
+
+    @ParameterizedTest(name = "stored {0}s reads as {1}s")
+    @CsvSource("1, 10", "5, 10", "7, 10", "10, 10", "15, 15", "25, 20")
+    fun `a stored timeout from the old 1-10s range maps onto the new options`(stored: Int, expected: Int) = runTest {
+        rawStore.edit { it[intPreferencesKey("${SCOPE}player_fallback_timeout_s")] = stored }
         assertEquals(expected, settings.settings.first().player.fallbackTimeoutSeconds)
     }
 
     @Test
     fun `turning automatic stream failover off keeps the fallback timeout`() = runTest {
-        settings.updatePlayer { it.copy(fallbackTimeoutSeconds = 8) }
+        settings.updatePlayer { it.copy(fallbackTimeoutSeconds = 15) }
         settings.updatePlayer { it.copy(autoStreamFailover = false) }
         val player = settings.settings.first().player
         assertEquals(false, player.autoStreamFailover)
-        assertEquals(8, player.fallbackTimeoutSeconds, "the hidden timeout is restored when failover goes back on")
+        assertEquals(15, player.fallbackTimeoutSeconds, "the hidden timeout is restored when failover goes back on")
 
         settings.updatePlayer { it.copy(autoStreamFailover = true) }
         assertEquals(true, settings.settings.first().player.autoStreamFailover)

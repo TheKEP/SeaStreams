@@ -53,7 +53,7 @@ class PlaybackSettingsDataStoreTest {
         assertEquals(4, player.parallelStreamConnections)
         assertTrue(player.convertDvProfile7ToHdr)
         assertTrue(player.autoPlayNextEpisode)
-        assertEquals(5, player.fallbackTimeoutSeconds)
+        assertEquals(10, player.fallbackTimeoutSeconds)
         assertTrue(player.autoStreamFailover)
     }
 
