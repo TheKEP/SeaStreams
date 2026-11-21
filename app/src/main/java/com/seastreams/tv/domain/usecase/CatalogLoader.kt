@@ -8,6 +8,7 @@ import com.seastreams.tv.data.catalog.MediaHydrator
 import com.seastreams.tv.data.catalog.TmdbImageUrls
 import com.seastreams.tv.data.catalog.toMediaItem
 import com.seastreams.tv.domain.filter.AgeRestrictionEngine
+import com.seastreams.tv.domain.filter.FamilyCatalogPolicy
 import com.seastreams.tv.domain.model.AgeRestriction
 import com.seastreams.tv.domain.model.CatalogRow
 import com.seastreams.tv.domain.model.CatalogSource
@@ -20,6 +21,8 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import java.time.Clock
+import java.time.LocalDate
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -29,6 +32,9 @@ import javax.inject.Singleton
  *   US certification) and filtered as it is collected.
  * - TMDB lists (`/discover`, `/trending`) already carry posters. Adult profiles get them as-is (no
  *   per-title calls); Kids profiles have each title hydrated to learn its certification first.
+ * - Kids `Trending Family` rows ([CatalogSource.FamilyTrending]) are TMDB lists too, but each page
+ *   is genre-checked against its [FamilyCatalogPolicy] rule first and every title is always hydrated
+ *   and checked against the rule's certification allowlist as well as the profile's ceiling.
  * - Stremio addon catalogs are delegated to [AddonCatalogLoader], filtered through [allowed].
  *
  * Every response is HTTP-cached for 6–12h and no `/external_ids` call is ever made here (rule 5).
@@ -42,11 +48,13 @@ class CatalogLoader @Inject constructor(
     private val genres: GenreRepository,
     private val ageEngine: AgeRestrictionEngine,
     private val addonCatalogs: AddonCatalogLoader,
+    /** Dates the Kids family rows' release / air-date windows. */
+    private val clock: Clock,
 ) {
     /** Up to [cap] allowed titles of [source], in source order. */
     suspend fun load(source: CatalogSource, restriction: AgeRestriction?, cap: Int): CatalogRow = when (source) {
         is CatalogSource.MdbList -> collectAllowed(fetchRefs(source.listUrl), restriction, cap)
-        is CatalogSource.Discover, is CatalogSource.Trending -> loadTmdbList(source, restriction, cap)
+        is CatalogSource.Discover, is CatalogSource.Trending, is CatalogSource.FamilyTrending -> loadTmdbList(source, restriction, cap)
         is CatalogSource.Addon -> addonCatalogs.load(source, cap) { allowed(it, restriction) }
     }
 
@@ -95,7 +103,8 @@ class CatalogLoader @Inject constructor(
         if (!seed.hasMore || seed.items.size >= cap) return CatalogRow(seed.items.take(cap), seed.hasMore || seed.items.size > cap)
         return when (source) {
             is CatalogSource.MdbList -> expandMdbList(source, restriction, cap, seed)
-            is CatalogSource.Discover, is CatalogSource.Trending -> expandTmdbList(source, restriction, cap, seed, seedPages)
+            is CatalogSource.Discover, is CatalogSource.Trending, is CatalogSource.FamilyTrending ->
+                expandTmdbList(source, restriction, cap, seed, seedPages)
             is CatalogSource.Addon -> addonCatalogs.expand(source, cap, seed) { allowed(it, restriction) }
         }
     }
@@ -109,7 +118,7 @@ class CatalogLoader @Inject constructor(
         val pages = fetchPages(source, 1..lastPage)
         val totalPages = pages.first().totalPages
         val titles = pages.take(maxOf(totalPages, 1)).flatMap { it.items }.distinctBy { it.key }
-        val allowed = allowed(titles, restriction)
+        val allowed = admit(source, titles, restriction)
         return CatalogRow(items = allowed.take(cap), hasMore = allowed.size > cap || totalPages > lastPage)
     }
 
@@ -125,7 +134,7 @@ class CatalogLoader @Inject constructor(
         val pages = fetchPages(source, seedPages + 1..lastPage)
         val seen = seed.items.mapTo(HashSet()) { it.key }
         val fresh = pages.flatMap { it.items }.distinctBy { it.key }.filter { it.key !in seen }
-        val items = seed.items + allowed(fresh, restriction)
+        val items = seed.items + admit(source, fresh, restriction)
         return CatalogRow(items = items.take(cap), hasMore = items.size > cap || pages.maxOf { it.totalPages } > lastPage)
     }
 
@@ -164,8 +173,40 @@ class CatalogLoader @Inject constructor(
                     TitlePage(result.results.map { it.toMediaItem(imageUrls, names) }, result.totalPages)
                 }
             }
+            is CatalogSource.FamilyTrending -> fetchFamilyPage(source.mediaType, page, names)
             is CatalogSource.MdbList, is CatalogSource.Addon -> error("Only TMDB list sources are paged through TMDB")
         }
+
+    /**
+     * One page of a Kids family row. Titles carrying a blocked genre (in any position) or none of the
+     * allowed genres are dropped here, on TMDB's own `genre_ids`, before they are ever hydrated.
+     */
+    private suspend fun TmdbApiService.fetchFamilyPage(mediaType: MediaType, page: Int, names: Map<Int, String>): TitlePage {
+        val rule = FamilyCatalogPolicy.rule(mediaType)
+        val today = LocalDate.now(clock)
+        return when (mediaType) {
+            MediaType.MOVIE -> discoverFamilyMovies(page, rule, FamilyCatalogPolicy.movieWindow(today)).let { result ->
+                val kept = result.results.filter { rule.acceptsGenres(it.genreIds) }
+                TitlePage(kept.map { it.toMediaItem(imageUrls, names) }, result.totalPages)
+            }
+            MediaType.TV -> discoverFamilyTv(page, rule, FamilyCatalogPolicy.showWindow(today)).let { result ->
+                val kept = result.results.filter { rule.acceptsGenres(it.genreIds) }
+                TitlePage(kept.map { it.toMediaItem(imageUrls, names) }, result.totalPages)
+            }
+        }
+    }
+
+    /**
+     * The [titles] of a TMDB list [source] the profile may see. Family rows always hydrate (so their
+     * certification allowlist holds even without a [restriction]) and must pass both that allowlist
+     * and the profile's ceiling; unrated titles are never kept there.
+     */
+    private suspend fun admit(source: CatalogSource, titles: List<MediaItem>, restriction: AgeRestriction?): List<MediaItem> {
+        if (source !is CatalogSource.FamilyTrending) return allowed(titles, restriction)
+        val rule = FamilyCatalogPolicy.rule(source.mediaType)
+        return hydrator.hydrateAll(titles.map { it.ref })
+            .filter { rule.acceptsCertification(it.certification) && isAllowed(it, restriction) }
+    }
 
     private fun isAllowed(item: MediaItem, restriction: AgeRestriction?): Boolean =
         ageEngine.isAllowed(item.certification, restriction, item.isAdultContent)
@@ -182,6 +223,7 @@ class CatalogLoader @Inject constructor(
         private fun CatalogSource.mediaType(): MediaType = when (this) {
             is CatalogSource.Discover -> mediaType
             is CatalogSource.Trending -> mediaType
+            is CatalogSource.FamilyTrending -> mediaType
             is CatalogSource.Addon -> mediaType
             is CatalogSource.MdbList -> MediaType.MOVIE
         }

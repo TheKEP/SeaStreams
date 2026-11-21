@@ -1,5 +1,7 @@
 package com.seastreams.tv.core.network
 
+import com.seastreams.tv.domain.filter.DateWindow
+import com.seastreams.tv.domain.filter.FamilyCatalogPolicy
 import com.seastreams.tv.domain.model.MediaType
 import com.seastreams.tv.domain.model.StreamingProvider
 import com.seastreams.tv.testutil.TestHttpServer
@@ -22,6 +24,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
+import java.time.LocalDate
 import java.util.concurrent.atomic.AtomicInteger
 
 class TmdbApiServiceTest {
@@ -136,6 +139,53 @@ class TmdbApiServiceTest {
         assertEquals("PG", request.queryParam("certification.lte"))
         assertEquals("27,10749,53,80", request.queryParam("without_genres"))
         assertEquals("false", request.queryParam("include_adult"))
+    }
+
+    @Test
+    fun `family movies discover digital releases with the exact PRD parameters`() = runTest {
+        val window = DateWindow(LocalDate.of(2026, 8, 23), LocalDate.of(2026, 11, 21))
+        service.discoverFamilyMovies(page = 3, rule = FamilyCatalogPolicy.MOVIES, released = window)
+
+        val query = server.requests.single()
+        assertEquals("/3/discover/movie", query.path)
+        assertEquals("US", query.queryParam("region"))
+        assertEquals("4", query.queryParam("with_release_type"))
+        assertEquals("2026-08-23", query.queryParam("release_date.gte"))
+        assertEquals("2026-11-21", query.queryParam("release_date.lte"))
+        assertEquals("US", query.queryParam("watch_region"))
+        assertEquals("flatrate|rent|buy", query.queryParam("with_watch_monetization_types"))
+        assertEquals("popularity.desc", query.queryParam("sort_by"))
+        assertEquals("US", query.queryParam("certification_country"))
+        assertEquals("PG", query.queryParam("certification.lte"))
+        assertEquals("28|12|16|35|18|10751|14|10402|9648|878|10770|53|37", query.queryParam("with_genres"))
+        assertEquals("80,99,36,27,10749,10752", query.queryParam("without_genres"))
+        assertEquals("false", query.queryParam("include_adult"))
+        assertEquals("en-US", query.queryParam("language"))
+        assertEquals("3", query.queryParam("page"))
+        assertNull(query.queryParam("with_watch_providers"))
+    }
+
+    @Test
+    fun `family shows discover returning series on the air with the exact PRD parameters`() = runTest {
+        val window = DateWindow(LocalDate.of(2026, 9, 22), LocalDate.of(2026, 11, 28))
+        service.discoverFamilyTv(page = 2, rule = FamilyCatalogPolicy.SHOWS, aired = window)
+
+        val query = server.requests.single()
+        assertEquals("/3/discover/tv", query.path)
+        assertEquals("0", query.queryParam("with_status"))
+        assertEquals("2026-09-22", query.queryParam("air_date.gte"))
+        assertEquals("2026-11-28", query.queryParam("air_date.lte"))
+        assertEquals("popularity.desc", query.queryParam("sort_by"))
+        assertEquals("US", query.queryParam("certification_country"))
+        assertEquals("TV-PG", query.queryParam("certification.lte"))
+        assertEquals("10759|16|35|18|10751|10762|9648|10765", query.queryParam("with_genres"))
+        assertEquals("80,99,10763,10764,10766,10767,10768", query.queryParam("without_genres"))
+        assertEquals("false", query.queryParam("include_adult"))
+        assertEquals("false", query.queryParam("include_null_first_air_dates"))
+        assertEquals("en-US", query.queryParam("language"))
+        assertEquals("2", query.queryParam("page"))
+        assertNull(query.queryParam("watch_region"))
+        assertNull(query.queryParam("with_release_type"))
     }
 
     @Test

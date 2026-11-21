@@ -19,6 +19,12 @@ sealed interface CatalogSource {
     data class Trending(val mediaType: MediaType) : CatalogSource
 
     /**
+     * The Kids `Trending Family Movies` / `Trending Family Shows` rows: curated TMDB `/discover`
+     * queries whose genre and certification rules live in `FamilyCatalogPolicy` (PRD §3).
+     */
+    data class FamilyTrending(val mediaType: MediaType) : CatalogSource
+
+    /**
      * A catalog declared in an enabled Stremio addon's manifest (`/catalog/{type}/{id}.json`).
      * Shown on Home only, beneath the built-in rows (PRD §3).
      */

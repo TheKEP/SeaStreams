@@ -5,6 +5,7 @@ import com.seastreams.tv.core.network.MdbListApiService
 import com.seastreams.tv.core.network.MdbListItem
 import com.seastreams.tv.core.network.StremioAddonClient
 import com.seastreams.tv.core.network.TmdbApiService
+import com.seastreams.tv.core.network.TmdbPage
 import com.seastreams.tv.data.catalog.LoadedCatalogStore
 import com.seastreams.tv.domain.model.CatalogRowSpec
 import com.seastreams.tv.domain.model.CatalogSource
@@ -37,6 +38,12 @@ abstract class HomeCatalogsTestBase {
     protected val adult = testProfile(1, isKids = false)
     protected val kids = testProfile(2, isKids = true)
     protected val spec = CatalogRowSpec("test", "Test", "https://mdblist.com/lists/owner/test")
+
+    init {
+        // Kids Home leads with the two TMDB family rows; empty unless a test stubs them.
+        coEvery { tmdb.discoverFamilyMovies(any(), any(), any()) } returns TmdbPage()
+        coEvery { tmdb.discoverFamilyTv(any(), any(), any()) } returns TmdbPage()
+    }
 
     /** An enabled HTTP addon of [profileId] at `https://{host}/manifest.json` declaring [catalogsJson] (a JSON array). */
     protected fun addonEntity(
