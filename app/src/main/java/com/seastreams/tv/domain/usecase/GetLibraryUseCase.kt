@@ -19,7 +19,13 @@ data class LibraryEntry(
     val addedAtMillis: Long,
     /** Most recent playback of the title (any episode); `null` when never watched. */
     val lastWatchedAtMillis: Long?,
-)
+) {
+    /** [LibraryQuery.sortKey] of the title, computed once per entry instead of on every sort comparison. */
+    val sortKey: String = LibraryQuery.sortKey(media.title)
+
+    /** Quick-jump letter the title files under ([LibraryQuery.letterOf]), computed once per entry. */
+    val letter: Char = LibraryQuery.letterFor(sortKey)
+}
 
 /**
  * A profile's Library (PRD §7). Kids profiles are re-checked against their *current* ceiling, so

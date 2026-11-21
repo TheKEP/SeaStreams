@@ -44,8 +44,8 @@ fun LibrarySortAndGenre(
     onGenre: (Int?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val genreChoices: List<Int?> = listOf<Int?>(null) + genres.map { it.id }
-    val names = genres.associate { it.id to it.name }
+    val genreChoices: List<Int?> = remember(genres) { listOf<Int?>(null) + genres.map { it.id } }
+    val names = remember(genres) { genres.associate { it.id to it.name } }
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
         TvDropdown(
             label = "Sort",
@@ -69,14 +69,16 @@ fun LibrarySortAndGenre(
  * first title; OK moves focus onto that title. Letters with no titles are dimmed and do nothing.
  * Two-way §1 edge-stop-then-wrap: a fresh `Up` on `#` scrolls to and focuses `Z`, a fresh `Down` on
  * `Z` scrolls back to `#`; holding `Up`/`Down` stops on the edge letter and never leaves the bar.
- * `Left` never uses spatial search: it runs [onJump] with [letterLeftTarget] (the letter's first
- * title, else the nearest populated letter's), so focus lands on that exact poster. A fresh `Right`
+ * `Left` never uses spatial search: it runs [onJump] with the letter's [leftTargets] entry
+ * ([letterLeftTargets] of [letterIndex], precomputed off the main thread in [LibraryView]: the
+ * letter's first title, else the nearest populated letter's), so focus lands on that exact poster. A fresh `Right`
  * on any letter runs [onWrapRight] (back to the filter sidebar), while a held `Right` stops on the
  * bar. [focus] is hoisted so the sidebar can wrap in.
  */
 @Composable
 fun LetterBar(
     letterIndex: Map<Char, Int>,
+    leftTargets: List<Int?>,
     onPreview: (index: Int) -> Unit,
     onJump: (index: Int) -> Unit,
     focus: LetterBarFocus,
@@ -89,7 +91,6 @@ fun LetterBar(
     val last = focus.requesters.last()
     val letters = LibraryQuery.LETTERS
     val wrap = rememberListEdgeWrap(listState, first, last, letters.lastIndex)
-    val leftTargets = remember(letterIndex) { letterLeftTargets(letterIndex, letters) }
     LazyColumn(
         state = listState,
         modifier = modifier.focusRestorer(first),
