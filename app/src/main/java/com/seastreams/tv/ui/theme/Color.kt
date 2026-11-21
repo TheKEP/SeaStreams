@@ -33,6 +33,15 @@ val SeekThumb = FocusPill
 /** Thumb outline so it stays legible over the white played fill. */
 val SeekThumbRing = Obsidian
 
+// PRD §1 Artwork Progress Bar (Continue Watching / artwork tiles): its own tokens, so the player seek
+// bar keeps its slate / blue buffered / white played tiers.
+/** Unwatched track: lighter slate grey, clearly separated from both the Obsidian backing and the white fill. */
+val ArtworkProgressTrack = Color(0xFF4A5263)
+/** Watched portion: crisp white. */
+val ArtworkProgressWatched = TextPrimary
+/** 1dp backing outline so the bar never washes out over bright posters and backdrops. */
+val ArtworkProgressBorder = Obsidian
+
 /** Details TMDB rating pill (PRD §6): TMDB user-score green + TMDB dark navy. */
 val TmdbGreen = Color(0xFF21D07A)
 val TmdbNavy = Color(0xFF081C22)

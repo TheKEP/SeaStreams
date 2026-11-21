@@ -1,7 +1,17 @@
 package com.seastreams.tv.ui.components
 
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
+import com.seastreams.tv.ui.theme.ArtworkProgressBorder
+import com.seastreams.tv.ui.theme.ArtworkProgressTrack
+import com.seastreams.tv.ui.theme.ArtworkProgressWatched
 import com.seastreams.tv.ui.theme.FocusBorderWidth
+import com.seastreams.tv.ui.theme.Obsidian
+import com.seastreams.tv.ui.theme.SeekBuffered
+import com.seastreams.tv.ui.theme.SeekPlayed
+import com.seastreams.tv.ui.theme.SeekTrack
+import com.seastreams.tv.ui.theme.SeekTrackBorder
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -77,6 +87,30 @@ class WatchedIndicatorTest {
         assertFalse(progressBarClearsFocusRing(CardCorner, FocusBorderWidth, bottomInset = 3.dp, sideInset = 10.dp))
         // Above the ring's straight edge but out in the corner, where the ring curves up over it.
         assertFalse(progressBarClearsFocusRing(CardCorner, FocusBorderWidth, bottomInset = 5.dp, sideInset = 4.dp))
+    }
+
+    @Test
+    fun `artwork bar has a white watched fill over a lighter slate track`() {
+        assertEquals(Color.White, ArtworkProgressWatched)
+        assertEquals(Color(0xFF4A5263), ArtworkProgressTrack)
+        assertEquals(Obsidian, ArtworkProgressBorder)
+        assertTrue(ArtworkProgressTrack.luminance() > Color(0xFF1E2430).luminance(), "lighter than the old #1E2430 track")
+        assertTrue(contrast(ArtworkProgressTrack, ArtworkProgressBorder) >= 2.0, "track separates from the Obsidian backing")
+        assertTrue(contrast(ArtworkProgressWatched, ArtworkProgressTrack) >= 4.5, "white fill separates from the track")
+    }
+
+    @Test
+    fun `the player seek bar keeps its slate, blue buffered and white played tiers`() {
+        assertEquals(Color(0xFF1E2430), SeekTrack)
+        assertEquals(Color(0xFF2B6CB0), SeekBuffered)
+        assertEquals(Color.White, SeekPlayed)
+        assertEquals(Obsidian, SeekTrackBorder)
+    }
+
+    /** WCAG 2 contrast ratio. */
+    private fun contrast(a: Color, b: Color): Double {
+        val (hi, lo) = listOf(a.luminance(), b.luminance()).sortedDescending()
+        return (hi + 0.05) / (lo + 0.05)
     }
 
     private companion object {
