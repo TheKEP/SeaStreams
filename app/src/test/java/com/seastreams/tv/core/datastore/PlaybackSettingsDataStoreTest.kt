@@ -44,7 +44,7 @@ class PlaybackSettingsDataStoreTest {
     fun tearDown() = scope.cancel()
 
     @Test
-    fun `defaults - trailers on and muted after 2s, Large buffer, 3 connections`() = runTest {
+    fun `defaults - trailers on and muted after 2s, Large buffer, 4 connections`() = runTest {
         val player = settings.settings.first().player
         assertTrue(player.autoPlayTrailers)
         assertTrue(player.muteAutoPlayTrailers)
@@ -105,16 +105,16 @@ class PlaybackSettingsDataStoreTest {
         val player = settings.settings.first().player
         assertEquals(DolbyVisionPlayback.AUTO, player.dolbyVisionPlayback)
         assertTrue(player.convertDvProfile7ToHdr)
-        assertFalse(player.hdrWhiteDimming)
+        assertTrue(player.hdrWhiteDimming)
     }
 
     @ParameterizedTest
     @CsvSource("NATIVE", "HDR10_BASE_LAYER", "AUTO")
     fun `Dolby Vision playback round-trips under the profile's key`(mode: DolbyVisionPlayback) = runTest {
-        settings.updatePlayer { it.copy(dolbyVisionPlayback = mode, hdrWhiteDimming = true) }
+        settings.updatePlayer { it.copy(dolbyVisionPlayback = mode, hdrWhiteDimming = false) }
         val player = SettingsDataStore(raw).settings.first().player
         assertEquals(mode, player.dolbyVisionPlayback)
-        assertTrue(player.hdrWhiteDimming)
+        assertFalse(player.hdrWhiteDimming)
         assertEquals(mode.name, raw.data.first()[stringPreferencesKey("${SCOPE}player_dolby_vision_playback")])
     }
 
