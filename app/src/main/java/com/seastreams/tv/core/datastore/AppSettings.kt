@@ -75,6 +75,8 @@ data class PlayerSettings(
     val preferredAutoPlayAddonUrl: String? = null,
     /** Plays the next episode's top stream when an episode finishes (PRD §9: on by default). */
     val autoPlayNextEpisode: Boolean = true,
+    /** Advances to the next stream on a start timeout or playback error (PRD §9: on by default). */
+    val autoStreamFailover: Boolean = true,
     val fallbackTimeoutSeconds: Int = DEFAULT_FALLBACK_TIMEOUT_SECONDS,
     val autoPlayFromContinueWatching: Boolean = false,
     val blurUnwatchedThumbnails: Boolean = false,
