@@ -29,9 +29,9 @@ import androidx.tv.material3.Icon
 import com.seastreams.tv.domain.model.MediaItem
 import com.seastreams.tv.domain.model.MediaRef
 import com.seastreams.tv.domain.playback.isCompleted
-import com.seastreams.tv.ui.theme.SeekBuffered
-import com.seastreams.tv.ui.theme.SeekTrack
-import com.seastreams.tv.ui.theme.SeekTrackBorder
+import com.seastreams.tv.ui.theme.ArtworkProgressBorder
+import com.seastreams.tv.ui.theme.ArtworkProgressTrack
+import com.seastreams.tv.ui.theme.ArtworkProgressWatched
 import kotlin.math.hypot
 import kotlin.math.roundToLong
 
@@ -89,8 +89,8 @@ fun WatchedCheckmarkBadge(modifier: Modifier = Modifier) {
 
 /**
  * In-progress bar (PRD §1 Artwork Progress Bar Styling), finished titles get [WatchedCheckmarkBadge]
- * instead. Same opaque tokens as the player seek bar's unbuffered/buffered tiers: a 1dp Obsidian
- * backing, the slate track and the blue watched fill. Inset above and inside the 3dp focus ring so a
+ * instead. Dedicated opaque `ArtworkProgress*` tokens (not the seek bar's): a 1dp Obsidian backing,
+ * a lighter slate track and a white watched fill. Inset above and inside the 3dp focus ring so a
  * focused card's ring never covers it. One draw-only node, so the card's width animation only redraws.
  */
 @Composable
@@ -103,14 +103,14 @@ fun ArtworkProgressBar(fraction: Float, modifier: Modifier = Modifier) {
             .height(ProgressBarHeight)
             .drawBehind {
                 val border = ProgressBarBorder.toPx()
-                drawRoundRect(SeekTrackBorder, cornerRadius = CornerRadius(size.height / 2))
+                drawRoundRect(ArtworkProgressBorder, cornerRadius = CornerRadius(size.height / 2))
                 val inner = Size(size.width - 2 * border, size.height - 2 * border)
                 val radius = CornerRadius(inner.height / 2)
                 val origin = Offset(border, border)
-                drawRoundRect(SeekTrack, origin, inner, radius)
+                drawRoundRect(ArtworkProgressTrack, origin, inner, radius)
                 // A zero-width round rect would still paint a stray dot.
                 val fill = inner.width * watched
-                if (fill > 0f) drawRoundRect(SeekBuffered, origin, Size(fill, inner.height), radius)
+                if (fill > 0f) drawRoundRect(ArtworkProgressWatched, origin, Size(fill, inner.height), radius)
             },
     )
 }

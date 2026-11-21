@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.map
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
@@ -142,8 +143,19 @@ class SettingsDataStore @Inject constructor(
     }
 
     companion object {
+        /**
+         * Snaps to the nearest of [PlayerSettings.FALLBACK_TIMEOUT_OPTIONS] (10/15/20s), so a legacy
+         * stored value from the old 1–10s range reads back as 10s and anything above 20s as 20s.
+         */
         fun clampFallbackTimeout(seconds: Int): Int =
-            seconds.coerceIn(PlayerSettings.FALLBACK_TIMEOUT_RANGE)
+            PlayerSettings.FALLBACK_TIMEOUT_OPTIONS.minBy { abs(it - seconds) }
+
+        /** Stepper move from the snapped [seconds] by [delta] options, stopping at 10s and 20s. */
+        fun stepFallbackTimeout(seconds: Int, delta: Int): Int {
+            val options = PlayerSettings.FALLBACK_TIMEOUT_OPTIONS
+            val index = options.indexOf(clampFallbackTimeout(seconds)) + delta
+            return options[index.coerceIn(options.indices)]
+        }
 
         fun clampParallelConnections(count: Int): Int = count.coerceIn(PlayerSettings.PARALLEL_CONNECTIONS_RANGE)
 

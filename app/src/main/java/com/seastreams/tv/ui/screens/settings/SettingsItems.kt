@@ -112,8 +112,8 @@ fun settingsItems(
                 entry(
                     FALLBACK_ROW_KEY, SeaIcons.Timer, "Stream fallback timeout", "${p.fallbackTimeoutSeconds}s",
                     RowTrailing.Stepper(
-                        onDecrease = { cb.updatePlayer { it.copy(fallbackTimeoutSeconds = SettingsDataStore.clampFallbackTimeout(it.fallbackTimeoutSeconds - 1)) } },
-                        onIncrease = { cb.updatePlayer { it.copy(fallbackTimeoutSeconds = SettingsDataStore.clampFallbackTimeout(it.fallbackTimeoutSeconds + 1)) } },
+                        onDecrease = { cb.updatePlayer { it.copy(fallbackTimeoutSeconds = SettingsDataStore.stepFallbackTimeout(it.fallbackTimeoutSeconds, -1)) } },
+                        onIncrease = { cb.updatePlayer { it.copy(fallbackTimeoutSeconds = SettingsDataStore.stepFallbackTimeout(it.fallbackTimeoutSeconds, 1)) } },
                     ),
                 ) { cb.updatePlayer { it.copy(fallbackTimeoutSeconds = nextFallbackTimeout(it.fallbackTimeoutSeconds)) } },
             )
@@ -219,10 +219,11 @@ private fun entry(key: String, icon: ImageVector, title: String, value: String?,
 private fun toggle(key: String, icon: ImageVector, title: String, checked: Boolean, onClick: () -> Unit) =
     SettingsItem.Entry(key, icon, title, if (checked) "Enabled" else "Disabled", RowTrailing.Toggle(checked), onClick)
 
-/** Click on the timeout row: next second, wrapping 10s → 1s. */
+/** Click on the timeout row: next option, wrapping 10s → 15s → 20s → 10s. */
 internal fun nextFallbackTimeout(seconds: Int): Int {
-    val range = PlayerSettings.FALLBACK_TIMEOUT_RANGE
-    return if (seconds >= range.last) range.first else seconds + 1
+    val options = PlayerSettings.FALLBACK_TIMEOUT_OPTIONS
+    val index = options.indexOf(SettingsDataStore.clampFallbackTimeout(seconds))
+    return options[(index + 1) % options.size]
 }
 
 /** Click on the trailer delay row: next second, wrapping 7s → 1s. */
