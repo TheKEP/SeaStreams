@@ -34,6 +34,7 @@ import com.seastreams.tv.ui.components.TabScaffold
 import com.seastreams.tv.ui.theme.TextSecondary
 import com.seastreams.tv.ui.theme.onDpadEdgeWrap
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
+import com.seastreams.tv.ui.theme.retryEachFrame
 import com.seastreams.tv.ui.theme.tryRequestFocus
 
 /**
@@ -42,6 +43,9 @@ import com.seastreams.tv.ui.theme.tryRequestFocus
  * on the right edge.
  *
  * Opens with `All` selected and focused, the grid in the profile's last-used sort order.
+ *
+ * The sidebar highlight follows focus at once; the grid switches once focus rests on a filter
+ * ([FILTER_SETTLE_MILLIS]), or at once when focus leaves the sidebar ([SidebarGridEntry]).
  *
  * The filter sidebar and the A–Z bar wrap into each other both ways ([LibraryWrapMemory]): a fresh
  * `Left` on a filter lands on the bar's last focused letter (`#` by default), a fresh `Right` on the
@@ -57,6 +61,7 @@ fun LibraryScreen(
 ) {
     LaunchedEffect(profileId) { viewModel.open(profileId) }
     val latest by viewModel.uiState.collectAsState()
+    val sidebarFilter by viewModel.sidebarFilter.collectAsState()
     val state = if (latest.profile?.id == profileId) latest else LibraryUiState()
     LaunchedEffect(latest.missingProfileId) { if (latest.missingProfileId == profileId) onSwitchProfile() }
 
@@ -66,34 +71,49 @@ fun LibraryScreen(
     val scope = rememberCoroutineScope()
     val memory = remember { LibraryWrapMemory() }
     val letterBar = remember { LetterBarFocus() }
+    val gridEntry = remember { SidebarGridEntry() }
     val filterRequesters = remember { LibraryFilter.entries.associateWith { FocusRequester() } }
     // The bar only exists with titles; without it `Left` on a filter stays ordinary focus search.
-    val barShown = state.entries.isNotEmpty()
-    val wrapToFilters = { filterRequesters[memory.filterTarget(state.filter)]?.tryRequestFocus() }
+    val barShown = state.view.entries.isNotEmpty()
+    val wrapToFilters: () -> Unit = remember(viewModel) {
+        { filterRequesters[memory.filterTarget(viewModel.sidebarFilter.value)]?.tryRequestFocus() }
+    }
+    val entryModifier: (Int, LibraryFilter) -> Modifier = remember(viewModel, barShown) {
+        { _, filter ->
+            Modifier
+                .then(filterRequesters[filter]?.let { Modifier.focusRequester(it) } ?: Modifier)
+                .onFocusChanged { if (it.isFocused) memory.onFilterFocused(filter) }
+                .then(gridEntry.rightIntoGrid({ viewModel.sidebarFilter.value }, viewModel::commitPendingFilter))
+                .then(
+                    if (barShown) {
+                        Modifier.onDpadEdgeWrap(Key.DirectionLeft) {
+                            viewModel.commitPendingFilter()
+                            letterBar.wrapTo(scope, memory.letterTarget())
+                        }
+                    } else {
+                        Modifier
+                    },
+                )
+        }
+    }
 
     TabScaffold(state.profile, NavTab.LIBRARY, onTabSelected, onSwitchProfile) { _ ->
         Row(Modifier.fillMaxSize().padding(top = 8.dp)) {
             HoverSidebar(
                 entries = LibraryFilter.entries,
-                selected = state.filter,
+                selected = sidebarFilter,
                 label = { it.label },
                 onSelect = viewModel::selectFilter,
                 firstEntry = allFilter,
-                entryModifier = { _, filter ->
-                    Modifier
-                        .then(filterRequesters[filter]?.let { Modifier.focusRequester(it) } ?: Modifier)
-                        .onFocusChanged { if (it.isFocused) memory.onFilterFocused(filter) }
-                        .then(
-                            if (barShown) {
-                                Modifier.onDpadEdgeWrap(Key.DirectionLeft) { letterBar.wrapTo(scope, memory.letterTarget()) }
-                            } else {
-                                Modifier
-                            },
-                        )
-                },
-                modifier = Modifier.width(SIDEBAR_WIDTH).fillMaxHeight().padding(start = RowGutter - 8.dp, top = 52.dp),
+                entryModifier = entryModifier,
+                modifier = Modifier
+                    .width(SIDEBAR_WIDTH)
+                    .fillMaxHeight()
+                    .padding(start = RowGutter - 8.dp, top = 52.dp)
+                    // Leaving the sidebar any other way (Back, Up to the nav bar) applies the filter too.
+                    .onFocusChanged { if (!it.hasFocus) viewModel.commitPendingFilter() },
             )
-            LibraryBody(state, viewModel, onOpenDetails, letterBar, memory, { wrapToFilters() }, Modifier.weight(1f))
+            LibraryBody(state, viewModel, onOpenDetails, letterBar, memory, gridEntry, wrapToFilters, Modifier.weight(1f))
         }
     }
 }
@@ -105,25 +125,30 @@ private fun LibraryBody(
     onOpenDetails: (MediaItem) -> Unit,
     letterBar: LetterBarFocus,
     memory: LibraryWrapMemory,
+    gridEntry: SidebarGridEntry,
     onWrapToFilters: () -> Unit,
     modifier: Modifier,
 ) {
     val gridState = rememberLazyGridState()
     val scope = rememberCoroutineScope()
-    val hasEntries = state.entries.isNotEmpty()
-    val posters = remember(state.entries) { state.entries.map { it.media } }
+    val view = state.view
+    val hasEntries = view.entries.isNotEmpty()
     // Every poster has its own jump requester: a jump can only ever focus its own target (PRD §7).
-    val jumpTargets = remember(posters) { JumpFocusTargets() }
+    val jumpTargets = remember(view.posters) { JumpFocusTargets() }
     // One cancellable grid scroll: letter focus is debounced, OK jumps at once (PRD §7).
     val letterJumps = remember(gridState) { LetterJumpScheduler(scope) { gridState.scrollToItem(it) } }
-    LaunchedEffect(state.entries) { letterJumps.cancel() }
+    LaunchedEffect(view.entries) { letterJumps.cancel() }
+    // A `Right` that applied a pending filter lands on that filter's first poster once it is composed.
+    LaunchedEffect(state) {
+        if (gridEntry.awaiting(state.filter)) retryEachFrame(GRID_ENTRY_FRAMES) { gridEntry.first.tryRequestFocus() }
+    }
 
     Row(modifier) {
         Column(Modifier.weight(1f).padding(start = 20.dp)) {
             LibrarySortAndGenre(
                 sort = state.sort,
                 onSort = viewModel::selectSort,
-                genres = state.genreOptions,
+                genres = view.genreOptions,
                 genreId = state.genreId,
                 onGenre = viewModel::selectGenre,
                 modifier = Modifier.padding(bottom = 12.dp),
@@ -131,9 +156,10 @@ private fun LibraryBody(
             when {
                 state.isLoading -> Unit
                 hasEntries -> PosterGrid(
-                    items = posters,
+                    items = view.posters,
                     onItemClick = onOpenDetails,
                     state = gridState,
+                    firstItemFocusRequester = gridEntry.first,
                     contentPadding = PaddingValues(top = 4.dp, end = 12.dp, bottom = 48.dp),
                     modifier = Modifier.fillMaxSize(),
                     itemModifier = { index -> Modifier.focusRequester(jumpTargets.requesterFor(index)) },
@@ -144,7 +170,8 @@ private fun LibraryBody(
         }
         if (hasEntries) {
             LetterBar(
-                letterIndex = state.letterIndex,
+                letterIndex = view.letterIndex,
+                leftTargets = view.letterLeftTargets,
                 onPreview = letterJumps::preview,
                 // OK and Left: the poster attaches after the scroll, possibly a frame late on a far jump.
                 onJump = { index -> letterJumps.jump(index) { jumpTargets.focus(index, JUMP_FOCUS_FRAMES) } },
@@ -168,3 +195,6 @@ private val SIDEBAR_WIDTH = 200.dp
 
 /** Frames an `OK`/`Left` letter jump keeps trying to focus its poster before leaving focus on the letter. */
 private const val JUMP_FOCUS_FRAMES = 10
+
+/** Frames a `Right` that applied a pending filter keeps trying to focus the new grid's first poster. */
+private const val GRID_ENTRY_FRAMES = 10

@@ -21,6 +21,11 @@ annotation class ApplicationScope
 @Retention(AnnotationRetention.BINARY)
 annotation class IoDispatcher
 
+/** The dispatcher for CPU-bound UI-state derivation (filter/sort/index); keeps it off the main thread. */
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class DefaultDispatcher
+
 @Module
 @InstallIn(SingletonComponent::class)
 object ApplicationScopeModule {
@@ -32,4 +37,8 @@ object ApplicationScopeModule {
     @Provides
     @IoDispatcher
     fun provideIoDispatcher(): CoroutineDispatcher = Dispatchers.IO
+
+    @Provides
+    @DefaultDispatcher
+    fun provideDefaultDispatcher(): CoroutineDispatcher = Dispatchers.Default
 }

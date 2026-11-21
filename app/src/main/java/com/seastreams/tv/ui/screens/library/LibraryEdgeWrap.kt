@@ -1,7 +1,13 @@
 package com.seastreams.tv.ui.screens.library
 
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import com.seastreams.tv.domain.usecase.LibraryFilter
 import com.seastreams.tv.domain.usecase.LibraryQuery
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
@@ -31,6 +37,36 @@ class LibraryWrapMemory {
 
     /** The letter index a fresh `Left` on a filter focuses; `0` (`#`) until a letter has been focused. */
     fun letterTarget(): Int = lastLetter
+}
+
+/**
+ * `Right` from a sidebar filter while its grid switch is still settling (PRD §7): the press applies
+ * the switch at once and is consumed, and focus lands on the new grid's [first] poster once that grid
+ * is composed, never on a poster of the grid being replaced. With nothing pending `Right` is ordinary
+ * focus search. Plain fields: no recomposition.
+ */
+class SidebarGridEntry {
+    /** The Library grid's first-poster requester (also its focus-restore target). */
+    val first = FocusRequester()
+    private var pendingFilter: LibraryFilter? = null
+
+    /** A `Right` key-down on a filter: `true` (consume) when [commit] applied a pending switch to [selected]. */
+    fun onRight(selected: LibraryFilter, commit: () -> Boolean): Boolean {
+        if (!commit()) return false
+        pendingFilter = selected
+        return true
+    }
+
+    /** Whether the grid now [shown] is the one a consumed `Right` waits to focus; answers `true` once. */
+    fun awaiting(shown: LibraryFilter): Boolean {
+        if (pendingFilter == null || pendingFilter != shown) return false
+        pendingFilter = null
+        return true
+    }
+
+    fun rightIntoGrid(selected: () -> LibraryFilter, commit: () -> Boolean): Modifier = Modifier.onPreviewKeyEvent { event ->
+        event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight && onRight(selected(), commit)
+    }
 }
 
 /**

@@ -46,7 +46,7 @@ object LibraryQuery {
      */
     fun apply(entries: List<LibraryEntry>, filter: LibraryFilter, sort: LibrarySortOrder, genreId: Int?): List<LibraryEntry> {
         val visible = entries.filter { filter.matches(it.media.mediaType) && (genreId == null || genreId in it.genreIds) }
-        val byTitle = compareBy<LibraryEntry> { sortKey(it.media.title) }.thenBy { it.media.tmdbId }
+        val byTitle = compareBy<LibraryEntry> { it.sortKey }.thenBy { it.media.tmdbId }
         val comparator = when (sort) {
             LibrarySortOrder.A_TO_Z -> byTitle
             LibrarySortOrder.Z_TO_A -> byTitle.reversed()
@@ -62,15 +62,18 @@ object LibraryQuery {
     fun sortKey(title: String): String = title.trim().replace(LEADING_ARTICLE, "").lowercase(Locale.US)
 
     /** Quick-jump letter a title files under: its first sort-key letter A–Z, else [OTHER_LETTER]. */
-    fun letterOf(title: String): Char {
-        val first = sortKey(title).firstOrNull()?.uppercaseChar() ?: return OTHER_LETTER
+    fun letterOf(title: String): Char = letterFor(sortKey(title))
+
+    /** [letterOf] for an already computed [sortKey]. */
+    fun letterFor(sortKey: String): Char {
+        val first = sortKey.firstOrNull()?.uppercaseChar() ?: return OTHER_LETTER
         return if (first in 'A'..'Z') first else OTHER_LETTER
     }
 
     /** For each letter present, the grid index of the first title filed under it (in display order). */
     fun letterIndex(ordered: List<LibraryEntry>): Map<Char, Int> {
         val index = LinkedHashMap<Char, Int>()
-        ordered.forEachIndexed { i, entry -> index.getOrPut(letterOf(entry.media.title)) { i } }
+        ordered.forEachIndexed { i, entry -> index.getOrPut(entry.letter) { i } }
         return index
     }
 }
