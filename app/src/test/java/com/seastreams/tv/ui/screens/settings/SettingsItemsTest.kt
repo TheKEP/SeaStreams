@@ -4,6 +4,8 @@ import androidx.compose.ui.input.key.Key
 import com.seastreams.tv.ui.theme.EdgeKeyResult
 import com.seastreams.tv.ui.theme.edgeKeyResult
 import com.seastreams.tv.ui.theme.verticalEdgeKeys
+import com.seastreams.tv.core.datastore.AppSettings
+import com.seastreams.tv.core.datastore.PlayerSettings
 import com.seastreams.tv.core.datastore.SubtitleSettings
 import io.mockk.mockk
 import io.mockk.slot
@@ -107,6 +109,48 @@ class SettingsItemsTest {
     }
 
     @Test
+    fun `Automatic stream failover sits under Playback directly above Stream fallback timeout`() {
+        val transforms = mutableListOf<(PlayerSettings) -> PlayerSettings>()
+        val playback = buildItems(updatePlayer = { transforms += it }).playbackKeys()
+
+        val failover = playback.indexOf(FAILOVER_ROW_KEY)
+        assertEquals(FALLBACK_ROW_KEY, playback[failover + 1])
+
+        val row = buildItems(updatePlayer = { transforms += it }).entry(FAILOVER_ROW_KEY)
+        assertEquals("Automatic stream failover", row.title)
+        assertEquals(failoverDescription(true), row.value)
+        assertEquals(RowTrailing.Toggle(true), row.trailing)
+        row.onClick()
+        assertFalse(transforms.single()(PlayerSettings()).autoStreamFailover)
+        assertTrue(transforms.single()(PlayerSettings(autoStreamFailover = false)).autoStreamFailover)
+    }
+
+    @Test
+    fun `turning failover off hides the fallback timeout row and keeps the toggle in place`() {
+        val off = buildItems(player = PlayerSettings(autoStreamFailover = false))
+        val keys = off.playbackKeys()
+
+        assertFalse(FALLBACK_ROW_KEY in keys)
+        val row = off.entry(FAILOVER_ROW_KEY)
+        assertEquals(RowTrailing.Toggle(false), row.trailing)
+        assertEquals(failoverDescription(false), row.value)
+        // The row after the toggle is the one that followed the timeout before.
+        val on = buildItems().playbackKeys()
+        assertEquals(on[on.indexOf(FALLBACK_ROW_KEY) + 1], keys[keys.indexOf(FAILOVER_ROW_KEY) + 1])
+    }
+
+    @Test
+    fun `failover subtitles explain both states`() {
+        assertEquals("On: tries the next stream when one fails or doesn't start in time", failoverDescription(true))
+        assertEquals("Off: a failed stream stops; pick another from Streams", failoverDescription(false))
+    }
+
+    private fun List<SettingsItem>.playbackKeys(): List<String> =
+        dropWhile { it.key != "h-playback" }.drop(1).takeWhile { it !is SettingsItem.Header }.map { it.key }
+
+    private fun List<SettingsItem>.entry(key: String): SettingsItem.Entry = first { it.key == key } as SettingsItem.Entry
+
+    @Test
     fun `Auto-sync external subtitles is the last Subtitles row, right below Subtitle styling`() {
         val vm = mockk<SettingsViewModel>(relaxed = true)
         val items = buildItems(vm = vm)
@@ -151,16 +195,18 @@ class SettingsItemsTest {
         clearSecondsLeft: Int? = null,
         onClearCache: () -> Unit = {},
         vm: SettingsViewModel = mockk(relaxed = true),
+        player: PlayerSettings = PlayerSettings(),
+        updatePlayer: ((PlayerSettings) -> PlayerSettings) -> Unit = {},
     ) =
         settingsItems(
-            state = SettingsUiState(),
+            state = SettingsUiState(settings = AppSettings(player = player)),
             swatchesOpen = swatchesOpen,
             clearSecondsLeft = clearSecondsLeft,
             cacheBytes = 148 * MB,
             cb = SettingsCallbacks(
                 open = {},
                 toggleSwatches = {},
-                updatePlayer = {},
+                updatePlayer = updatePlayer,
                 vm = vm,
                 clearLibrary = {},
                 undoClear = {},

@@ -51,6 +51,7 @@ class SettingsDataStoreTest {
 
         assertEquals(AppSettings(), defaults)
         assertEquals(5, defaults.player.fallbackTimeoutSeconds)
+        assertEquals(true, defaults.player.autoStreamFailover)
         assertEquals(PlayerChoice.BuiltIn, defaults.player.playerChoice)
         assertEquals(DialogueBoost.OFF, defaults.audio.dialogueBoost)
         assertEquals(0, defaults.audio.audioDelayMs)
@@ -88,6 +89,18 @@ class SettingsDataStoreTest {
     fun `stream fallback timeout is clamped to 1-10 seconds`(input: Int, expected: Int) = runTest {
         settings.updatePlayer { it.copy(fallbackTimeoutSeconds = input) }
         assertEquals(expected, settings.settings.first().player.fallbackTimeoutSeconds)
+    }
+
+    @Test
+    fun `turning automatic stream failover off keeps the fallback timeout`() = runTest {
+        settings.updatePlayer { it.copy(fallbackTimeoutSeconds = 8) }
+        settings.updatePlayer { it.copy(autoStreamFailover = false) }
+        val player = settings.settings.first().player
+        assertEquals(false, player.autoStreamFailover)
+        assertEquals(8, player.fallbackTimeoutSeconds, "the hidden timeout is restored when failover goes back on")
+
+        settings.updatePlayer { it.copy(autoStreamFailover = true) }
+        assertEquals(true, settings.settings.first().player.autoStreamFailover)
     }
 
     @ParameterizedTest(name = "{0}ms -> {1}ms")

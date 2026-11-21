@@ -153,6 +153,41 @@ class ProfileScopedSettingsTest {
     }
 
     @Test
+    fun `automatic stream failover defaults on and is stored per profile`() = runTest {
+        val key = booleanPreferencesKey("p$A/player_auto_stream_failover")
+        settings.setActiveProfileId(A)
+        assertTrue(settings.settings.first().player.autoStreamFailover)
+
+        settings.updatePlayer { it.copy(autoStreamFailover = false) }
+        assertFalse(settings.settings.first().player.autoStreamFailover)
+        assertEquals(false, raw.data.first()[key])
+
+        settings.setActiveProfileId(B)
+        assertTrue(settings.settings.first().player.autoStreamFailover, "profile B keeps the default")
+        settings.setActiveProfileId(A)
+        assertFalse(SettingsDataStore(raw).settings.first().player.autoStreamFailover, "re-read from disk")
+
+        settings.clearProfile(A)
+        assertNull(raw.data.first()[key])
+        settings.setActiveProfileId(A)
+        assertTrue(settings.settings.first().player.autoStreamFailover)
+    }
+
+    @Test
+    fun `a legacy app-wide failover value migrates into each profile without one`() = runTest {
+        settings.setActiveProfileId(B)
+        settings.updatePlayer { it.copy(autoStreamFailover = true) } // B already chose: never overwritten.
+        raw.edit { it[booleanPreferencesKey("player_auto_stream_failover")] = false }
+
+        settings.migrateLegacySettings(listOf(A, B))
+
+        assertNull(raw.data.first()[booleanPreferencesKey("player_auto_stream_failover")])
+        assertTrue(settings.settings.first().player.autoStreamFailover)
+        settings.setActiveProfileId(A)
+        assertFalse(settings.settings.first().player.autoStreamFailover)
+    }
+
+    @Test
     fun `legacy app-wide values are copied to every existing profile, once`() = runTest {
         writeLegacy()
         settings.setActiveProfileId(B)

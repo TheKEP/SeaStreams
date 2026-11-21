@@ -105,15 +105,19 @@ fun settingsItems(
         add(entry("autoplay-addon", Icons.Filled.Star, "Preferred auto-play addon", preferred?.displayName() ?: FIRST_ENABLED_ADDON, RowTrailing.Chevron) { cb.open(SettingsPanel.Choice(ChoiceKind.PREFERRED_ADDON)) })
         add(toggle("autoplay-next", SeaIcons.Episodes, "Auto-play next episode", p.autoPlayNextEpisode) { cb.updatePlayer { it.copy(autoPlayNextEpisode = !it.autoPlayNextEpisode) } })
         add(toggle("autoplay-cw", Icons.Filled.Refresh, "Auto-play from Continue Watching", p.autoPlayFromContinueWatching) { cb.updatePlayer { it.copy(autoPlayFromContinueWatching = !it.autoPlayFromContinueWatching) } })
-        add(
-            entry(
-                "fallback", SeaIcons.Timer, "Stream fallback timeout", "${p.fallbackTimeoutSeconds}s",
-                RowTrailing.Stepper(
-                    onDecrease = { cb.updatePlayer { it.copy(fallbackTimeoutSeconds = SettingsDataStore.clampFallbackTimeout(it.fallbackTimeoutSeconds - 1)) } },
-                    onIncrease = { cb.updatePlayer { it.copy(fallbackTimeoutSeconds = SettingsDataStore.clampFallbackTimeout(it.fallbackTimeoutSeconds + 1)) } },
-                ),
-            ) { cb.updatePlayer { it.copy(fallbackTimeoutSeconds = nextFallbackTimeout(it.fallbackTimeoutSeconds)) } },
-        )
+        add(entry(FAILOVER_ROW_KEY, SeaIcons.SkipNext, "Automatic stream failover", failoverDescription(p.autoStreamFailover), RowTrailing.Toggle(p.autoStreamFailover)) { cb.updatePlayer { it.copy(autoStreamFailover = !it.autoStreamFailover) } })
+        // The timeout only applies while failover is on (same dependent-row pattern as the trailer rows).
+        if (p.autoStreamFailover) {
+            add(
+                entry(
+                    FALLBACK_ROW_KEY, SeaIcons.Timer, "Stream fallback timeout", "${p.fallbackTimeoutSeconds}s",
+                    RowTrailing.Stepper(
+                        onDecrease = { cb.updatePlayer { it.copy(fallbackTimeoutSeconds = SettingsDataStore.clampFallbackTimeout(it.fallbackTimeoutSeconds - 1)) } },
+                        onIncrease = { cb.updatePlayer { it.copy(fallbackTimeoutSeconds = SettingsDataStore.clampFallbackTimeout(it.fallbackTimeoutSeconds + 1)) } },
+                    ),
+                ) { cb.updatePlayer { it.copy(fallbackTimeoutSeconds = nextFallbackTimeout(it.fallbackTimeoutSeconds)) } },
+            )
+        }
         add(entry("buffer", SeaIcons.Timer, "Playback buffer profile", p.playbackBufferProfile.label, RowTrailing.Chevron) { cb.open(SettingsPanel.Choice(ChoiceKind.BUFFER_PROFILE)) })
         add(entry("parallel", SeaIcons.Addons, "Parallel stream connections", parallelLabel(p.parallelStreamConnections), RowTrailing.Chevron) { cb.open(SettingsPanel.Choice(ChoiceKind.PARALLEL_CONNECTIONS)) })
         add(toggle("trailers", SeaIcons.Trailer, "Auto-play trailers", p.autoPlayTrailers) { cb.updatePlayer { it.copy(autoPlayTrailers = !it.autoPlayTrailers) } })
@@ -197,6 +201,12 @@ internal fun cacheSizeLabel(bytes: Long?): String {
     return if (mb == 0L) "0 MB" else "$mb MB used"
 }
 
+/** Subtitle of the Automatic stream failover row (PRD §11). */
+internal fun failoverDescription(enabled: Boolean): String =
+    if (enabled) "On: tries the next stream when one fails or doesn't start in time" else "Off: a failed stream stops; pick another from Streams"
+
+const val FAILOVER_ROW_KEY = "failover"
+const val FALLBACK_ROW_KEY = "fallback"
 const val CLEAR_ROW_KEY = "clear-library"
 const val CLEAR_CACHE_ROW_KEY = "clear-cache"
 private const val BYTES_PER_MB = 1024L * 1024
