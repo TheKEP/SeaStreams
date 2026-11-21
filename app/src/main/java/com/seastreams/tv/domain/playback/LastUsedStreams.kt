@@ -11,18 +11,34 @@ data class LastUsedStream(val addonUrl: String, val url: String, val label: Stri
 
 /**
  * Where [saved] sits in a freshly fetched [streams] list, or `null` when it isn't there. Addon
- * streams carry no stable id, so the match is tiered: the exact URL first; then the same addon,
- * label and description (debrid/proxy addons sign a new URL on every fetch); then the same addon and
- * label, but only when exactly one stream in the list has that pair.
+ * streams carry no stable id, so the match is tiered, strictest first, within the same addon:
+ * 1. the exact URL;
+ * 2. the same label and description (debrid/proxy addons sign a new URL on every fetch);
+ * 3. the same label and description once every number is ignored (torrent addons put live seeder
+ *    / peer counts in the description) — only when exactly one stream qualifies;
+ * 4. the same label and first description line (the release / file name) — only when unique;
+ * 5. the same label — only when unique.
+ * The looser tiers never guess between two candidates.
  */
 fun lastUsedIndex(streams: List<StreamSource>, saved: LastUsedStream?): Int? {
     if (saved == null) return null
     streams.indexOfFirst { it.url == saved.url }.takeIf { it >= 0 }?.let { return it }
-    streams.indexOfFirst { it.addonUrl == saved.addonUrl && it.label == saved.label && it.description == saved.description }
-        .takeIf { it >= 0 }?.let { return it }
-    val sameLabel = streams.withIndex().filter { (_, s) -> s.addonUrl == saved.addonUrl && s.label == saved.label }
-    return sameLabel.singleOrNull()?.index
+    val sameAddon = streams.withIndex().filter { (_, s) -> s.addonUrl == saved.addonUrl && s.label == saved.label }
+    sameAddon.firstOrNull { (_, s) -> s.description == saved.description }?.let { return it.index }
+    val digitless = digitless(saved.description)
+    sameAddon.singleOrNull { (_, s) -> digitless(s.description) == digitless }?.let { return it.index }
+    val firstLine = firstLine(saved.description)
+    if (firstLine.isNotEmpty()) {
+        sameAddon.singleOrNull { (_, s) -> firstLine(s.description) == firstLine }?.let { return it.index }
+    }
+    return sameAddon.singleOrNull()?.index
 }
+
+private val Digits = Regex("[0-9]+")
+
+private fun digitless(description: String): String = description.replace(Digits, "#")
+
+private fun firstLine(description: String): String = description.lineSequence().map(String::trim).firstOrNull(String::isNotEmpty).orEmpty()
 
 /**
  * Reads and writes the per-profile `LAST USED` stream of each movie (season/episode `0`) or episode
@@ -61,4 +77,12 @@ class LastUsedStreamRecorder @Inject constructor(
     /** The index of [target]'s `LAST USED` stream in [streams], or `null` when there is none. */
     suspend fun indexIn(target: PlaybackTarget, streams: List<StreamSource>): Int? =
         if (streams.isEmpty()) null else lastUsedIndex(streams, lastUsed(target))
+
+    /**
+     * The stream auto-play starts for [resolved] (Play/Resume with *Auto-play top stream*, the episode
+     * menu's `Auto-play`, Continue Watching, Next Episode, auto-next): its `LAST USED` stream when the
+     * fresh list holds it, else the top stream (preferred auto-play addon first).
+     */
+    suspend fun autoPlayIndex(resolved: ResolvedPlayback): Int =
+        indexIn(resolved.target, resolved.resolution.streams) ?: resolved.topIndex
 }
