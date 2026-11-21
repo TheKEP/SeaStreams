@@ -3,6 +3,7 @@ package com.seastreams.tv.domain.playback
 import com.seastreams.tv.domain.model.EpisodeRef
 import com.seastreams.tv.domain.model.MediaType
 import com.seastreams.tv.domain.model.StreamSource
+import com.seastreams.tv.domain.usecase.StreamResolution
 import com.seastreams.tv.testutil.FakeLastUsedStreamDao
 import com.seastreams.tv.testutil.testDetails
 import kotlinx.coroutines.runBlocking
@@ -45,6 +46,41 @@ class LastUsedStreamsTest {
 
         val ambiguous = listOf(stream("a", url = "u1", desc = "one"), stream("a", url = "u2", desc = "two"))
         assertNull(lastUsedIndex(ambiguous, saved("a", url = "gone", desc = "three")))
+    }
+
+    @Test
+    fun `a re-signed URL whose seeder count changed still matches when the rest of the description agrees`() {
+        val streams = listOf(
+            stream("Torrentio · 4k", url = "r1?sig=new", desc = "Movie.2160p.HDR\n👤 87 💾 21.3 GB ⚙️ TPB"),
+            stream("Torrentio · 4k", url = "r2?sig=new", desc = "Movie.2160p.DV\n👤 3 💾 18.0 GB ⚙️ RARBG"),
+            stream("Torrentio · 1080p", url = "r3?sig=new", desc = "Movie.1080p\n👤 900 💾 2.1 GB ⚙️ YTS"),
+        )
+        val saved = saved("Torrentio · 4k", url = "r2?sig=old", desc = "Movie.2160p.DV\n👤 5 💾 18.0 GB ⚙️ RARBG")
+        assertEquals(1, lastUsedIndex(streams, saved))
+    }
+
+    @Test
+    fun `two streams that differ only in numbers are never guessed between`() {
+        val streams = listOf(stream("a", url = "u1", desc = "Pack S01\n👤 10"), stream("a", url = "u2", desc = "Pack S01\n👤 20"))
+        assertNull(lastUsedIndex(streams, saved("a", url = "gone", desc = "Pack S01\n👤 30")))
+    }
+
+    @Test
+    fun `the release name line matches only when one stream has it`() {
+        val unique = listOf(
+            stream("a", url = "u1", desc = "Movie.2160p.mkv\ncached ✔"),
+            stream("a", url = "u2", desc = "Movie.1080p.mkv\ncached ✔"),
+        )
+        assertEquals(1, lastUsedIndex(unique, saved("a", url = "gone", desc = "Movie.1080p.mkv\nnot cached")))
+
+        val ambiguous = listOf(stream("a", url = "u1", desc = "Movie.mkv\nx"), stream("a", url = "u2", desc = "Movie.mkv\ny"))
+        assertNull(lastUsedIndex(ambiguous, saved("a", url = "gone", desc = "Movie.mkv\nz")))
+    }
+
+    @Test
+    fun `an identical description beats a looser match listed earlier`() {
+        val streams = listOf(stream("a", url = "u1", desc = "Movie 👤 9"), stream("a", url = "u2", desc = "Movie 👤 4"))
+        assertEquals(1, lastUsedIndex(streams, saved("a", url = "gone", desc = "Movie 👤 4")))
     }
 
     @Test
@@ -98,6 +134,38 @@ class LastUsedStreamsTest {
         assertEquals("u1", recorder.lastUsed(movie)?.url)
         assertEquals("u2", recorder.lastUsed(otherProfile)?.url)
     }
+
+    @Test
+    fun `a movie and an episode of the same TMDB id keep separate streams`() = runBlocking {
+        val showAsMovieId = PlaybackTarget(1L, testDetails(tmdbId = 9), "tt9", episode = null)
+        val s2e4 = PlaybackTarget(1L, show, "tt9", EpisodeRef(2, 4))
+        recorder.record(showAsMovieId, stream("a", url = "movie", desc = ""))
+        recorder.record(s2e4, stream("a", url = "episode", desc = ""))
+        assertEquals("movie", recorder.lastUsed(showAsMovieId)?.url)
+        assertEquals("episode", recorder.lastUsed(s2e4)?.url)
+        assertEquals(2, dao.rows.value.single { it.mediaType == MediaType.TV }.seasonNumber)
+    }
+
+    // --- auto-play ---
+
+    @Test
+    fun `auto-play starts the LAST USED stream when it is listed`() = runBlocking {
+        val streams = listOf(stream("a", url = "u1", desc = ""), stream("b", url = "u2", desc = ""), stream("c", url = "u3", desc = ""))
+        recorder.record(s1e2, streams[2])
+        assertEquals(2, recorder.autoPlayIndex(resolved(s1e2, streams, topIndex = 0)))
+    }
+
+    @Test
+    fun `auto-play falls back to the top stream without a listed LAST USED`() = runBlocking {
+        val streams = listOf(stream("a", url = "u1", desc = ""), stream("b", url = "u2", desc = ""))
+        assertEquals(1, recorder.autoPlayIndex(resolved(movie, streams, topIndex = 1)))
+
+        recorder.record(movie, stream("z", url = "gone", desc = "", addon = "https://other"))
+        assertEquals(1, recorder.autoPlayIndex(resolved(movie, streams, topIndex = 1)))
+    }
+
+    private fun resolved(target: PlaybackTarget, streams: List<StreamSource>, topIndex: Int) =
+        ResolvedPlayback(target, StreamResolution(streams, emptyList(), emptyList()), topIndex)
 
     private fun stream(label: String, url: String, desc: String, addon: String = "https://addon") =
         StreamSource(addon, "Addon", url, label, desc, emptyMap())

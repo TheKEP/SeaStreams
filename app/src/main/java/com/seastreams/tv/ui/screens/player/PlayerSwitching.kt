@@ -20,8 +20,8 @@ import javax.inject.Inject
 
 /**
  * Everything that changes what the open player plays without leaving it: the Streams overlay's
- * hot-swap, `Next Episode`, the Episodes browser and Auto-Play Next Episode (top stream of the next
- * episode, preferred auto-play addon first). Also keeps the Streams overlay's `LAST USED` stream: it is
+ * hot-swap, `Next Episode`, the Episodes browser and Auto-Play Next Episode (the episode's `LAST USED`
+ * stream when listed, else its top stream, preferred auto-play addon first). Also keeps the Streams overlay's `LAST USED` stream: it is
  * looked up for every new movie/episode and recorded when a stream reaches `Ready`.
  */
 class PlayerSwitching @Inject constructor(
@@ -141,7 +141,7 @@ class PlayerSwitching @Inject constructor(
             sessionId = current.sessionId,
             target = playback.target,
             streams = playback.resolution.streams,
-            streamIndex = playback.topIndex,
+            streamIndex = lastUsed.autoPlayIndex(playback),
             subtitles = playback.resolution.subtitles,
             startPositionMs = recorder.resumePositionMs(playback.target),
             streamAddons = playback.resolution.streamAddons,

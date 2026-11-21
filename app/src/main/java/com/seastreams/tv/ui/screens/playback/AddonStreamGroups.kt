@@ -5,7 +5,13 @@ import com.seastreams.tv.domain.model.StreamAddon
 import com.seastreams.tv.domain.model.StreamSource
 
 /** One addon card: the addon and the global indices (into the flat stream list) of its streams. */
-internal data class AddonGroup(val addon: StreamAddon, val indices: List<Int>)
+internal data class AddonGroup(val addon: StreamAddon, val indices: List<Int>) {
+    /** How many streams the addon returned (`0` when it returned nothing, failed or timed out). */
+    val count: Int get() = indices.size
+}
+
+/** The result count shown beside an addon card's name, e.g. `(14)` in `Torrentio (14)`. */
+internal fun addonResultCount(count: Int): String = "($count)"
 
 /**
  * One group per addon in [addons] order, each with its streams' global indices in list order; an
