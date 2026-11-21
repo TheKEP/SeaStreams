@@ -1,5 +1,9 @@
 package com.seastreams.tv.ui.screens.library
 
+import androidx.compose.ui.focus.FocusRequester
+import com.seastreams.tv.ui.theme.awaitNextFrame
+import com.seastreams.tv.ui.theme.retryEachFrame
+import com.seastreams.tv.ui.theme.tryRequestFocus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -14,7 +18,7 @@ const val LETTER_PREVIEW_DEBOUNCE_MILLIS = 100L
  * - [preview] (a letter gained focus) waits [debounceMillis] before scrolling, so holding `Up`/`Down`
  *   across letters scrolls the grid once, on the letter the user stops on, instead of composing and
  *   loading posters for every letter passed through.
- * - [jump] (`OK` on a letter) scrolls immediately, then runs its follow-up (focus the title).
+ * - [jump] (`OK` or `Left` on a letter) scrolls immediately, then runs its follow-up (focus the title).
  *
  * Every call cancels the previous job first, so a pending preview never fires after a newer preview,
  * a jump, or [cancel]. Plain class with no Compose state: scrubbing never recomposes the screen.
@@ -47,3 +51,25 @@ class LetterJumpScheduler(
         job = null
     }
 }
+
+/**
+ * One [FocusRequester] per Library grid index, attached to every composed poster. A letter jump
+ * focuses only its own target's requester, so a previous jump target that is still composed can
+ * never take the focus meant for the new one. Recreate it with the entries list.
+ */
+class JumpFocusTargets {
+    private val requesters = HashMap<Int, FocusRequester>()
+
+    fun requesterFor(index: Int): FocusRequester = requesters.getOrPut(index) { FocusRequester() }
+}
+
+/**
+ * Focuses exactly poster [index], retrying once per frame (up to [maxFrames]) while it attaches
+ * after the jump scroll. An unattached requester fails [tryFocus], so focus stays on the letter.
+ */
+suspend fun JumpFocusTargets.focus(
+    index: Int,
+    maxFrames: Int,
+    awaitFrame: suspend () -> Unit = ::awaitNextFrame,
+    tryFocus: (FocusRequester) -> Boolean = { it.tryRequestFocus() },
+): Boolean = retryEachFrame(maxFrames, awaitFrame) { tryFocus(requesterFor(index)) }

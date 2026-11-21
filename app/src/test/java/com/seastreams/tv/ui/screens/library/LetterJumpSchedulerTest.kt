@@ -1,5 +1,6 @@
 package com.seastreams.tv.ui.screens.library
 
+import com.seastreams.tv.domain.usecase.LibraryQuery
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -58,6 +59,24 @@ class LetterJumpSchedulerTest {
         advanceTimeBy(LETTER_PREVIEW_DEBOUNCE_MILLIS * 2)
         runCurrent()
         assertEquals(listOf(20), scrolls)
+    }
+
+    @Test
+    fun `Left on a letter during a pending preview cancels it and focuses its target at once`() = runTest {
+        val jumps = scheduler()
+        val focused = mutableListOf<Int>()
+        val letterIndex = mapOf('#' to 0, 'M' to 14)
+        jumps.preview(0) // focus rested on # for < 100ms...
+        advanceTimeBy(LETTER_PREVIEW_DEBOUNCE_MILLIS - 10)
+        val target = letterLeftTarget(letterIndex, LibraryQuery.LETTERS.indexOf('M'))
+        target?.let { jumps.jump(it) { focused += it } } // ...then Left on M
+        runCurrent()
+        assertEquals(listOf(14), scrolls)
+        assertEquals(listOf(14), focused)
+
+        advanceTimeBy(LETTER_PREVIEW_DEBOUNCE_MILLIS * 2)
+        runCurrent()
+        assertEquals(listOf(14), scrolls)
     }
 
     @Test

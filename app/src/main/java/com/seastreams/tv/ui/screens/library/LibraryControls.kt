@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
@@ -68,8 +69,10 @@ fun LibrarySortAndGenre(
  * first title; OK moves focus onto that title. Letters with no titles are dimmed and do nothing.
  * Two-way §1 edge-stop-then-wrap: a fresh `Up` on `#` scrolls to and focuses `Z`, a fresh `Down` on
  * `Z` scrolls back to `#`; holding `Up`/`Down` stops on the edge letter and never leaves the bar.
- * `Left` returns to the grid; a fresh `Right` on any letter runs [onWrapRight] (back to the filter
- * sidebar), while a held `Right` stops on the bar. [focus] is hoisted so the sidebar can wrap in.
+ * `Left` never uses spatial search: it runs [onJump] with [letterLeftTarget] (the letter's first
+ * title, else the nearest populated letter's), so focus lands on that exact poster. A fresh `Right`
+ * on any letter runs [onWrapRight] (back to the filter sidebar), while a held `Right` stops on the
+ * bar. [focus] is hoisted so the sidebar can wrap in.
  */
 @Composable
 fun LetterBar(
@@ -86,6 +89,7 @@ fun LetterBar(
     val last = focus.requesters.last()
     val letters = LibraryQuery.LETTERS
     val wrap = rememberListEdgeWrap(listState, first, last, letters.lastIndex)
+    val leftTargets = remember(letterIndex) { letterLeftTargets(letterIndex, letters) }
     LazyColumn(
         state = listState,
         modifier = modifier.focusRestorer(first),
@@ -107,6 +111,12 @@ fun LetterBar(
                         }
                     }
                     .focusRequester(focus.requesters[i])
+                    // Fresh Left jumps once; held repeats are consumed here (no duplicate jumps, no spatial
+                    // search). With no target the key passes through to ordinary focus search.
+                    .then(
+                        leftTargets.getOrNull(i)?.let { t -> Modifier.onDpadEdgeWrap(Key.DirectionLeft) { onJump(t) } }
+                            ?: Modifier,
+                    )
                     .verticalListEdgeWrap(i, letters.lastIndex, wrap.toFirst, wrap.toLast)
                     .onDpadEdgeWrap(Key.DirectionRight, onWrapRight),
                 shape = ClickableSurfaceDefaults.shape(shape),
