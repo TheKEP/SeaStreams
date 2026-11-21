@@ -291,7 +291,7 @@ class ProfileScopedSettingsTest {
         }
         settings.updateAudio { it.copy(passthroughEnabled = false, dialogueBoost = DialogueBoost.PLUS_6, audioDelayMs = 100) }
         settings.updateSubtitles {
-            it.copy(mode = SubtitleMode.ALWAYS_ON, cleanSdh = true, style = it.style.copy(fontScale = 1.5f, bold = true))
+            it.copy(mode = SubtitleMode.ALWAYS_ON, cleanSdh = false, style = it.style.copy(fontScale = 1.5f, bold = false))
         }
     }
 
@@ -306,9 +306,9 @@ class ProfileScopedSettingsTest {
         assertEquals(DialogueBoost.PLUS_6, s.audio.dialogueBoost)
         assertEquals(100, s.audio.audioDelayMs)
         assertEquals(SubtitleMode.ALWAYS_ON, s.subtitles.mode)
-        assertTrue(s.subtitles.cleanSdh)
+        assertFalse(s.subtitles.cleanSdh)
         assertEquals(1.5f, s.subtitles.style.fontScale)
-        assertTrue(s.subtitles.style.bold)
+        assertFalse(s.subtitles.style.bold)
     }
 
     private fun assertB(s: AppSettings) {
