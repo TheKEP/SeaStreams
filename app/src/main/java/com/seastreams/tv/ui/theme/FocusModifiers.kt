@@ -266,11 +266,3 @@ suspend fun retryEachFrame(
     }
     return false
 }
-
-/**
- * How far (px) a lazy-row child's trailing edge sits past the visible area's trailing edge, where
- * the visible area ends [afterContentPaddingPx] before [viewportEndOffset] so the end gutter stays
- * clear. `0` when the child already fits. Offsets are in `LazyListLayoutInfo` coordinates.
- */
-fun trailingOverflowPx(itemOffset: Int, itemSize: Int, viewportEndOffset: Int, afterContentPaddingPx: Int): Int =
-    (itemOffset + itemSize - (viewportEndOffset - afterContentPaddingPx)).coerceAtLeast(0)
