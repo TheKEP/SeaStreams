@@ -211,6 +211,7 @@ private fun keyFor(panel: SettingsPanel): String = when (panel) {
         ChoiceKind.SUBTITLE_LANGUAGE -> "subs-lang"
         ChoiceKind.BUFFER_PROFILE -> "buffer"
         ChoiceKind.PARALLEL_CONNECTIONS -> "parallel"
+        ChoiceKind.DOLBY_VISION -> "dolby-vision"
     }
     SettingsPanel.Main -> FIRST_ROW_KEY
 }

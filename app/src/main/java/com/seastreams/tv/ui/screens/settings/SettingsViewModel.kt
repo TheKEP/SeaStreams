@@ -48,7 +48,7 @@ data class SettingsUiState(
     val portal: PortalLink? = null,
 )
 
-/** General Settings (PRD §10). Every change is written straight to [SettingsDataStore] / Room. */
+/** General Settings (PRD §11). Every change is written straight to [SettingsDataStore] / Room. */
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class SettingsViewModel @Inject constructor(

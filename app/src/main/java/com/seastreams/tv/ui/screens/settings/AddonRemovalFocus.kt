@@ -3,7 +3,7 @@ package com.seastreams.tv.ui.screens.settings
 /** A control of one Manage addons row that can take focus after a removal. */
 enum class AddonRowControl { REMOVE, TOGGLE }
 
-/** Where D-pad focus goes when an addon is removed from the Manage addons sub-panel (PRD §10). */
+/** Where D-pad focus goes when an addon is removed from the Manage addons sub-panel (PRD §11). */
 sealed interface AddonRemovalFocus {
     /** The addon at [index] in the list *before* the removal, i.e. the one directly below it. */
     data class Row(val index: Int, val control: AddonRowControl) : AddonRemovalFocus

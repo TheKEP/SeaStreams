@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import androidx.media3.common.C
+import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
@@ -13,6 +14,7 @@ import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.Util
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
+import androidx.media3.exoplayer.DecoderReuseEvaluation
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -92,9 +94,25 @@ class SeaStreamsPlayerManager(
     private val _pcmOutput = MutableStateFlow(!config.passthrough)
     val pcmOutput: StateFlow<Boolean> = _pcmOutput.asStateFlow()
 
+    /** SDR / HDR10 / HLG / Dolby Vision of the current stream (PRD §10); `SDR` until its video is known. */
+    private val _dynamicRange = MutableStateFlow(DynamicRange.SDR)
+    val dynamicRange: StateFlow<DynamicRange> = _dynamicRange.asStateFlow()
+    private var videoTrackFormat: Format? = null
+    private var videoDecoderFormat: Format? = null
+
+    private fun updateDynamicRange(track: Format? = videoTrackFormat, decoderInput: Format? = videoDecoderFormat) {
+        videoTrackFormat = track
+        videoDecoderFormat = decoderInput
+        _dynamicRange.value = VideoDynamicRange.ofSession(track, decoderInput)
+    }
+
     private val analytics = object : AnalyticsListener {
         override fun onAudioTrackInitialized(eventTime: AnalyticsListener.EventTime, audioTrackConfig: AudioSink.AudioTrackConfig) {
             _pcmOutput.value = Util.isEncodingLinearPcm(audioTrackConfig.encoding)
+        }
+
+        override fun onVideoInputFormatChanged(eventTime: AnalyticsListener.EventTime, format: Format, decoderReuseEvaluation: DecoderReuseEvaluation?) {
+            updateDynamicRange(decoderInput = format)
         }
     }
 
@@ -122,6 +140,7 @@ class SeaStreamsPlayerManager(
 
         override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
             audioReset.onTracksChanged()
+            updateDynamicRange(track = PlayerTracks.selectedVideoFormat(tracks))
             _events.tryEmit(PlayerEvent.TracksChanged)
         }
 
@@ -203,6 +222,7 @@ class SeaStreamsPlayerManager(
         }.build()
         val source = DefaultMediaSourceFactory(dataSource).createMediaSource(item)
         _embeddedCues.value = emptyList()
+        updateDynamicRange(track = null, decoderInput = null)
         player.setMediaSource(source, startPositionMs.coerceAtLeast(0))
         player.prepare()
         player.playWhenReady = true
@@ -214,6 +234,7 @@ class SeaStreamsPlayerManager(
         meter.reset()
         val dataSource = OkHttpDataSource.Factory(client).setTransferListener(MeterTransferListener(meter))
         player.volume = 1f
+        updateDynamicRange(track = null, decoderInput = null)
         player.setMediaSource(trailerMediaSource(stream, dataSource))
         player.prepare()
         player.playWhenReady = true
@@ -223,15 +244,22 @@ class SeaStreamsPlayerManager(
         engine.dsp.config = config
     }
 
+    /**
+     * Ends playback (PRD §10): the video surface is detached from the decoder first, so its last
+     * HDR/Dolby Vision frame is no longer fed or held for the display, then the decoders are stopped.
+     */
     fun stop() {
+        player.clearVideoSurface()
         player.stop()
         player.clearMediaItems()
+        updateDynamicRange(track = null, decoderInput = null)
     }
 
     fun release() {
         mainHandler.removeCallbacksAndMessages(null)
         player.removeListener(listener)
         player.removeAnalyticsListener(analytics)
+        player.clearVideoSurface()
         player.release()
     }
 

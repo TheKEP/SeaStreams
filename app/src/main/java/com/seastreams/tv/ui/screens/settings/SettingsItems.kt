@@ -55,6 +55,7 @@ enum class ChoiceKind {
     SUBTITLE_LANGUAGE,
     BUFFER_PROFILE,
     PARALLEL_CONNECTIONS,
+    DOLBY_VISION,
 }
 
 const val BACKGROUND_ROW_KEY = "background"
@@ -71,7 +72,7 @@ class SettingsCallbacks(
 )
 
 /**
- * The main list (PRD §10), grouped under `ADDONS & PORTAL`, `UI & APPEARANCE`, `PLAYBACK`, `AUDIO`,
+ * The main list (PRD §11), grouped under `ADDONS & PORTAL`, `UI & APPEARANCE`, `PLAYBACK`, `AUDIO`,
  * `SUBTITLES`, `LIBRARY` and `STORAGE`. [clearSecondsLeft] is non-null while a Clear Library can still be
  * undone; [cacheBytes] is null while the cache is being measured or cleared.
  */
@@ -130,6 +131,7 @@ fun settingsItems(
         }
         add(entry("player", SeaIcons.Television, "Player", playerLabel(p.playerChoice, state.players), RowTrailing.Chevron) { cb.open(SettingsPanel.Choice(ChoiceKind.PLAYER)) })
         add(toggle("dv7", SeaIcons.Brightness, "Convert Dolby Vision Profile 7 to HDR", p.convertDvProfile7ToHdr) { cb.updatePlayer { it.copy(convertDvProfile7ToHdr = !it.convertDvProfile7ToHdr) } })
+        add(entry("dolby-vision", SeaIcons.Brightness, "Dolby Vision playback", p.dolbyVisionPlayback.label, RowTrailing.Chevron) { cb.open(SettingsPanel.Choice(ChoiceKind.DOLBY_VISION)) })
         add(toggle("hdr-dim", SeaIcons.Brightness, "HDR white dimming", p.hdrWhiteDimming) { cb.updatePlayer { it.copy(hdrWhiteDimming = !it.hdrWhiteDimming) } })
 
         add(SettingsItem.Header("h-audio", "Audio"))
@@ -219,7 +221,7 @@ internal fun nextTrailerDelay(seconds: Int): Int {
     return if (seconds >= range.last) range.first else seconds + 1
 }
 
-/** `Off (1x)`, `2x` … `4x` (PRD §10). */
+/** `Off (1x)`, `2x` … `4x` (PRD §11). */
 internal fun parallelLabel(connections: Int): String = if (connections <= 1) "Off (1x)" else "${connections}x"
 
 internal fun dialogueLabel(gainDb: Int): String = if (gainDb == 0) "Off" else "+$gainDb dB"

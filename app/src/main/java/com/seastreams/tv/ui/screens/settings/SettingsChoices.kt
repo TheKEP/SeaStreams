@@ -3,6 +3,7 @@ package com.seastreams.tv.ui.screens.settings
 import com.seastreams.tv.core.database.entity.AddonEntity
 import com.seastreams.tv.core.datastore.BackgroundSwatches
 import com.seastreams.tv.core.datastore.DialogueBoost
+import com.seastreams.tv.core.datastore.DolbyVisionPlayback
 import com.seastreams.tv.core.datastore.PlaybackBufferProfile
 import com.seastreams.tv.core.datastore.PlayerSettings
 import com.seastreams.tv.core.datastore.PlayerChoice
@@ -36,7 +37,7 @@ fun streamAddons(addons: List<AddonEntity>): List<AddonEntity> = addons.filter {
     }
 }
 
-/** Swatch names for screen readers and the row's value (PRD §10: never hex codes). */
+/** Swatch names for screen readers and the row's value (PRD §11: never hex codes). */
 fun backgroundName(argb: Int): String = when (BackgroundSwatches.ALL.indexOf(argb)) {
     1 -> "Midnight indigo"
     2 -> "Plum"
@@ -110,6 +111,13 @@ fun choiceSpec(kind: ChoiceKind, state: SettingsUiState, vm: SettingsViewModel):
             PlayerSettings.PARALLEL_CONNECTIONS_RANGE.map { count ->
                 val label = if (count == PlayerSettings.DEFAULT_PARALLEL_CONNECTIONS) "${parallelLabel(count)} (default)" else parallelLabel(count)
                 ChoiceOption(label, count == player.parallelStreamConnections) { vm.updatePlayer { it.copy(parallelStreamConnections = count) } }
+            },
+        )
+        ChoiceKind.DOLBY_VISION -> ChoiceSpec(
+            "Dolby Vision playback",
+            DolbyVisionPlayback.entries.map { mode ->
+                val label = if (mode == DolbyVisionPlayback.AUTO) "${mode.label} (default)" else mode.label
+                ChoiceOption(label, mode == player.dolbyVisionPlayback) { vm.updatePlayer { it.copy(dolbyVisionPlayback = mode) } }
             },
         )
         ChoiceKind.SUBTITLE_LANGUAGE -> ChoiceSpec(

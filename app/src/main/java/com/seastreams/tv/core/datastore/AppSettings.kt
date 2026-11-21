@@ -58,6 +58,14 @@ enum class PlaybackBufferProfile(val label: String) {
     }
 }
 
+/** How Dolby Vision Profile 8 plays (PRD §10). Profile 5 is always native; Profile 7 also follows `convertDvProfile7ToHdr`. */
+enum class DolbyVisionPlayback(val label: String) {
+    /** Native Dolby Vision when the display reports DV support, else the HDR10/HLG base layer. */
+    AUTO("Auto"),
+    NATIVE("Always Dolby Vision"),
+    HDR10_BASE_LAYER("HDR10/HLG base layer"),
+}
+
 enum class SubtitleEdgeType { NONE, OUTLINE, DROP_SHADOW }
 
 data class PlayerSettings(
@@ -72,6 +80,8 @@ data class PlayerSettings(
     val blurUnwatchedThumbnails: Boolean = false,
     /** Plays Dolby Vision Profile 7 tracks as their HDR10 base layer (PRD §9: on by default). */
     val convertDvProfile7ToHdr: Boolean = true,
+    val dolbyVisionPlayback: DolbyVisionPlayback = DolbyVisionPlayback.AUTO,
+    /** Dims the player UI (never the video) during HDR10/HDR10+/HLG/Dolby Vision playback (PRD §10). */
     val hdrWhiteDimming: Boolean = false,
     val playbackBufferProfile: PlaybackBufferProfile = PlaybackBufferProfile.DEFAULT,
     /** Concurrent HTTP byte-range connections per stream; `1` turns the parallel reader off. */
@@ -162,7 +172,7 @@ data class SubtitleSettings(
     val autoSyncExternal: Boolean = true,
 )
 
-/** Per-profile look (PRD §1, §10). */
+/** Per-profile look (PRD §1, §11). */
 data class AppearanceSettings(
     /** Opaque ARGB page background; one of [BackgroundSwatches.ALL]. */
     val backgroundArgb: Int = BackgroundSwatches.DEFAULT,
@@ -182,7 +192,7 @@ object BackgroundSwatches {
     )
 }
 
-/** Snapshot of the active profile's General Settings (persisted per profile; PRD §10). */
+/** Snapshot of the active profile's General Settings (persisted per profile; PRD §11). */
 data class AppSettings(
     val player: PlayerSettings = PlayerSettings(),
     val audio: AudioSettings = AudioSettings(),

@@ -48,7 +48,7 @@ val SUBTITLE_COLORS: List<Pair<String, Int>> = listOf(
 )
 
 /**
- * Global subtitle styling (PRD §10): the 16:9 [SubtitlePreviewStage] stays pinned at the top while the
+ * Global subtitle styling (PRD §11): the 16:9 [SubtitlePreviewStage] stays pinned at the top while the
  * controls scroll below it, and every change re-renders the sample cue at once. Colour swatches
  * preview on focus and save on `Enter`.
  */
