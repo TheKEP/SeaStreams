@@ -60,10 +60,10 @@ class PlayerSwitching @Inject constructor(
         vm.viewModelScope.launch { lastUsed.record(media.target, stream) }
     }
 
-    /** Streams overlay: same title, another stream, same position. */
+    /** Streams overlay: same title, another stream, same position. A failed stream can be picked again to retry it. */
     fun selectStream(vm: PlayerViewModel, index: Int) {
         val manager = vm.currentManager() ?: return
-        if (index == vm._state.value.streamIndex) {
+        if (index == vm._state.value.streamIndex && !vm._state.value.streamFailed) {
             vm.closePanel()
             return
         }

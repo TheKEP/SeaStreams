@@ -135,7 +135,8 @@ fun PlayerScreen(request: PlaybackRequest, viewModel: PlayerViewModel, onExit: (
                 // Only reached while the HUD is hidden: the root itself holds focus then.
                 if (event.type != KeyEventType.KeyDown || state.hudVisible) return@onKeyEvent false
                 // Initial loading screen: no HUD, pause or seek on a stream with no frame yet; Back still leaves.
-                if (state.initialLoading) return@onKeyEvent event.key in SelectKeys || event.key.nativeKeyCode in DpadKeyCodes
+                // A stream that failed with failover off opens the HUD as usual, so its Streams button stays reachable.
+                if (state.initialLoading && !state.streamFailed) return@onKeyEvent event.key in SelectKeys || event.key.nativeKeyCode in DpadKeyCodes
                 if (event.key in SelectKeys) {
                     hudFocus = HudFocus.PLAY
                     when (selectGate.onHiddenHudSelectDown(event.nativeKeyEvent.repeatCount, state.playing)) {
@@ -175,7 +176,7 @@ fun PlayerScreen(request: PlaybackRequest, viewModel: PlayerViewModel, onExit: (
         val containerHeight = maxHeight
         // Everything drawn over the video; HDR White Dimming dims this layer only, never the picture.
         Box(Modifier.fillMaxSize().hdrUiDim(state.dimUi)) {
-            val visual = loadingVisual(request is PlaybackRequest.Trailer, state.started, state.buffering)
+            val visual = loadingVisual(request is PlaybackRequest.Trailer, state.started, state.buffering, state.streamFailed)
             // The session's current request: episode switches and auto-next replace the opening one.
             ((state.request ?: request) as? PlaybackRequest.Media)?.let { media -> PlayerLoadingOverlay(media.artwork, visual) }
             cue?.let { text ->
@@ -254,7 +255,7 @@ private fun VideoSurface(player: ExoPlayer, aspect: Float) {
 private fun CenterIndicator(state: PlayerUiState, isTrailer: Boolean, visual: LoadingVisual, modifier: Modifier) {
     when {
         isTrailer && state.buffering -> BufferingRing(modifier.size(64.dp))
-        visual != LoadingVisual.NONE -> Unit
+        visual != LoadingVisual.NONE || state.streamFailed -> Unit
         !state.playing -> Box(
             modifier.size(72.dp).background(Color.Black.copy(alpha = 0.55f), CircleShape),
             contentAlignment = Alignment.Center,

@@ -98,6 +98,8 @@ data class PlayerUiState(
     val episodes: EpisodeBrowser = EpisodeBrowser(),
     /** Short status, e.g. `Stream 1 didn't start. Trying stream 2…`. */
     val status: String? = null,
+    /** The current stream failed with Automatic Stream Failover off; cleared by [onNewStream]. */
+    val streamFailed: Boolean = false,
 ) {
     val isTrailer: Boolean get() = request is PlaybackRequest.Trailer
 
@@ -105,7 +107,7 @@ data class PlayerUiState(
     val dimUi: Boolean get() = hdrWhiteDimming && dynamicRange.isHdr
 
     /** Initial-loading backdrop vs. rebuffering logo (PRD §9). */
-    val loadingVisual: LoadingVisual get() = loadingVisual(isTrailer, started, buffering)
+    val loadingVisual: LoadingVisual get() = loadingVisual(isTrailer, started, buffering, streamFailed)
 
     /** A movie/episode whose current stream hasn't drawn a frame yet: only `Back` and media keys act. */
     val initialLoading: Boolean get() = request is PlaybackRequest.Media && !started

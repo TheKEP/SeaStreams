@@ -54,6 +54,7 @@ class PlaybackSettingsDataStoreTest {
         assertTrue(player.convertDvProfile7ToHdr)
         assertTrue(player.autoPlayNextEpisode)
         assertEquals(5, player.fallbackTimeoutSeconds)
+        assertTrue(player.autoStreamFailover)
     }
 
     @ParameterizedTest
