@@ -14,6 +14,7 @@ import com.seastreams.tv.domain.model.StreamSource
 import com.seastreams.tv.domain.playback.AudioOption
 import com.seastreams.tv.domain.playback.SubtitleOption
 import com.seastreams.tv.domain.playback.SubtitleSource
+import com.seastreams.tv.player.DynamicRange
 import com.seastreams.tv.player.audio.AudioDspConfig
 import com.seastreams.tv.player.subtitle.sync.AutoSyncStatus
 import com.seastreams.tv.ui.components.MetadataFormat
@@ -90,11 +91,18 @@ data class PlayerUiState(
     val audio: SessionAudio = SessionAudio(DialogueBoost.OFF, nightMode = false, delayMs = 0),
     val dspAvailable: Boolean = false,
     val hdrWhiteDimming: Boolean = false,
+    /** The current stream's SDR / HDR10 / HLG / Dolby Vision, live from the player (PRD §10). */
+    val dynamicRange: DynamicRange = DynamicRange.SDR,
+    /** Playback is ending: the video surface is gone, so no HDR layer outlives the exit (PRD §10). */
+    val videoDetached: Boolean = false,
     val episodes: EpisodeBrowser = EpisodeBrowser(),
     /** Short status, e.g. `Stream 1 didn't start. Trying stream 2…`. */
     val status: String? = null,
 ) {
     val isTrailer: Boolean get() = request is PlaybackRequest.Trailer
+
+    /** HDR White Dimming applies: the setting is on and the stream is HDR10/HDR10+/HLG/Dolby Vision (PRD §10). */
+    val dimUi: Boolean get() = hdrWhiteDimming && dynamicRange.isHdr
 
     /** Initial-loading backdrop vs. rebuffering logo (PRD §9). */
     val loadingVisual: LoadingVisual get() = loadingVisual(isTrailer, started, buffering)

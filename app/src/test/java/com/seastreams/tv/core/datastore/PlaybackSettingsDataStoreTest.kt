@@ -99,6 +99,30 @@ class PlaybackSettingsDataStoreTest {
         assertEquals(PlaybackBufferProfile.LARGE, settings.settings.first().player.playbackBufferProfile)
     }
 
+    @Test
+    fun `Dolby Vision playback defaults to Auto and leaves the Profile 7 toggle on`() = runTest {
+        val player = settings.settings.first().player
+        assertEquals(DolbyVisionPlayback.AUTO, player.dolbyVisionPlayback)
+        assertTrue(player.convertDvProfile7ToHdr)
+        assertFalse(player.hdrWhiteDimming)
+    }
+
+    @ParameterizedTest
+    @CsvSource("NATIVE", "HDR10_BASE_LAYER", "AUTO")
+    fun `Dolby Vision playback round-trips under the profile's key`(mode: DolbyVisionPlayback) = runTest {
+        settings.updatePlayer { it.copy(dolbyVisionPlayback = mode, hdrWhiteDimming = true) }
+        val player = SettingsDataStore(raw).settings.first().player
+        assertEquals(mode, player.dolbyVisionPlayback)
+        assertTrue(player.hdrWhiteDimming)
+        assertEquals(mode.name, raw.data.first()[stringPreferencesKey("${SCOPE}player_dolby_vision_playback")])
+    }
+
+    @Test
+    fun `an unknown stored Dolby Vision mode falls back to Auto`() = runTest {
+        raw.edit { it[stringPreferencesKey("${SCOPE}player_dolby_vision_playback")] = "PROFILE_9" }
+        assertEquals(DolbyVisionPlayback.AUTO, settings.settings.first().player.dolbyVisionPlayback)
+    }
+
     private companion object {
         const val PROFILE_ID = 1L
         const val SCOPE = "p$PROFILE_ID/"

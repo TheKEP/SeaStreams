@@ -211,7 +211,7 @@
 
 ## Post-Launch Feature: Auto Subtitle Sync & FFmpeg Audio Fallback (`feat/auto-subtitle-sync-and-ffmpeg-audio`)
 **Prompt for Claude Code:**
-> Read `CLAUDE.md`, `PRD.md` (§9 Audio DSP & Sync, Subtitles & HDR, Subtitle Timing Offset; §10 Subtitles), and `ARCHITECTURE.md` (§4–§6). Implement:
+> Read `CLAUDE.md`, `PRD.md` (§9 Audio DSP & Sync, Subtitles & HDR, Subtitle Timing Offset; §11 Subtitles), and `ARCHITECTURE.md` (§4–§6). Implement:
 > 1. **FFmpeg audio fallback:** add the approved `io.github.anilbeesetti:nextlib-media3ext` (version prefix = `media3`). In `PlayerEngineFactory` use `EXTENSION_RENDERER_MODE_ON` and append NextLib's `FfmpegAudioRenderer` after `MediaCodecAudioRenderer` (`AudioRendererPolicy`, `LinkageError`-safe). Give both sinks the PCM chain `SpeechActivityTap → SafeDownmixProcessor (stereo-only outputs) → DialogueNightAudioProcessor`, 16-bit output. Drive `dspAvailable` from `AnalyticsListener.onAudioTrackInitialized` (PCM vs. bitstream).
 > 2. **Auto-sync setting:** `SubtitleSettings.autoSyncExternal` (default `true`), per-profile `ScopedKey("subs_auto_sync")`, and the *Auto-sync external subtitles* toggle as the last `SUBTITLES` row, below *Subtitle styling*.
 > 3. **Auto-sync engine (`player/subtitle/sync/`):** 100 ms activity grids, ±30.0 s / 0.1 s Pearson cross-correlation with a strict confidence gate, an embedded same-language reference track (fast path), audio voice activity (fallback, two agreeing estimates). Write the result into the HUD `- 0.0s +` offset with an `Auto` caption, refresh the visible cue at once, and let a manual nudge always win.

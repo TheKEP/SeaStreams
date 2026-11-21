@@ -30,7 +30,8 @@ import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.FfmpegAudioRenderer
 data class PlayerEngineConfig(
     val bufferProfile: PlaybackBufferProfile,
     val parallelConnections: Int,
-    val convertDvProfile7: Boolean,
+    /** Dolby Vision mode, Profile 7 toggle and display DV support (PRD §10). */
+    val dolbyVision: DvPolicyInputs,
     /**
      * Passthrough on: codecs the sink takes are bitstreamed untouched. Off: everything is decoded to PCM.
      * Either way, PCM output (incl. the FFmpeg fallback) runs through the DSP.
@@ -40,10 +41,14 @@ data class PlayerEngineConfig(
     val preferredAudioLanguage: String,
 ) {
     companion object {
-        fun from(settings: AppSettings, dsp: AudioDspConfig) = PlayerEngineConfig(
+        fun from(settings: AppSettings, dsp: AudioDspConfig, displaySupportsDolbyVision: Boolean) = PlayerEngineConfig(
             bufferProfile = settings.player.playbackBufferProfile,
             parallelConnections = settings.player.parallelStreamConnections,
-            convertDvProfile7 = settings.player.convertDvProfile7ToHdr,
+            dolbyVision = DvPolicyInputs(
+                mode = settings.player.dolbyVisionPlayback,
+                convertProfile7 = settings.player.convertDvProfile7ToHdr,
+                displaySupportsDolbyVision = displaySupportsDolbyVision,
+            ),
             passthrough = settings.audio.passthroughEnabled,
             dsp = dsp,
             preferredAudioLanguage = settings.audio.preferredAudioLanguage,
@@ -65,7 +70,7 @@ class PlayerEngine(
 )
 
 /**
- * Renderers for the main player: the Dolby Vision Profile 7 aware video renderer, MediaCodec audio
+ * Renderers for the main player: the Dolby Vision base-layer aware video renderer, MediaCodec audio
  * followed by the FFmpeg software fallback ([AudioRendererPolicy]), and one context-aware audio sink
  * that runs [processors] on PCM behind a [PassthroughGateSink]: with passthrough off the gate reports
  * only PCM as supported, so AC-3/E-AC-3/TrueHD/DTS are decoded on-device (MediaCodec when it can, else
@@ -73,7 +78,7 @@ class PlayerEngine(
  */
 private class SeaStreamsRenderersFactory(
     context: Context,
-    private val convertDvProfile7: Boolean,
+    private val dolbyVision: DvPolicyInputs,
     private val passthrough: Boolean,
     private val processors: Array<AudioProcessor>,
 ) : DefaultRenderersFactory(context) {
@@ -118,7 +123,7 @@ private class SeaStreamsRenderersFactory(
             .setEventHandler(eventHandler)
             .setEventListener(eventListener)
             .setMaxDroppedFramesToNotify(MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY)
-        out.add(DolbyVisionCompatVideoRenderer(builder) { convertDvProfile7 })
+        out.add(DolbyVisionCompatVideoRenderer(builder) { dolbyVision })
     }
 
     /** The sink [buildAudioSink] made (ExoPlayer builds it once, while the player is built). */
@@ -157,7 +162,7 @@ object PlayerEngineFactory {
                 .build()
         }
         val buffer = buildLoadControl(config.bufferProfile.loadControlSpec())
-        val renderers = SeaStreamsRenderersFactory(context, config.convertDvProfile7, config.passthrough, processors)
+        val renderers = SeaStreamsRenderersFactory(context, config.dolbyVision, config.passthrough, processors)
         val player = ExoPlayer.Builder(context, renderers)
             .setTrackSelector(trackSelector)
             .setLoadControl(buffer.loadControl)

@@ -3,7 +3,7 @@ package com.seastreams.tv.ui.screens.settings
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
-/** Manage addons (PRD §10): where focus goes when the addon at an index is removed. */
+/** Manage addons (PRD §11): where focus goes when the addon at an index is removed. */
 class AddonRemovalFocusTest {
 
     private val allRemovable: (Int) -> Boolean = { true }

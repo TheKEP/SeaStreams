@@ -72,7 +72,9 @@ object TrailerStreamSelector {
         return TrailerStream(TrailerSource(muxed.url, muxed.dashManifest, muxed.container.mimeType()), audio = null, height = muxed.height)
     }
 
-    private fun VideoCodecSupport.decodes(video: TrailerVideoCandidate) = isSupported(video.codec, video.height, video.fps)
+    /** SDR only (PRD §10): an HDR trailer would switch the TV into HDR on Details/Home. */
+    private fun VideoCodecSupport.decodes(video: TrailerVideoCandidate) =
+        !isHdrVideoCodec(video.codec) && isSupported(video.codec, video.height, video.fps)
 
     private val VIDEO_ORDER: Comparator<TrailerVideoCandidate> = compareBy<TrailerVideoCandidate> { it.height }
         .thenBy { it.fps }
@@ -100,6 +102,34 @@ fun videoCodecFamily(codec: String?): String? {
         else -> value.substringBefore('.')
     }
 }
+
+/**
+ * Whether an RFC 6381 video codec string is HDR: any Dolby Vision codec; VP9 / AV1 whose transfer
+ * characteristics field is PQ (`16`) or HLG (`18`); without that field, VP9 Profile 2 or 10/12-bit AV1
+ * (YouTube's HDR formats; its SDR VP9/AV1 are Profile 0 / 8-bit).
+ */
+fun isHdrVideoCodec(codec: String?): Boolean {
+    val value = codec?.trim()?.lowercase(Locale.ROOT)?.takeIf { it.isNotEmpty() } ?: return false
+    if (DV_CODECS.any { value.startsWith(it) }) return true
+    val parts = value.split('.')
+    return when (parts.first()) {
+        // vp09.PP.LL.DD.CC.cp.tc.mc.FF
+        "vp09" -> parts.getOrNull(VP9_TRANSFER)?.toIntOrNull()?.let { it in HDR_TRANSFERS }
+            ?: (parts.getOrNull(1)?.toIntOrNull() == VP9_PROFILE_2)
+        // av01.P.LLT.DD.M.CCC.cp.tc.mc.F
+        "av01" -> parts.getOrNull(AV1_TRANSFER)?.toIntOrNull()?.let { it in HDR_TRANSFERS }
+            ?: ((parts.getOrNull(AV1_BIT_DEPTH)?.toIntOrNull() ?: SDR_BIT_DEPTH) > SDR_BIT_DEPTH)
+        else -> false
+    }
+}
+
+private val DV_CODECS = listOf("dvhe", "dvh1", "dvav", "dva1", "dav1")
+private val HDR_TRANSFERS = setOf(16, 18)
+private const val VP9_TRANSFER = 6
+private const val AV1_TRANSFER = 7
+private const val AV1_BIT_DEPTH = 3
+private const val SDR_BIT_DEPTH = 8
+private const val VP9_PROFILE_2 = 2
 
 /**
  * Resolves the YouTube trailer key TMDB lists for a title into playable streams, off the main thread.
