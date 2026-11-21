@@ -24,7 +24,7 @@ import com.seastreams.tv.ui.components.SubtitleCueText
 const val SAMPLE_SUBTITLE = "I never thought we'd make it this far.\nNeither did I. But here we are."
 
 /**
- * Pinned 16:9 preview (PRD §10 Live Subtitle Style Preview): a high-contrast dusk scene (bright sun,
+ * Pinned 16:9 preview (PRD §11 Live Subtitle Style Preview): a high-contrast dusk scene (bright sun,
  * pale sky, black foreground) so legibility shows against both light and dark areas, with
  * [SAMPLE_SUBTITLE] drawn by the same [SubtitleCueText] renderer the player uses.
  */

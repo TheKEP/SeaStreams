@@ -25,7 +25,7 @@ import kotlin.math.roundToInt
  * Typed facade over Preferences DataStore.
  *
  * Every General Settings value (appearance, playback, trailers, audio, subtitles incl. external
- * subtitle auto-sync; PRD §10) is stored **per profile** under `p{profileId}/…` keys: [settings] always reflects the active
+ * subtitle auto-sync; PRD §11) is stored **per profile** under `p{profileId}/…` keys: [settings] always reflects the active
  * profile and every setter writes only to the active profile. The active profile id, the TMDB
  * credential, the first-launch flag and the Movies/TV provider-row toggles stay app-wide.
  * All setters clamp values to their legal ranges.

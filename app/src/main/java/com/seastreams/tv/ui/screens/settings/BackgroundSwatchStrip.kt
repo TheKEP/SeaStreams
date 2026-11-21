@@ -44,7 +44,7 @@ import com.seastreams.tv.ui.theme.requestFocusAfterFrame
 import com.seastreams.tv.ui.theme.tryRequestFocus
 
 /**
- * Visual background picker (PRD §10): one circle per colour, no hex codes. Focusing a swatch previews
+ * Visual background picker (PRD §11): one circle per colour, no hex codes. Focusing a swatch previews
  * it as the live page background ([onPreview]); `Enter` saves it ([onConfirm]); `Back`, or moving
  * focus out of the strip without confirming, restores the saved colour ([onCancel]). Its argument says
  * whether focus should go back to the picker's row (`Back`) or already went elsewhere (moved away).
