@@ -1,5 +1,8 @@
 package com.seastreams.tv.ui.components
 
+import androidx.compose.ui.focus.FocusDirection
+import com.seastreams.tv.domain.model.MediaItem
+import com.seastreams.tv.domain.model.MediaType
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
@@ -74,4 +77,37 @@ class PosterGridTest {
     fun `held grid steps are paced at the grid cadence`() {
         assertEquals(250L, POSTER_GRID_REPEAT_INTERVAL_MS)
     }
+
+    @Test
+    fun `programmatic Enter requests are never redirected`() {
+        // A sort reset, letter jump or exact Back focus must land on exactly the poster it asked for.
+        assertEquals(PosterGridEntry.REQUESTED, posterGridEntry(FocusDirection.Enter, targetComposed = true))
+        assertEquals(PosterGridEntry.REQUESTED, posterGridEntry(FocusDirection.Enter, targetComposed = false))
+    }
+
+    @Test
+    fun `D-pad entry restores the last poster, scrolling first when it isn't composed`() {
+        listOf(FocusDirection.Up, FocusDirection.Down, FocusDirection.Left, FocusDirection.Right).forEach { direction ->
+            assertEquals(PosterGridEntry.RESTORE, posterGridEntry(direction, targetComposed = true), "$direction")
+            assertEquals(PosterGridEntry.SCROLL_THEN_RESTORE, posterGridEntry(direction, targetComposed = false), "$direction")
+        }
+    }
+
+    @Test
+    fun `the restore target follows the last-focused title after a reorder, else the first`() {
+        val before = listOf(poster(1), poster(2), poster(3))
+        val reordered = listOf(poster(3), poster(1), poster(2))
+
+        assertEquals(1, posterGridRestoreIndex(before[1].key, before))
+        assertEquals(2, posterGridRestoreIndex(before[1].key, reordered), "the title moved, so does the target")
+        assertEquals(0, posterGridRestoreIndex(poster(9).key, reordered), "a title no longer in the grid")
+        assertEquals(0, posterGridRestoreIndex(null, reordered), "nothing focused yet")
+        assertEquals(0, posterGridRestoreIndex(before[0].key, emptyList()))
+    }
+
+    private fun poster(id: Int) = MediaItem(
+        tmdbId = id, mediaType = MediaType.MOVIE, title = "Title $id", overview = "", posterUrl = null, backdropUrl = null,
+        heroBackdropUrl = null, logoUrl = null, year = null, ratingPercent = null, genres = emptyList(),
+        runtimeMinutes = null, certification = null, isAdultContent = false,
+    )
 }

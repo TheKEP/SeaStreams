@@ -22,11 +22,17 @@ data class LibraryView(
     val letterLeftTargets: List<Int?> = emptyList(),
     /** Genres present under the filter (ignoring the selected genre), by name. */
     val genreOptions: List<Genre> = emptyList(),
+    /**
+     * The genre narrowing [entries]; `null` when the view is unfiltered, including a selected genre
+     * no title under this filter has (kept by the ViewModel, not applied).
+     */
+    val appliedGenreId: Int? = null,
 )
 
 /**
  * The genre-less view of every sidebar filter, built in one pass per library/sort/genre-name change.
- * Switching between `All`, `Movies` and `TV Shows` is then a map lookup.
+ * Switching between `All`, `Movies` and `TV Shows` is then a map lookup; [deriveGenreViews] does the
+ * same for a selected genre.
  */
 fun deriveLibraryViews(
     all: List<LibraryEntry>,
@@ -52,7 +58,28 @@ fun deriveLibraryView(
         letterIndex = letterIndex,
         letterLeftTargets = letterLeftTargets(letterIndex),
         genreOptions = genreOptions,
+        appliedGenreId = genreId,
     )
+}
+
+/**
+ * Every filter's view narrowed to [genreId], so a filter switch with a genre selected is also a map
+ * lookup. The genre stays selected across filters (PRD §7): a filter none of whose titles has it keeps
+ * its genre-less view from [base] instead of an empty grid. Matching is by genre id, never by name, so
+ * a genre whose name hasn't loaded yet still applies.
+ */
+fun deriveGenreViews(
+    all: List<LibraryEntry>,
+    sort: LibrarySortOrder,
+    genreId: Int,
+    base: Map<LibraryFilter, LibraryView>,
+): Map<LibraryFilter, LibraryView> = LibraryFilter.entries.associateWith { filter ->
+    val genreLess = base.getValue(filter)
+    if (genreLess.entries.none { genreId in it.genreIds }) {
+        genreLess
+    } else {
+        deriveLibraryView(all, filter, sort, genreId, genreLess.genreOptions)
+    }
 }
 
 /** The Genre dropdown's choices under [filter]: genres of its titles that have a name, sorted by name. */

@@ -15,8 +15,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -44,7 +44,9 @@ const val POSTER_GRID_COLUMNS = 5
  *   `Left`/`Right` are never delayed. [PeekBringIntoViewSpec] keeps the next row composed.
  * - Edge-stop-then-wrap (PRD §1): holding `Down` on the bottom row stops there; a fresh `Down`
  *   press while already there scrolls back to the top and focuses the first poster.
- * - Re-entering the grid (e.g. from a sidebar) restores the last-focused poster, else the first.
+ * - Re-entering the grid with the D-pad (e.g. from a sidebar) restores the last-focused poster by
+ *   key, scrolling to it first when it is off screen, else the first. Programmatic focus requests
+ *   (sort reset, letter jumps, exact Back focus) are never redirected ([posterGridEntry]).
  * - [itemModifier] lets callers attach extra focus requesters to specific posters.
  */
 @OptIn(ExperimentalFoundationApi::class) // LocalBringIntoViewSpec
@@ -69,6 +71,7 @@ fun PosterGrid(
             firstItemFocusRequester.requestFocusAfterFrame()
         }
     }
+    val lastFocused = remember { LastFocusedPoster() }
     val requesters = remember { HashMap<Int, FocusRequester>() }
     val requesterFor: (Int) -> FocusRequester = { index ->
         if (index == 0) firstItemFocusRequester else requesters.getOrPut(index) { FocusRequester() }
@@ -89,7 +92,26 @@ fun PosterGrid(
             // The throttle wraps the grid, so it sees each key before the posters' own handlers.
             modifier = modifier
                 .throttleVerticalDpadRepeat(POSTER_GRID_REPEAT_INTERVAL_MS)
-                .focusRestorer(firstItemFocusRequester),
+                .focusProperties {
+                    onEnter = {
+                        if (items.isNotEmpty()) {
+                            val target = posterGridRestoreIndex(lastFocused.key, items)
+                            val composed = state.layoutInfo.visibleItemsInfo.any { it.index == target }
+                            when (posterGridEntry(requestedFocusDirection, composed)) {
+                                PosterGridEntry.REQUESTED -> Unit
+                                // An unattached requester falls back to ordinary focus search.
+                                PosterGridEntry.RESTORE -> runCatching { requesterFor(target).requestFocus() }
+                                PosterGridEntry.SCROLL_THEN_RESTORE -> {
+                                    cancelFocusChange()
+                                    scope.launch {
+                                        state.scrollToItem(target)
+                                        if (!requesterFor(target).requestFocusAfterFrame()) firstItemFocusRequester.requestFocusAfterFrame()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
             contentPadding = contentPadding,
             horizontalArrangement = Arrangement.spacedBy(GridSpacing),
             verticalArrangement = Arrangement.spacedBy(GridSpacing),
@@ -98,7 +120,10 @@ fun PosterGrid(
                 PosterCard(
                     item = item,
                     onClick = { onItemClick(item) },
-                    onFocused = { onItemFocused(index) },
+                    onFocused = {
+                        lastFocused.key = item.key
+                        onItemFocused(index)
+                    },
                     modifier = Modifier
                         .focusRequester(requesterFor(index))
                         .then(
