@@ -82,6 +82,19 @@ class AddonStreamGroupsTest {
     }
 
     @Test
+    fun `each addon card counts the streams it returned, zero for an empty or failed addon`() {
+        val groups = addonGroups(listOf(alpha, empty, beta), streams)
+        assertEquals(listOf(2, 0, 3), groups.map { it.count })
+        assertEquals(streams.size, groups.sumOf { it.count })
+    }
+
+    @Test
+    fun `the count reads in parentheses after the addon name`() {
+        assertEquals("(14)", addonResultCount(14))
+        assertEquals("(0)", addonResultCount(0))
+    }
+
+    @Test
     fun `no cards means no initial focus target`() {
         assertNull(initialFocus(emptyList(), lastUsedIndex = 0))
     }

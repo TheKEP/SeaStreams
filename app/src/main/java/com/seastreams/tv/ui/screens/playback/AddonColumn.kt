@@ -5,6 +5,8 @@ import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -18,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -75,6 +78,7 @@ internal fun AddonColumn(
                 val hasStreams = group.indices.isNotEmpty()
                 AddonFilterCard(
                     name = group.addon.name,
+                    count = group.count,
                     selected = index == selected,
                     onFocused = { onSelect(index) },
                     onClick = { onMove(columnSwitch(PanelColumn.ADDONS, Key.DirectionRight, hasStreams)) },
@@ -96,13 +100,22 @@ internal fun AddonColumn(
 }
 
 /**
- * A compact full-width addon pill. Focused: the `#E5E9F0` pill with dark text. Selected (its streams
- * are listed while focus is in the stream column): a `#E5E9F0` outline over a lighter tint.
- * Otherwise translucent. The name stays on one line and scrolls (marquee) while focused or selected
- * when it doesn't fit. A held `OK` that started before the card was focused never clicks it.
+ * A compact full-width addon pill reading `Name (count)`. Focused: the `#E5E9F0` pill with dark text.
+ * Selected (its streams are listed while focus is in the stream column): a `#E5E9F0` outline over a
+ * lighter tint. Otherwise translucent. The name stays on one line and scrolls (marquee) while focused
+ * or selected when it doesn't fit; the `(count)` sits after it, outside the marquee, so it is never
+ * scrolled or truncated away. Both take the pill's content colour. A held `OK` that started before
+ * the card was focused never clicks it.
  */
 @Composable
-private fun AddonFilterCard(name: String, selected: Boolean, onFocused: () -> Unit, onClick: () -> Unit, modifier: Modifier) {
+private fun AddonFilterCard(
+    name: String,
+    count: Int,
+    selected: Boolean,
+    onFocused: () -> Unit,
+    onClick: () -> Unit,
+    modifier: Modifier,
+) {
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(10.dp)
     Surface(
@@ -122,17 +135,22 @@ private fun AddonFilterCard(name: String, selected: Boolean, onFocused: () -> Un
         ),
     ) {
         val scrolling = focused || selected
-        Text(
-            name,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            maxLines = 1,
-            softWrap = false,
-            overflow = if (scrolling) TextOverflow.Clip else TextOverflow.Ellipsis,
-            modifier = Modifier
-                .padding(horizontal = 14.dp, vertical = 12.dp)
-                .then(if (scrolling) Modifier.basicMarquee(iterations = Int.MAX_VALUE) else Modifier),
-        )
+        val weight = if (selected) FontWeight.Bold else FontWeight.Medium
+        Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                name,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = weight,
+                maxLines = 1,
+                softWrap = false,
+                overflow = if (scrolling) TextOverflow.Clip else TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .then(if (scrolling) Modifier.basicMarquee(iterations = Int.MAX_VALUE) else Modifier),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(addonResultCount(count), style = MaterialTheme.typography.labelLarge, fontWeight = weight, maxLines = 1, softWrap = false)
+        }
     }
 }
 

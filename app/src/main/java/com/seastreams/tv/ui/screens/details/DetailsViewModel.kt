@@ -115,10 +115,14 @@ class DetailsViewModel @Inject constructor(
      * What `Play` starts ([episode] overrides the next-up episode, e.g. for Shuffle), once the title
      * and its IMDb id are loaded. [shuffle] starts a shuffle session (`Shuffle` passes [ShuffleMode.Show])
      * that Next Episode / Auto-Play Next Episode follow; `Play`/`Resume` stay sequential. `null` when
-     * the title couldn't be loaded.
+     * the title couldn't be loaded. Waits for the title, its IMDb id and its saved progress.
      */
     suspend fun awaitPlayTarget(episode: EpisodeRef? = null, shuffle: ShuffleMode = ShuffleMode.None): PlaybackTarget? {
-        val ready = _state.first { it.content !is DetailsContent.Loading && it.imdbResolved || it.content.isTerminalFailure() }
+        // Saved progress too (actionsReady): without it a show's next-up episode reads as S1:E1, so
+        // `Resume S2:E4` would play — and look up the LAST USED stream of — the wrong episode.
+        val ready = _state.first {
+            it.content !is DetailsContent.Loading && it.imdbResolved && it.actionsReady || it.content.isTerminalFailure()
+        }
         val details = ready.details ?: return null
         val profileId = ready.profileId ?: return null
         val chosen = if (ready.isShow) episode ?: ready.nextUpEpisode ?: return null else null
