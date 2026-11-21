@@ -3,8 +3,42 @@ package com.seastreams.tv.ui.components
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
+import com.seastreams.tv.domain.model.MediaItem
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
+
+/**
+ * How focus entering a [PosterGrid] is handled. The grid doesn't use `focusRestorer`: its `onEnter`
+ * also fires for a programmatic `requestFocus()` on a poster (direction `Enter`) and, ignoring the
+ * direction, redirects it to the previously focused poster (e.g. to wherever a reordered title moved).
+ */
+enum class PosterGridEntry {
+    /** A programmatic request: the requested poster keeps focus. */
+    REQUESTED,
+
+    /** A D-pad entry: land on the last-focused poster, which is composed. */
+    RESTORE,
+
+    /** A D-pad entry whose last-focused poster is scrolled away: scroll to it first, then focus it. */
+    SCROLL_THEN_RESTORE,
+}
+
+/** Programmatic (`Enter`) requests keep their target; D-pad entries restore the last-focused poster. */
+fun posterGridEntry(direction: FocusDirection, targetComposed: Boolean): PosterGridEntry = when {
+    direction == FocusDirection.Enter -> PosterGridEntry.REQUESTED
+    targetComposed -> PosterGridEntry.RESTORE
+    else -> PosterGridEntry.SCROLL_THEN_RESTORE
+}
+
+/** Where the last-focused title sits now (it follows a reorder), else the first poster. */
+fun posterGridRestoreIndex(lastFocusedKey: String?, items: List<MediaItem>): Int =
+    lastFocusedKey?.let { key -> items.indexOfFirst { it.key == key } }?.takeIf { it >= 0 } ?: 0
+
+/** The last poster that held focus in a grid, by key. Plain field: focus moves never recompose. */
+class LastFocusedPoster {
+    var key: String? = null
+}
 
 /**
  * Minimum time between accepted `Up`/`Down` steps while the key is held inside a poster grid

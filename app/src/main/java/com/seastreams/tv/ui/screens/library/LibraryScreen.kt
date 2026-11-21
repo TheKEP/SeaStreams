@@ -44,7 +44,9 @@ import com.seastreams.tv.ui.theme.tryRequestFocus
  *
  * Opens with `All` selected and focused, the grid in the profile's last-used sort order. The Genre
  * filter persists across the sidebar filters and resets when the page is left (another tab, Search,
- * Settings, a profile switch).
+ * Settings, a profile switch). Picking a different Sort order or Genre scrolls the grid to the top and
+ * focuses its first poster once the new list is shown ([GridFocusReset], [resetGridToFirst]); sidebar
+ * filter switches never do.
  *
  * The sidebar highlight follows focus at once; the grid switches once focus rests on a filter
  * ([FILTER_SETTLE_MILLIS]), or at once when focus leaves the sidebar ([SidebarGridEntry]).
@@ -152,16 +154,42 @@ private fun LibraryBody(
     LaunchedEffect(state) {
         if (gridEntry.awaiting(state.filter)) retryEachFrame(GRID_ENTRY_FRAMES) { gridEntry.first.tryRequestFocus() }
     }
+    // A new Sort order or Genre, once shown, scrolls to the top and focuses its first poster. Keyed on what
+    // the grid shows (filter, sort, applied genre): the re-emission that only fills in genre names must
+    // not cancel it mid-retry.
+    val shown = LibraryGridShown(state.filter, state.sort, view.appliedGenreId)
+    val gridReset = remember { GridFocusReset() }
+    val focusedPoster = remember { FocusedPosterMark() }
+    LaunchedEffect(shown) {
+        if (gridReset.awaiting(shown)) {
+            letterJumps.cancel() // a pending A–Z preview or jump can neither scroll back nor steal focus
+            val firstKey = view.posters.firstOrNull()?.key
+            resetGridToFirst(
+                hasEntries = hasEntries,
+                scrollToTop = { gridState.scrollToItem(0) },
+                // Index 0 must hold the new order's first title, never a pre-sort layout.
+                firstPosterReady = { gridState.layoutInfo.visibleItemsInfo.any { it.index == 0 && it.key == firstKey } },
+                focusFirst = { gridEntry.first.tryRequestFocus() },
+                mark = focusedPoster,
+                maxFrames = GRID_RESET_FRAMES,
+            )
+        }
+    }
 
     Row(modifier) {
         Column(Modifier.weight(1f).padding(start = 20.dp)) {
             LibrarySortAndGenre(
                 sort = state.sort,
-                onSort = viewModel::selectSort,
+                onSort = { picked -> if (gridReset.requestSort(picked, shown)) viewModel.selectSort(picked) },
                 genres = view.genreOptions,
                 // A selected genre no title under this filter has stays remembered but reads `All Genres`.
                 genreId = view.appliedGenreId,
-                onGenre = viewModel::selectGenre,
+                // Always applied: `All Genres` on such a dormant genre still clears it, but its grid is
+                // unchanged, so no reset is armed and focus stays on the Genre pill.
+                onGenre = { picked ->
+                    gridReset.requestGenre(picked, shown)
+                    viewModel.selectGenre(picked)
+                },
                 modifier = Modifier.padding(bottom = 12.dp),
             )
             when {
@@ -173,6 +201,7 @@ private fun LibraryBody(
                     firstItemFocusRequester = gridEntry.first,
                     contentPadding = PaddingValues(top = 4.dp, end = 12.dp, bottom = 48.dp),
                     modifier = Modifier.fillMaxSize(),
+                    onItemFocused = { focusedPoster.index = it },
                     itemModifier = { index -> Modifier.focusRequester(jumpTargets.requesterFor(index)) },
                 )
                 view.appliedGenreId != null || state.filter != LibraryFilter.ALL -> EmptyNote("No titles match these filters.")
@@ -209,3 +238,6 @@ private const val JUMP_FOCUS_FRAMES = 10
 
 /** Frames a `Right` that applied a pending filter keeps trying to focus the new grid's first poster. */
 private const val GRID_ENTRY_FRAMES = 10
+
+/** Frames a Sort or Genre pick keeps waiting for, and confirming focus on, the new grid's first poster. */
+private const val GRID_RESET_FRAMES = 20
