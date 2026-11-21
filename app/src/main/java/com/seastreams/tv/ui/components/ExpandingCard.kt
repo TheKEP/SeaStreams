@@ -1,20 +1,13 @@
 package com.seastreams.tv.ui.components
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -27,9 +20,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.DpSize
@@ -40,124 +30,76 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.seastreams.tv.domain.model.MediaItem
-import com.seastreams.tv.ui.theme.Obsidian
 import com.seastreams.tv.ui.theme.SurfaceCard
 import com.seastreams.tv.ui.theme.TextPrimary
 import com.seastreams.tv.ui.theme.focusRing
 import com.seastreams.tv.ui.theme.rememberSelectLongPress
 import com.seastreams.tv.ui.theme.selectLongPress
 
-/** Row artwork height: 2:3 posters are 145 × 218dp, the expanded 16:9 card 388 × 218dp. */
+/** Row artwork height: strip posters are 145 × 218dp, the row's 16:9 showcase slot 388 × 218dp. */
 val CardHeight = 218.dp
 val PosterWidth = 145.dp
 val ExpandedCardWidth = 388.dp
 val PosterSize = DpSize(PosterWidth, CardHeight)
-private val ExpandedSize = DpSize(ExpandedCardWidth, CardHeight)
-private val CardLogoSize = DpSize(216.dp, 68.dp)
-private val CardShape = RoundedCornerShape(12.dp)
-private val CardTitleInset = 12.dp
-private val TitleAboveBarGap = 6.dp
-
-/** Catalog row horizontal glide time (PRD §2): the slow, fluid eased glide as focus steps along a row. */
-const val CATALOG_ROW_GLIDE_MS = 480
-
-/** Poster ↔ backdrop widen and cross-fade time; finishes just before the row's glide settles. */
-const val CARD_EXPAND_MS = 450
+internal val ExpandedSize = DpSize(ExpandedCardWidth, CardHeight)
+internal val CardShape = RoundedCornerShape(12.dp)
 
 /**
- * Catalog card that is a 2:3 poster at rest and a 16:9 backdrop (with title logo) while [expanded].
- * Expansion is decided by the row (its remembered card stays wide after focus leaves the row);
- * the focus ring only follows real D-pad focus. Both images are decoded once at their final size,
- * so the animation only re-lays-out and re-draws.
+ * Fixed-width 2:3 poster in a catalog row's strip (PRD §4). It holds real D-pad focus but never draws
+ * a focus ring and never changes width: while focused it sits underneath the row's
+ * [CatalogShowcaseSlot], which shows the item large and draws the ring instead.
  */
 @Composable
-fun ExpandingMediaCard(
+fun StripPosterCard(
     item: MediaItem,
-    expanded: Boolean,
     onClick: () -> Unit,
     onFocused: () -> Unit,
     modifier: Modifier = Modifier,
-    /** Focus left this card (inline trailer previews stop). */
+    /** Focus left this poster (inline trailer previews stop). */
     onBlurred: () -> Unit = {},
     /** Held `OK`; `null` (the default) leaves long-press unhandled. */
     onLongClick: (() -> Unit)? = null,
-    /** Poster ↔ backdrop width and cross-fade time. */
-    expandDurationMs: Int = CARD_EXPAND_MS,
-    /** [overlay] draws an [ArtworkProgressBar]: the 16:9 title logo sits above its clearance. */
-    reserveProgressBar: Boolean = false,
-    overlay: @Composable BoxScope.(expanded: Boolean) -> Unit = {},
+    overlay: @Composable BoxScope.() -> Unit = {},
 ) {
-    ExpandingCardSurface(
+    StripCardSurface(
         onClick = onClick,
         onLongClick = onLongClick,
         onFocusChanged = { if (it) onFocused() else onBlurred() },
         modifier = modifier,
-        wide = { expanded },
-        expandDurationMs = expandDurationMs,
-    ) { expanded ->
-        val backdropAlpha by animateFloatAsState(
-            targetValue = if (expanded) 1f else 0f,
-            animationSpec = tween(expandDurationMs, easing = FastOutSlowInEasing),
-            label = "cardBackdrop",
-        )
+        ringWhenFocused = false,
+    ) {
         val posterUrl = item.posterUrl ?: item.backdropUrl
-        if (backdropAlpha < 1f) {
-            if (posterUrl != null) {
-                SizedImage(posterUrl, PosterSize, contentDescription = item.title, modifier = Modifier.fillMaxSize())
-            } else {
-                Text(
-                    item.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.align(Alignment.Center).padding(8.dp),
-                )
-            }
+        if (posterUrl != null) {
+            SizedImage(posterUrl, PosterSize, contentDescription = item.title, modifier = Modifier.fillMaxSize())
+        } else {
+            Text(
+                item.title,
+                style = MaterialTheme.typography.titleSmall,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.align(Alignment.Center).padding(8.dp),
+            )
         }
-        if (backdropAlpha > 0f) {
-            Box(Modifier.fillMaxSize().graphicsLayer { alpha = backdropAlpha }.background(SurfaceCard)) {
-                SizedImage(item.backdropUrl ?: posterUrl, ExpandedSize, contentDescription = null, modifier = Modifier.fillMaxSize())
-                Box(
-                    Modifier.fillMaxSize().background(
-                        Brush.verticalGradient(0.45f to Color.Transparent, 1f to Obsidian.copy(alpha = 0.85f)),
-                    ),
-                )
-                TitleArt(
-                    item,
-                    logoSize = CardLogoSize,
-                    textStyle = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.align(Alignment.BottomStart).padding(
-                        start = CardTitleInset,
-                        top = CardTitleInset,
-                        end = CardTitleInset,
-                        bottom = if (reserveProgressBar) ArtworkProgressClearance + TitleAboveBarGap else CardTitleInset,
-                    ),
-                )
-            }
-        }
-        overlay(expanded)
-        // Same top-right corner in both the 2:3 poster and 16:9 backdrop shapes (PRD §1).
+        overlay()
         WatchedBadgeIfWatched(item)
     }
 }
 
 /**
- * The `>>  View More` card at position 21 (index 20) of a capped row. It widens only while it
- * holds focus, so it never stays behind as an empty 16:9 card once focus leaves the row.
+ * The `>>  View More` card at position 21 (index 20) of a capped row: a fixed 2:3 card that draws its
+ * own focus ring while focused (the showcase slot drops its ring meanwhile).
  */
 @Composable
 fun ViewMoreCard(
     onClick: () -> Unit,
     onFocusChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
-    expandDurationMs: Int = CARD_EXPAND_MS,
 ) {
-    ExpandingCardSurface(
+    StripCardSurface(
         onClick = onClick,
         onFocusChanged = onFocusChanged,
         modifier = modifier,
-        wide = { it },
-        expandDurationMs = expandDurationMs,
-    ) { _ ->
+        ringWhenFocused = true,
+    ) {
         Column(
             Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.Center,
@@ -178,28 +120,18 @@ fun ViewMoreCard(
     }
 }
 
-/**
- * Shared focusable shell: animates between 2:3 and 16:9 as [wide] (given the card's focus) changes,
- * and draws the focus ring only while this card holds D-pad focus ([cardAppearance]).
- */
+/** Shared fixed-size focusable shell of strip cards; the ring is drawn only when [ringWhenFocused]. */
 @Composable
-private fun ExpandingCardSurface(
+private fun StripCardSurface(
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
     onFocusChanged: (Boolean) -> Unit,
     modifier: Modifier,
-    wide: (focused: Boolean) -> Boolean,
-    expandDurationMs: Int,
-    content: @Composable BoxScope.(expanded: Boolean) -> Unit,
+    ringWhenFocused: Boolean,
+    content: @Composable BoxScope.() -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
     val origin = rememberFocusOrigin()
-    val appearance = cardAppearance(wide = wide(focused), focused = focused)
-    val width by animateDpAsState(
-        targetValue = if (appearance.wide) ExpandedCardWidth else PosterWidth,
-        animationSpec = tween(expandDurationMs, easing = FastOutSlowInEasing),
-        label = "cardWidth",
-    )
     // Long-press state must reset when the menu it opens takes focus (not the Surface's onLongClick).
     val longPress = rememberSelectLongPress()
     Surface(
@@ -212,19 +144,18 @@ private fun ExpandingCardSurface(
         modifier = modifier
             .focusRequester(origin.requester)
             .selectLongPress(longPress, onLongClick)
-            .width(width)
-            .height(CardHeight)
+            .size(PosterSize)
             .onFocusChanged {
                 if (focused != it.isFocused) {
                     focused = it.isFocused
                     onFocusChanged(it.isFocused)
                 }
             }
-            .focusRing(appearance.focusRing, CardShape),
+            .focusRing(ringWhenFocused && focused, CardShape),
         shape = ClickableSurfaceDefaults.shape(CardShape),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
         colors = ClickableSurfaceDefaults.colors(containerColor = SurfaceCard, focusedContainerColor = SurfaceCard),
     ) {
-        Box(Modifier.fillMaxSize()) { content(appearance.wide) }
+        Box(Modifier.fillMaxSize()) { content() }
     }
 }

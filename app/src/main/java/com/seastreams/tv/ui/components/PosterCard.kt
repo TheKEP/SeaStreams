@@ -39,7 +39,7 @@ private val PosterShape = RoundedCornerShape(10.dp)
 
 /**
  * Standard 2:3 poster card for View More, Search and Library (PRD §4, §7). Unlike
- * [ExpandingMediaCard] it never widens: focus only draws the shared [FocusBorderWidth] ring.
+ * [StripPosterCard] (which hides under its row's showcase slot) it draws its own [FocusBorderWidth] focus ring.
  * Titles without a poster show their name instead.
  */
 @Composable
