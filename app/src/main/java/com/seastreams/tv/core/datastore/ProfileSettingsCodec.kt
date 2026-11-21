@@ -46,6 +46,7 @@ internal object ProfileSettingsKeys {
     val EXTERNAL_PLAYER = ScopedKey("player_external", ::stringPreferencesKey)
     val AUTO_PLAY_TOP_STREAM = ScopedKey("player_autoplay_top_stream", ::booleanPreferencesKey)
     val PREFERRED_AUTOPLAY_ADDON = ScopedKey("player_autoplay_addon", ::stringPreferencesKey)
+    val AUTO_STREAM_FAILOVER = ScopedKey("player_auto_stream_failover", ::booleanPreferencesKey)
     val FALLBACK_TIMEOUT_SECONDS = ScopedKey("player_fallback_timeout_s", ::intPreferencesKey)
     val AUTO_PLAY_FROM_CONTINUE_WATCHING = ScopedKey("player_autoplay_continue_watching", ::booleanPreferencesKey)
     val BLUR_UNWATCHED_THUMBNAILS = ScopedKey("player_blur_unwatched", ::booleanPreferencesKey)
@@ -79,7 +80,7 @@ internal object ProfileSettingsKeys {
     val AUTO_SYNC_SUBTITLES = ScopedKey("subs_auto_sync", ::booleanPreferencesKey)
 
     val ALL: List<ScopedKey<*>> = listOf(
-        EXTERNAL_PLAYER, AUTO_PLAY_TOP_STREAM, PREFERRED_AUTOPLAY_ADDON, FALLBACK_TIMEOUT_SECONDS,
+        EXTERNAL_PLAYER, AUTO_PLAY_TOP_STREAM, PREFERRED_AUTOPLAY_ADDON, AUTO_STREAM_FAILOVER, FALLBACK_TIMEOUT_SECONDS,
         AUTO_PLAY_FROM_CONTINUE_WATCHING, BLUR_UNWATCHED_THUMBNAILS, HDR_WHITE_DIMMING, AUTO_PLAY_NEXT_EPISODE,
         CONVERT_DV_PROFILE_7, DOLBY_VISION_PLAYBACK, BUFFER_PROFILE, PARALLEL_CONNECTIONS, AUTO_PLAY_TRAILERS, MUTE_AUTO_PLAY_TRAILERS,
         TRAILER_DELAY_SECONDS, BACKGROUND_COLOR,
@@ -118,6 +119,7 @@ internal class ProfileSettingsReader(private val prefs: Preferences, private val
             convertDvProfile7ToHdr = get(CONVERT_DV_PROFILE_7) ?: defaults.convertDvProfile7ToHdr,
             dolbyVisionPlayback = enumOrDefault(get(DOLBY_VISION_PLAYBACK), defaults.dolbyVisionPlayback),
             preferredAutoPlayAddonUrl = get(PREFERRED_AUTOPLAY_ADDON),
+            autoStreamFailover = get(AUTO_STREAM_FAILOVER) ?: defaults.autoStreamFailover,
             fallbackTimeoutSeconds = clampFallbackTimeout(get(FALLBACK_TIMEOUT_SECONDS) ?: defaults.fallbackTimeoutSeconds),
             autoPlayFromContinueWatching =
                 get(AUTO_PLAY_FROM_CONTINUE_WATCHING) ?: defaults.autoPlayFromContinueWatching,
@@ -183,6 +185,7 @@ internal class ProfileSettingsWriter(private val prefs: MutablePreferences, priv
         set(DOLBY_VISION_PLAYBACK, updated.dolbyVisionPlayback.name)
         val addonUrl = updated.preferredAutoPlayAddonUrl
         if (addonUrl == null) prefs.remove(PREFERRED_AUTOPLAY_ADDON.forProfile(profileId)) else set(PREFERRED_AUTOPLAY_ADDON, addonUrl)
+        set(AUTO_STREAM_FAILOVER, updated.autoStreamFailover)
         set(FALLBACK_TIMEOUT_SECONDS, clampFallbackTimeout(updated.fallbackTimeoutSeconds))
         set(AUTO_PLAY_FROM_CONTINUE_WATCHING, updated.autoPlayFromContinueWatching)
         set(BLUR_UNWATCHED_THUMBNAILS, updated.blurUnwatchedThumbnails)

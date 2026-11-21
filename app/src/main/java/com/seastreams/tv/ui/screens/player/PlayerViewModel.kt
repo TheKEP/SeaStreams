@@ -94,6 +94,7 @@ class PlayerViewModel @Inject constructor(
     internal val fallback = StreamFallbackController(
         scope = viewModelScope,
         timeoutMs = { settings.player.fallbackTimeoutSeconds * MILLIS_PER_SECOND },
+        failover = { settings.player.autoStreamFailover },
         onAdvance = ::onFallbackAdvance,
         onExhausted = { reason ->
             viewModelScope.launch {
@@ -101,6 +102,7 @@ class PlayerViewModel @Inject constructor(
                 exit()
             }
         },
+        onStopped = { index -> onStreamStopped(index) },
     )
 
     /** Starts [request] unless it is already the open session. */
