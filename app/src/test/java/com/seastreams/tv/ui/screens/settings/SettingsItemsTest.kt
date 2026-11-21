@@ -145,6 +145,35 @@ class SettingsItemsTest {
         assertEquals("Off: a failed stream stops; pick another from Streams", failoverDescription(false))
     }
 
+    @Test
+    fun `Stream fallback timeout defaults to 10s and a click cycles 10s, 15s, 20s`() {
+        assertEquals("10s", buildItems().entry(FALLBACK_ROW_KEY).value)
+        assertEquals(15, nextFallbackTimeout(10))
+        assertEquals(20, nextFallbackTimeout(15))
+        assertEquals(10, nextFallbackTimeout(20))
+        assertEquals(15, nextFallbackTimeout(5), "an off-grid legacy value snaps to 10s first")
+
+        val transforms = mutableListOf<(PlayerSettings) -> PlayerSettings>()
+        buildItems(updatePlayer = { transforms += it }).entry(FALLBACK_ROW_KEY).onClick()
+        assertEquals(15, transforms.single()(PlayerSettings()).fallbackTimeoutSeconds)
+    }
+
+    @Test
+    fun `the fallback timeout stepper moves one option and stops at 10s and 20s`() {
+        val transforms = mutableListOf<(PlayerSettings) -> PlayerSettings>()
+        val stepper = buildItems(updatePlayer = { transforms += it }).entry(FALLBACK_ROW_KEY).trailing as RowTrailing.Stepper
+        fun step(down: Boolean, from: Int): Int {
+            if (down) stepper.onDecrease() else stepper.onIncrease()
+            return transforms.removeAt(0)(PlayerSettings(fallbackTimeoutSeconds = from)).fallbackTimeoutSeconds
+        }
+        assertEquals(10, step(down = true, from = 10))
+        assertEquals(15, step(down = false, from = 10))
+        assertEquals(20, step(down = false, from = 15))
+        assertEquals(20, step(down = false, from = 20))
+        assertEquals(10, step(down = true, from = 15))
+        assertEquals(15, step(down = false, from = 5), "an off-grid legacy value snaps to 10s first")
+    }
+
     private fun List<SettingsItem>.playbackKeys(): List<String> =
         dropWhile { it.key != "h-playback" }.drop(1).takeWhile { it !is SettingsItem.Header }.map { it.key }
 
