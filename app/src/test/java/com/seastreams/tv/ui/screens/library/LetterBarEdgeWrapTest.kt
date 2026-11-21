@@ -32,6 +32,21 @@ class LetterBarEdgeWrapTest {
     }
 
     @Test
+    fun `no letter treats Left as a wrap key, so Left always jumps into the grid`() {
+        letters.indices.forEach { assertEquals(false, Key.DirectionLeft in letterBarEdgeKeys(it), "${letters[it]}") }
+    }
+
+    @Test
+    fun `fresh Left on a letter jumps once, held Left is consumed without a duplicate jump`() {
+        // Letters with a Left target carry onDpadEdgeWrap(Left) { onJump(target) }.
+        assertEquals(EdgeKeyResult.WRAP, edgeKeyResult(matchesKey = true, isKeyDown = true, repeatCount = 0))
+        listOf(1, 3, 20).forEach {
+            assertEquals(EdgeKeyResult.HOLD, edgeKeyResult(matchesKey = true, isKeyDown = true, repeatCount = it))
+        }
+        assertEquals(EdgeKeyResult.PASS, edgeKeyResult(matchesKey = true, isKeyDown = false, repeatCount = 0))
+    }
+
+    @Test
     fun `fresh Up on # wraps to Z, held Up stops on #`() {
         val owns = Key.DirectionUp in letterBarEdgeKeys(top)
         assertEquals(EdgeKeyResult.WRAP, edgeKeyResult(matchesKey = owns, isKeyDown = true, repeatCount = 0))
