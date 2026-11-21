@@ -58,6 +58,52 @@ class LibraryViewsTest {
         assertEquals(0, view.letterLeftTargets[LibraryQuery.LETTERS.indexOf('#')])
         assertEquals(1, view.letterLeftTargets[LibraryQuery.LETTERS.indexOf('Z')])
         assertEquals(options, view.genreOptions)
+        assertEquals(28, view.appliedGenreId)
+    }
+
+    @Test
+    fun `genre-less views have no applied genre`() {
+        deriveLibraryViews(library, LibrarySortOrder.A_TO_Z, names).values.forEach { assertEquals(null, it.appliedGenreId) }
+    }
+
+    @Test
+    fun `genre views narrow every filter that has the genre and keep its options`() {
+        LibrarySortOrder.entries.forEach { sort ->
+            val base = deriveLibraryViews(library, sort, names)
+            val views = deriveGenreViews(library, sort, genreId = 35, base = base) // Comedy: shows only
+
+            listOf(LibraryFilter.ALL, LibraryFilter.TV_SHOWS).forEach { filter ->
+                val view = views.getValue(filter)
+                val expected = LibraryQuery.apply(library, filter, sort, genreId = 35)
+                assertEquals(expected, view.entries, "$filter / $sort")
+                assertEquals(LibraryQuery.letterIndex(expected), view.letterIndex)
+                assertEquals(35, view.appliedGenreId)
+                assertEquals(base.getValue(filter).genreOptions, view.genreOptions)
+            }
+        }
+        val aToZ = deriveGenreViews(library, LibrarySortOrder.A_TO_Z, 35, deriveLibraryViews(library, LibrarySortOrder.A_TO_Z, names))
+        assertEquals(listOf("Bluey", "An Idiot Abroad"), aToZ.getValue(LibraryFilter.TV_SHOWS).entries.map { it.media.title })
+    }
+
+    @Test
+    fun `a filter without the genre keeps its genre-less view`() {
+        val base = deriveLibraryViews(library, LibrarySortOrder.A_TO_Z, names)
+        val movies = deriveGenreViews(library, LibrarySortOrder.A_TO_Z, genreId = 35, base = base).getValue(LibraryFilter.MOVIES)
+
+        assertEquals(base.getValue(LibraryFilter.MOVIES), movies)
+        assertEquals(null, movies.appliedGenreId)
+        assertEquals(listOf("2001: A Space Odyssey", "Alien", "The Matrix"), movies.entries.map { it.media.title })
+    }
+
+    @Test
+    fun `genre availability uses genre ids, not names`() {
+        val base = deriveLibraryViews(library, LibrarySortOrder.A_TO_Z, emptyMap()) // names not loaded yet
+        val views = deriveGenreViews(library, LibrarySortOrder.A_TO_Z, genreId = 99, base = base) // unnamed, Alien only
+
+        assertEquals(listOf("Alien"), views.getValue(LibraryFilter.ALL).entries.map { it.media.title })
+        assertEquals(listOf("Alien"), views.getValue(LibraryFilter.MOVIES).entries.map { it.media.title })
+        assertEquals(99, views.getValue(LibraryFilter.MOVIES).appliedGenreId)
+        assertEquals(base.getValue(LibraryFilter.TV_SHOWS), views.getValue(LibraryFilter.TV_SHOWS))
     }
 
     @Test

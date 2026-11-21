@@ -11,6 +11,7 @@ import com.seastreams.tv.data.profile.contentForProfile
 import com.seastreams.tv.domain.usecase.GetLibraryUseCase
 import com.seastreams.tv.domain.usecase.LibraryEntry
 import com.seastreams.tv.domain.usecase.LibraryFilter
+import com.seastreams.tv.ui.components.NavTab
 import com.seastreams.tv.ui.navigation.WhileUiSubscribed
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
@@ -27,6 +28,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -38,19 +40,27 @@ data class LibraryUiState(
     /** The filter the grid shows; the sidebar's focus-following highlight is [LibraryViewModel.sidebarFilter]. */
     val filter: LibraryFilter = LibraryFilter.ALL,
     val sort: LibrarySortOrder = LibrarySortOrder.A_TO_Z,
-    /** Selected genre id; `null` = all genres. */
+    /**
+     * Selected genre id; `null` = all genres. It stays selected across filters, so it may be one no
+     * title under [filter] has: [LibraryView.appliedGenreId] is the genre the grid actually shows.
+     */
     val genreId: Int? = null,
     val view: LibraryView = LibraryView(),
     val isLoading: Boolean = true,
     val missingProfileId: Long? = null,
 )
 
-/** The grid's filter and genre, switched together so a filter change resets the genre in one emission. */
+/** The grid's filter and genre, one atomic value: a filter switch keeps the genre in the same emission. */
 data class LibrarySelection(val filter: LibraryFilter = LibraryFilter.ALL, val genreId: Int? = null)
 
 /**
  * Library page (PRD §7). Each [open] starts on `All` with every genre; the sort order is the
  * profile's saved one, and changing it is persisted on the profile.
+ *
+ * The selected genre persists across `All`, `Movies` and `TV Shows` ([deriveGenreViews] shows a filter
+ * without it unfiltered) and resets when the user leaves the page: [open] on coming back after the
+ * screen was disposed (another tab, Search, a profile switch), [onTabSelected] for Settings, which
+ * covers the page without disposing it.
  *
  * Moving focus along the sidebar only flips [sidebarFilter]. The grid follows once focus has rested on
  * a filter for [FILTER_SETTLE_MILLIS] (or at once via [commitPendingFilter]), so filters passed through
@@ -94,12 +104,10 @@ class LibraryViewModel @Inject constructor(
     fun selectFilter(selected: LibraryFilter) {
         sidebar.value = selected
         cancelSettle()
-        // A genre that may not appear under the new filter would leave an empty grid, so it resets.
-        val target = LibrarySelection(selected)
-        if (grid.value == target) return
+        if (grid.value.filter == selected) return
         settleJob = viewModelScope.launch {
             delay(FILTER_SETTLE_MILLIS)
-            grid.value = target
+            grid.update { it.copy(filter = selected) }
         }
     }
 
@@ -108,13 +116,21 @@ class LibraryViewModel @Inject constructor(
         val pending = settleJob?.takeIf { it.isActive } ?: return false
         pending.cancel()
         settleJob = null
-        grid.value = LibrarySelection(sidebar.value)
+        grid.update { it.copy(filter = sidebar.value) }
         return true
     }
 
     fun selectGenre(selected: Int?) {
         commitPendingFilter()
-        grid.value = grid.value.copy(genreId = selected)
+        grid.update { it.copy(genreId = selected) }
+    }
+
+    /**
+     * A top-nav pick from the Library page: one that leaves it resets the genre. Settings covers the page
+     * without disposing it, so [open] never runs on its return; for other picks this precedes [open].
+     */
+    fun onTabSelected(selected: NavTab) {
+        if (selected != NavTab.LIBRARY) grid.update { it.copy(genreId = null) }
     }
 
     fun selectSort(sort: LibrarySortOrder) {
@@ -130,13 +146,10 @@ class LibraryViewModel @Inject constructor(
     private fun stateFor(profile: ProfileEntity): Flow<LibraryUiState> {
         val sort = profile.librarySortOrder
         val snapshots = combine(library.observe(profile), genreNames()) { all, names ->
-            LibrarySnapshot(all, deriveLibraryViews(all, sort, names))
+            LibrarySnapshot(all, sort, deriveLibraryViews(all, sort, names))
         }
         return combine(snapshots, grid) { snapshot, selection ->
-            val base = snapshot.views.getValue(selection.filter)
-            val view = selection.genreId?.let { genreId ->
-                deriveLibraryView(snapshot.all, selection.filter, sort, genreId, base.genreOptions)
-            } ?: base
+            val view = snapshot.viewsFor(selection.genreId).getValue(selection.filter)
             LibraryUiState(
                 profile = profile,
                 filter = selection.filter,
@@ -154,5 +167,22 @@ class LibraryViewModel @Inject constructor(
         emit(genres.allNames())
     }
 
-    private class LibrarySnapshot(val all: List<LibraryEntry>, val views: Map<LibraryFilter, LibraryView>)
+    /**
+     * One library/sort/genre-name state's views. The last selected genre's views of every filter are
+     * kept, so switching filters with a genre selected stays a map lookup. Only read from the sequential
+     * `combine` in [stateFor], so the memo needs no locking.
+     */
+    private class LibrarySnapshot(
+        private val all: List<LibraryEntry>,
+        private val sort: LibrarySortOrder,
+        private val views: Map<LibraryFilter, LibraryView>,
+    ) {
+        private var genreViews: Pair<Int, Map<LibraryFilter, LibraryView>>? = null
+
+        fun viewsFor(genreId: Int?): Map<LibraryFilter, LibraryView> {
+            if (genreId == null) return views
+            genreViews?.let { (id, cached) -> if (id == genreId) return cached }
+            return deriveGenreViews(all, sort, genreId, views).also { genreViews = genreId to it }
+        }
+    }
 }

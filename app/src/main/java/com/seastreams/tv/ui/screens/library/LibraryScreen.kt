@@ -42,7 +42,9 @@ import com.seastreams.tv.ui.theme.tryRequestFocus
  * per profile) and Genre dropdowns on top, a 5-column 2:3 poster grid, and the A–Z quick-jump strip
  * on the right edge.
  *
- * Opens with `All` selected and focused, the grid in the profile's last-used sort order.
+ * Opens with `All` selected and focused, the grid in the profile's last-used sort order. The Genre
+ * filter persists across the sidebar filters and resets when the page is left (another tab, Search,
+ * Settings, a profile switch).
  *
  * The sidebar highlight follows focus at once; the grid switches once focus rests on a filter
  * ([FILTER_SETTLE_MILLIS]), or at once when focus leaves the sidebar ([SidebarGridEntry]).
@@ -97,7 +99,15 @@ fun LibraryScreen(
         }
     }
 
-    TabScaffold(state.profile, NavTab.LIBRARY, onTabSelected, onSwitchProfile) { _ ->
+    // A nav pick that leaves the page resets the genre (Settings covers it without disposing it).
+    val onNavTab: (NavTab) -> Unit = remember(viewModel, onTabSelected) {
+        { selected ->
+            viewModel.onTabSelected(selected)
+            onTabSelected(selected)
+        }
+    }
+
+    TabScaffold(state.profile, NavTab.LIBRARY, onNavTab, onSwitchProfile) { _ ->
         Row(Modifier.fillMaxSize().padding(top = 8.dp)) {
             HoverSidebar(
                 entries = LibraryFilter.entries,
@@ -149,7 +159,8 @@ private fun LibraryBody(
                 sort = state.sort,
                 onSort = viewModel::selectSort,
                 genres = view.genreOptions,
-                genreId = state.genreId,
+                // A selected genre no title under this filter has stays remembered but reads `All Genres`.
+                genreId = view.appliedGenreId,
                 onGenre = viewModel::selectGenre,
                 modifier = Modifier.padding(bottom = 12.dp),
             )
@@ -164,7 +175,7 @@ private fun LibraryBody(
                     modifier = Modifier.fillMaxSize(),
                     itemModifier = { index -> Modifier.focusRequester(jumpTargets.requesterFor(index)) },
                 )
-                state.genreId != null || state.filter != LibraryFilter.ALL -> EmptyNote("No titles match these filters.")
+                view.appliedGenreId != null || state.filter != LibraryFilter.ALL -> EmptyNote("No titles match these filters.")
                 else -> EmptyNote("Your library is empty. Titles you add from a movie or show page will appear here.")
             }
         }

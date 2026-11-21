@@ -7,12 +7,14 @@ import com.seastreams.tv.domain.model.MediaType
 import com.seastreams.tv.domain.usecase.GetLibraryUseCase
 import com.seastreams.tv.domain.usecase.LibraryFilter
 import com.seastreams.tv.testutil.testProfile
+import com.seastreams.tv.ui.components.NavTab
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -31,7 +33,10 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
-/** Library filter switching (PRD §7): instant sidebar, settled grid, derivation off the main thread. */
+/**
+ * Library filter switching (PRD §7): instant sidebar, settled grid, derivation off the main thread, and a
+ * Genre filter that persists across filters but resets on leaving the page.
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
 class LibraryViewModelTest {
 
@@ -156,20 +161,133 @@ class LibraryViewModelTest {
     }
 
     @Test
-    fun `a filter switch resets the genre in a single emission`() = runTest(main) {
+    fun `the genre persists across All, Movies and TV Shows`() = runTest(main) {
+        // Animation (16) is on both a movie and a show.
+        every { library.observe(profile) } returns flowOf(entries + libraryEntry(5, "Toy Story", MediaType.MOVIE, genres = listOf(16)))
         val vm = viewModel()
         val grids = opened(vm)
 
-        vm.selectGenre(28)
+        vm.selectGenre(16)
+        runCurrent()
+        assertEquals(listOf("Toy Story", "Bluey"), titles(vm))
+
+        listOf(
+            LibraryFilter.MOVIES to listOf("Toy Story"),
+            LibraryFilter.TV_SHOWS to listOf("Bluey"),
+            LibraryFilter.ALL to listOf("Toy Story", "Bluey"),
+        ).forEach { (filter, expected) ->
+            grids.clear()
+            vm.selectFilter(filter)
+            settle()
+
+            assertEquals(listOf(LibrarySelection(filter, 16)), grids, "one emission, genre kept: $filter")
+            assertEquals(expected, titles(vm), "$filter")
+            assertEquals(16, vm.uiState.value.view.appliedGenreId)
+        }
+    }
+
+    @Test
+    fun `a genre with no titles under the new filter is kept but not applied`() = runTest(main) {
+        val vm = viewModel()
+        opened(vm)
+        vm.selectGenre(28) // Action: movies only
         runCurrent()
         assertEquals(listOf("Mad Max", "Alien"), titles(vm))
         assertEquals(listOf("Action", "Animation", "Comedy"), vm.uiState.value.view.genreOptions.map { it.name })
 
-        grids.clear()
+        vm.selectFilter(LibraryFilter.TV_SHOWS)
+        settle()
+        val tv = vm.uiState.value
+        assertEquals(28, tv.genreId, "still selected")
+        assertEquals(null, tv.view.appliedGenreId, "but not applied: the dropdown reads All Genres")
+        assertEquals(listOf("Zoey 101", "Bluey"), titles(vm), "the whole filter, never an empty grid")
+        assertEquals(listOf("Animation", "Comedy"), tv.view.genreOptions.map { it.name })
+
+        vm.selectFilter(LibraryFilter.MOVIES)
+        settle()
+        assertEquals(28, vm.uiState.value.view.appliedGenreId, "applies again where it has titles")
+        assertEquals(listOf("Mad Max", "Alien"), titles(vm))
+
+        vm.selectFilter(LibraryFilter.ALL)
+        settle()
+        assertEquals(28, vm.uiState.value.view.appliedGenreId)
+        assertEquals(listOf("Mad Max", "Alien"), titles(vm))
+    }
+
+    @Test
+    fun `committing a pending filter keeps the genre`() = runTest(main) {
+        val vm = viewModel()
+        opened(vm)
+        vm.selectGenre(28)
+        vm.selectFilter(LibraryFilter.MOVIES)
+
+        assertTrue(vm.commitPendingFilter())
+        runCurrent()
+
+        assertEquals(LibrarySelection(LibraryFilter.MOVIES, 28), LibrarySelection(vm.uiState.value.filter, vm.uiState.value.genreId))
+        assertEquals(listOf("Mad Max", "Alien"), titles(vm))
+    }
+
+    @Test
+    fun `choosing All Genres while the genre is not applied clears it`() = runTest(main) {
+        val vm = viewModel()
+        opened(vm)
+        vm.selectGenre(28)
         vm.selectFilter(LibraryFilter.TV_SHOWS)
         settle()
 
-        assertEquals(listOf(LibrarySelection(LibraryFilter.TV_SHOWS, null)), grids)
+        vm.selectGenre(null)
+        vm.selectFilter(LibraryFilter.MOVIES)
+        settle()
+
+        assertEquals(null, vm.uiState.value.genreId)
+        assertEquals(listOf("Mad Max", "Alien"), titles(vm))
+        assertEquals(null, vm.uiState.value.view.appliedGenreId)
+    }
+
+    @Test
+    fun `a sort change keeps the applied genre while genre names reload`() = runTest(main) {
+        val profileFlow = MutableStateFlow(profile)
+        every { profiles.observeProfile(profile.id) } returns profileFlow
+        every { library.observe(any()) } returns flowOf(entries)
+        val vm = viewModel()
+        opened(vm)
+        vm.selectGenre(28)
+        runCurrent()
+
+        val views = mutableListOf<LibraryView>()
+        backgroundScope.launch { vm.uiState.collect { if (!it.isLoading) views += it.view } }
+        runCurrent()
+        profileFlow.value = profile.copy(librarySortOrder = LibrarySortOrder.A_TO_Z)
+        advanceUntilIdle()
+
+        assertEquals(LibrarySortOrder.A_TO_Z, vm.uiState.value.sort)
+        assertTrue(views.size > 1, "the sort change re-derived the views")
+        assertTrue(views.all { it.appliedGenreId == 28 }, "matched by genre id, not by its (reloading) name")
+        assertEquals(listOf("Alien", "Mad Max"), titles(vm))
+    }
+
+    @Test
+    fun `leaving Library from the nav bar resets the genre`() = runTest(main) {
+        val vm = viewModel()
+        opened(vm)
+        vm.selectFilter(LibraryFilter.MOVIES)
+        settle()
+        vm.selectGenre(28)
+
+        vm.onTabSelected(NavTab.LIBRARY) // staying on the page
+        runCurrent()
+        assertEquals(28, vm.uiState.value.genreId)
+
+        vm.onTabSelected(NavTab.SETTINGS) // covers the page without disposing it
+        runCurrent()
+        assertEquals(LibrarySelection(LibraryFilter.MOVIES, null), LibrarySelection(vm.uiState.value.filter, vm.uiState.value.genreId))
+        assertEquals(listOf("Mad Max", "Alien"), titles(vm))
+
+        vm.selectGenre(28)
+        vm.onTabSelected(NavTab.HOME)
+        runCurrent()
+        assertEquals(null, vm.uiState.value.genreId)
     }
 
     @Test
@@ -186,13 +304,17 @@ class LibraryViewModelTest {
     }
 
     @Test
-    fun `open starts on All with every genre and drops a pending switch`() = runTest(main) {
+    fun `returning to Library starts on All with every genre and drops a pending switch`() = runTest(main) {
         val vm = viewModel()
         opened(vm)
-        vm.selectGenre(28)
         vm.selectFilter(LibraryFilter.MOVIES)
+        settle()
+        vm.selectGenre(28)
+        runCurrent()
+        assertEquals(LibrarySelection(LibraryFilter.MOVIES, 28), LibrarySelection(vm.uiState.value.filter, vm.uiState.value.genreId))
+        vm.selectFilter(LibraryFilter.TV_SHOWS)
 
-        vm.open(profile.id)
+        vm.open(profile.id) // the screen re-entering composition after another tab, Search or a profile switch
         settle()
 
         assertEquals(LibraryFilter.ALL, vm.sidebarFilter.value)
