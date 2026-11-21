@@ -9,7 +9,7 @@ import androidx.compose.ui.focus.FocusDirection
 
 /**
  * The last-focused card of every catalog row on a page, keyed by the row's stable id. It is both
- * where `Up`/`Down` re-entry lands and which card the row keeps drawn wide (16:9) while unfocused.
+ * where `Up`/`Down` re-entry lands and which item the row's 16:9 showcase slot keeps showing while unfocused.
  *
  * Owned by the page (above its `LazyColumn`), so a row scrolled far enough off screen to be
  * disposed still knows which card to restore when `Up`/`Down` brings focus back into it. Rows
@@ -55,8 +55,8 @@ enum class RowEntry {
 
 /**
  * `Up`/`Down` into a row always returns to its last-focused card, never to whichever card happens
- * to sit spatially above/below the previously focused one (the 16:9 expansion of the focused card
- * shifts every card's X position, so spatial search drifts sideways).
+ * to sit spatially above/below the previously focused one (each row's strip is scrolled to its own
+ * focused card, so spatial search would drift sideways).
  */
 fun rowEntry(direction: FocusDirection, targetVisible: Boolean): RowEntry = when {
     direction != FocusDirection.Up && direction != FocusDirection.Down -> RowEntry.DEFAULT
@@ -67,32 +67,12 @@ fun rowEntry(direction: FocusDirection, targetVisible: Boolean): RowEntry = when
 /** The remembered card, clamped to the row's current cards (the row may have shrunk since). */
 fun restoreIndex(lastFocused: Int, lastIndex: Int): Int = lastFocused.coerceIn(0, lastIndex.coerceAtLeast(0))
 
-/** [expandedCardIndex] when no media card is wide (empty row, or `View More` holds focus). */
-const val NO_EXPANDED_CARD = -1
-
 /**
- * The media card a row draws as its 16:9 wide card: the last-focused card ([lastFocused], `0` by
- * default), whether or not the row holds focus. Clamped to the media cards (`0 until itemCount`) so
- * a remembered `View More` position never leaves an empty wide card behind; while `View More`
- * itself holds focus it is the row's only wide card.
- */
-fun expandedCardIndex(lastFocused: Int, itemCount: Int, viewMoreFocused: Boolean): Int = when {
-    itemCount <= 0 || viewMoreFocused -> NO_EXPANDED_CARD
-    else -> lastFocused.coerceIn(0, itemCount - 1)
-}
-
-/**
- * Whether a row shows the info panel (title, metadata line, synopsis) under its wide card: while the
+ * Whether a row shows the info panel (title, metadata line, synopsis) under its showcase slot: while the
  * row holds D-pad focus, or while an overlay opened from it ([holdInfo], e.g. Continue Watching's
  * long-press menu) has taken focus away.
  */
 fun rowInfoVisible(rowFocused: Boolean, holdInfo: Boolean): Boolean = rowFocused || holdInfo
-
-/** How a catalog card is drawn: [wide] = 16:9 backdrop instead of a 2:3 poster; [focusRing] = active D-pad highlight. */
-data class CardAppearance(val wide: Boolean, val focusRing: Boolean)
-
-/** Width follows the row's expanded card; the focus ring follows only real D-pad focus. */
-fun cardAppearance(wide: Boolean, focused: Boolean): CardAppearance = CardAppearance(wide = wide, focusRing = focused)
 
 /**
  * The index of a row's last focusable card: `View More` (index [itemCount], i.e. position

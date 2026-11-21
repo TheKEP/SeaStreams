@@ -126,7 +126,7 @@ internal fun glideStepFraction(eased: Float, next: Float): Float {
 internal fun glideProgress(t: Float, easing: Easing = FastOutSlowInEasing): Float = easing.transform(t.coerceIn(0f, 1f))
 
 /**
- * Easing for a catalog row's horizontal glide. A fresh move eases in and out. A move that interrupts
+ * Easing for a catalog row's fixed-slot strip glide ([CATALOG_ROW_GLIDE_MS]). A fresh move eases in and out. A move that interrupts
  * a glide still running (rapid taps, a held key) uses [LinearOutSlowInEasing], which starts at full
  * speed, so the row keeps its momentum instead of stalling and re-accelerating at every step.
  */
