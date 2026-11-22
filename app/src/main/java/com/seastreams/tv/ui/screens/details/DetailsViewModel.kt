@@ -34,7 +34,8 @@ import javax.inject.Inject
 sealed interface DetailsEvent {
     data class Message(val text: String) : DetailsEvent
 
-    data class OpenTrailer(val title: String, val youtubeKey: String) : DetailsEvent
+    /** [youtubeKeys]: ranked TMDB trailer candidates, never empty. */
+    data class OpenTrailer(val title: String, val youtubeKeys: List<String>) : DetailsEvent
 }
 
 /**
@@ -106,8 +107,8 @@ class DetailsViewModel @Inject constructor(
     fun requestTrailer() {
         val media = _state.value.media ?: return
         viewModelScope.launch {
-            val key = orNullUnlessCancelled { titles.trailerKey(media.ref) }
-            _events.send(if (key == null) DetailsEvent.Message("No trailer available") else DetailsEvent.OpenTrailer(media.title, key))
+            val keys = orNullUnlessCancelled { titles.trailerKeys(media.ref) }.orEmpty()
+            _events.send(if (keys.isEmpty()) DetailsEvent.Message("No trailer available") else DetailsEvent.OpenTrailer(media.title, keys))
         }
     }
 

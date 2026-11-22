@@ -77,9 +77,9 @@ class TitleDetailsRepository @Inject constructor(
         return episodes
     }
 
-    /** YouTube key of the title's trailer, or `null` when TMDB lists none. */
-    suspend fun trailerKey(ref: MediaRef): String? =
-        hydrator.withTmdb { it.getVideos(ref.mediaType, ref.tmdbId) }.youtubeTrailerKey()
+    /** Ranked YouTube trailer keys to try in turn (best first, at most 3); empty when TMDB lists none. */
+    suspend fun trailerKeys(ref: MediaRef): List<String> =
+        hydrator.withTmdb { it.getVideos(ref.mediaType, ref.tmdbId) }.youtubeTrailerKeys()
 
     private fun TmdbMovieDetails.toTitleDetails() = TitleDetails(
         media = toMediaItem(imageUrls),

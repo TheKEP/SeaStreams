@@ -78,8 +78,8 @@ fun DetailsScreen(
         viewModel.events.collect { event ->
             when (event) {
                 is DetailsEvent.Message -> messages?.show(event.text)
-                // Full-screen in the built-in player; YouTube only if extraction fails (PRD §6).
-                is DetailsEvent.OpenTrailer -> playback.playTrailer(event.title, event.youtubeKey)
+                // Full-screen in the built-in player; YouTube only if every candidate fails (PRD §6).
+                is DetailsEvent.OpenTrailer -> playback.playTrailer(event.title, event.youtubeKeys)
             }
         }
     }
