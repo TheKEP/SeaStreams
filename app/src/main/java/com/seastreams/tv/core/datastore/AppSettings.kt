@@ -189,7 +189,10 @@ data class AppearanceSettings(
     val backgroundArgb: Int = BackgroundSwatches.DEFAULT,
 )
 
-/** The selectable page backgrounds, in picker order (PRD §1). */
+/**
+ * The selectable page backgrounds, in picker order (PRD §1, §11). Retired swatches (`#090B34`,
+ * `#472A11`) are simply absent: a stored colour outside [ALL] reads as [DEFAULT] (ProfileSettingsCodec).
+ */
 object BackgroundSwatches {
     const val DEFAULT: Int = 0xFF000000.toInt()
     val ALL: List<Int> = listOf(
@@ -198,8 +201,9 @@ object BackgroundSwatches {
         0xFF351529.toInt(),
         0xFF351515.toInt(),
         0xFF153535.toInt(),
-        0xFF090B34.toInt(),
-        0xFF472A11.toInt(),
+        0xFF826098.toInt(),
+        0xFF0E1621.toInt(),
+        0xFF17212B.toInt(),
     )
 }
 

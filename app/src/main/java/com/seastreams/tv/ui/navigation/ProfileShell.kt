@@ -86,7 +86,7 @@ internal fun routeHomeDestination(
 /**
  * Everything after a profile is chosen: the Home / Movies / TV Shows / Library tabs, Search and View
  * More pages stacked over them, and on top of whichever page is showing the [Cover] layers (Details,
- * Episodes, Settings).
+ * Episodes, Settings, and the profile switcher opened from Settings).
  *
  * Covers keep the page beneath composed (only hidden and unfocusable), so on `Back` focus goes
  * straight back to the exact card or button that opened them (PRD §6 Exact Focus Restoration).
@@ -100,6 +100,7 @@ fun ProfileShell(
     homeViewModel: HomeViewModel,
     backLongPress: BackLongPressRouter,
     onSwitchProfile: () -> Unit,
+    onEnterProfile: (Long) -> Unit,
 ) {
     var tab by rememberSaveable { mutableStateOf(NavTab.HOME) }
     var overlays by remember { mutableStateOf(emptyList<Overlay>()) }
@@ -122,12 +123,12 @@ fun ProfileShell(
     val push: (Overlay) -> Unit = { overlays = overlays + it }
     val pop: () -> Unit = { overlays = overlays.dropLast(1) }
     val pushCover: (Cover) -> Unit = { cover ->
-        covers = covers + CoverEntry(cover, origins.take(), nextCoverId++)
+        covers = CoverStack.push(covers, cover, origins.take(), nextCoverId++)
     }
     val popCover: () -> Unit = {
-        covers.lastOrNull()?.let { top ->
-            covers = covers.dropLast(1)
-            top.origin?.let { origin -> scope.launch { retryEachFrame(RESTORE_FRAMES) { origin.tryRequestFocus() } } }
+        CoverStack.pop(covers)?.let { popped ->
+            covers = popped.remaining
+            popped.refocus?.let { origin -> scope.launch { retryEachFrame(RESTORE_FRAMES) { origin.tryRequestFocus() } } }
         }
     }
     val onTabSelected: (NavTab) -> Unit = { selected ->
@@ -235,6 +236,7 @@ fun ProfileShell(
                             playback = playback,
                             onPush = pushCover,
                             onClose = popCover,
+                            onEnterProfile = onEnterProfile,
                         )
                     }
                 }

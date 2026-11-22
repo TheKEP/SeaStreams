@@ -2,21 +2,12 @@ package com.seastreams.tv.ui.screens.settings
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -29,40 +20,49 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.Text
 import com.seastreams.tv.core.util.MILLIS_PER_SECOND
+import com.seastreams.tv.ui.components.LocalFocusOrigins
+import com.seastreams.tv.ui.components.LocalLayerCovered
 import com.seastreams.tv.ui.components.LocalTransientMessages
 import com.seastreams.tv.ui.screens.playback.RESTORE_FRAMES
 import com.seastreams.tv.ui.theme.AppearanceViewModel
-import com.seastreams.tv.ui.theme.rememberListEdgeWrap
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
 import com.seastreams.tv.ui.theme.retryEachFrame
 import com.seastreams.tv.ui.theme.tryRequestFocus
-import com.seastreams.tv.ui.theme.verticalListEdgeWrap
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * General Settings (`settings-example.jpg`): centred gear + `Settings` on the left ~30%; on the right a
- * scrolling list of pill rows under section headers, or one of its sub-panels. `Back` in a sub-panel
- * returns to the row that opened it; `Back` on the main list closes Settings (shell).
+ * General Settings (`settings-top-nav.jpg`, PRD §11): a full-screen page (the main nav bar stays
+ * hidden, no title header) with the Settings Category Tab Bar on top and, below it, the active
+ * category's rows or one of their sub-panels. Opening focuses the `Home` tab. `Back` closes a
+ * sub-panel onto its row, moves from a row to the active tab, and on a tab falls through to the
+ * shell, which closes Settings and refocuses the `Settings` gear ([settingsBackAction]).
  */
 @Composable
-fun SettingsScreen(profileId: Long, viewModel: SettingsViewModel, appearance: AppearanceViewModel) {
+fun SettingsScreen(
+    profileId: Long,
+    viewModel: SettingsViewModel,
+    appearance: AppearanceViewModel,
+    onOpenProfiles: () -> Unit,
+) {
     val state by viewModel.state.collectAsState()
     val savedBackground by appearance.saved.collectAsState()
     val cacheBytes by viewModel.cacheBytes.collectAsState()
     val messages = LocalTransientMessages.current
+    val origins = LocalFocusOrigins.current
+    val covered = LocalLayerCovered.current
     val scope = rememberCoroutineScope()
+    var category by remember { mutableStateOf(SettingsCategory.HOME) }
     var panel by remember { mutableStateOf<SettingsPanel>(SettingsPanel.Main) }
     var returnKey by remember { mutableStateOf<String?>(null) }
     var swatchesOpen by remember { mutableStateOf(false) }
-    val listState = rememberLazyListState()
+    var listHasFocus by remember { mutableStateOf(false) }
+    val pillRequesters = remember { SettingsCategory.entries.map { FocusRequester() } }
+    // A fresh list per category, so each one opens scrolled to its top.
+    val listState = remember(category) { LazyListState() }
     val rowRequesters = remember { HashMap<String, FocusRequester>() }
     val requesterFor: (String) -> FocusRequester = { key -> rowRequesters.getOrPut(key) { FocusRequester() } }
     val focusRow: (String) -> Unit = { key -> scope.launch { retryEachFrame(RESTORE_FRAMES) { requesterFor(key).tryRequestFocus() } } }
@@ -72,7 +72,7 @@ fun SettingsScreen(profileId: Long, viewModel: SettingsViewModel, appearance: Ap
         viewModel.refreshCacheSize()
     }
     LaunchedEffect(viewModel) { viewModel.messages.collect { messages?.show(it) } }
-    LaunchedEffect(Unit) { requesterFor(FIRST_ROW_KEY).requestFocusAfterFrame() }
+    LaunchedEffect(Unit) { pillRequesters[SettingsCategory.HOME.ordinal].requestFocusAfterFrame() }
     // Leaving a panel: land on the row that opened it.
     LaunchedEffect(panel) {
         viewModel.setPortalVisible(panel == SettingsPanel.Portal)
@@ -82,7 +82,12 @@ fun SettingsScreen(profileId: Long, viewModel: SettingsViewModel, appearance: Ap
         returnKey = key
         panel = next
     }
-    BackHandler(enabled = panel != SettingsPanel.Main) { panel = SettingsPanel.Main }
+    val backAction = settingsBackAction(panelOpen = panel != SettingsPanel.Main, swatchesOpen = swatchesOpen, focusInList = listHasFocus)
+    BackHandler(enabled = !covered && backAction == SettingsBackAction.CLOSE_PANEL) { panel = SettingsPanel.Main }
+    // REVERT_SWATCHES is the strip's own BackHandler; EXIT is ProfileShell's cover BackHandler.
+    BackHandler(enabled = !covered && backAction == SettingsBackAction.FOCUS_ACTIVE_PILL) {
+        pillRequesters[category.ordinal].tryRequestFocus()
+    }
 
     val pending = state.pendingClear?.takeIf { it.profileId == profileId }
     val clearSecondsLeft by produceState<Int?>(null, pending) {
@@ -97,34 +102,60 @@ fun SettingsScreen(profileId: Long, viewModel: SettingsViewModel, appearance: Ap
             delay(TICK_MILLIS)
         }
     }
+    val items = settingsItems(
+        category = category,
+        state = state,
+        swatchesOpen = swatchesOpen,
+        clearSecondsLeft = clearSecondsLeft,
+        cacheBytes = cacheBytes,
+        cb = SettingsCallbacks(
+            open = { next -> openPanel(keyFor(next), next) },
+            toggleSwatches = { swatchesOpen = !swatchesOpen },
+            updatePlayer = viewModel::updatePlayer,
+            vm = viewModel,
+            clearLibrary = { viewModel.clearLibrary(profileId) },
+            undoClear = viewModel::undoClearLibrary,
+            clearCache = viewModel::clearCache,
+            openProfiles = {
+                // Back on the profile switcher returns focus to this row (FocusOrigin, PRD §2).
+                origins?.mark(requesterFor(PROFILES_ROW_KEY))
+                onOpenProfiles()
+            },
+        ),
+    )
 
-    Row(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Box(Modifier.weight(LEFT_WEIGHT).fillMaxHeight(), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Filled.Settings, contentDescription = null, modifier = Modifier.size(64.dp))
-                Text("Settings", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
-            }
-        }
-        Box(Modifier.weight(1f - LEFT_WEIGHT).fillMaxHeight().padding(end = 56.dp)) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(start = PAGE_GUTTER, end = PAGE_GUTTER, top = 36.dp),
+    ) {
+        SettingsCategoryBar(
+            selected = category,
+            requesters = pillRequesters,
+            focusable = panel == SettingsPanel.Main,
+            onSelect = { next ->
+                if (next != category) swatchesOpen = false
+                category = next
+            },
+            onDown = {
+                scope.launch {
+                    listState.scrollToItem(0)
+                    requesterFor(firstEntryKey(items)).requestFocusAfterFrame()
+                }
+            },
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+        )
+        Box(Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp)) {
             when (val current = panel) {
-                SettingsPanel.Main -> MainList(
-                    items = settingsItems(
-                        state = state,
-                        swatchesOpen = swatchesOpen,
-                        clearSecondsLeft = clearSecondsLeft,
-                        cacheBytes = cacheBytes,
-                        cb = SettingsCallbacks(
-                            open = { next -> openPanel(keyFor(next), next) },
-                            toggleSwatches = { swatchesOpen = !swatchesOpen },
-                            updatePlayer = viewModel::updatePlayer,
-                            vm = viewModel,
-                            clearLibrary = { viewModel.clearLibrary(profileId) },
-                            undoClear = viewModel::undoClearLibrary,
-                            clearCache = viewModel::clearCache,
-                        ),
-                    ),
+                SettingsPanel.Main -> SettingsCategoryList(
+                    category = category,
+                    items = items,
                     listState = listState,
                     requesterFor = requesterFor,
+                    onFocusInListChanged = { listHasFocus = it },
+                    onUpFromFirst = { pillRequesters[category.ordinal].tryRequestFocus() },
+                    modifier = Modifier.fillMaxSize().padding(bottom = 32.dp),
                     swatches = {
                         BackgroundSwatchStrip(
                             savedArgb = savedBackground,
@@ -159,53 +190,14 @@ fun SettingsScreen(profileId: Long, viewModel: SettingsViewModel, appearance: Ap
     }
 }
 
-@Composable
-private fun MainList(
-    items: List<SettingsItem>,
-    listState: LazyListState,
-    requesterFor: (String) -> FocusRequester,
-    swatches: @Composable () -> Unit,
-) {
-    // Two-way §1 wrap between the first and last focusable rows; headers are skipped. Wrapping up
-    // scrolls to item 0 so the `ADDONS & PORTAL` header shows above the first row.
-    val ordinals = remember(items) { settingsEntryOrdinals(items) }
-    val lastOrdinal = ordinals.maxOrNull() ?: -1
-    val firstKey = items.firstOrNull { it is SettingsItem.Entry }?.key ?: FIRST_ROW_KEY
-    val lastKey = items.lastOrNull { it is SettingsItem.Entry }?.key ?: FIRST_ROW_KEY
-    val wrap = rememberListEdgeWrap(listState, requesterFor(firstKey), requesterFor(lastKey), items.lastIndex)
-    LazyColumn(
-        state = listState,
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 32.dp, bottom = 48.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        itemsIndexed(items, key = { _, item -> item.key }) { index, item ->
-            when (item) {
-                is SettingsItem.Header -> SettingsSectionHeader(item.title)
-                SettingsItem.Swatches -> swatches()
-                is SettingsItem.Entry -> SettingsRow(
-                    icon = item.icon,
-                    title = item.title,
-                    value = item.value,
-                    trailing = item.trailing,
-                    onClick = item.onClick,
-                    modifier = Modifier
-                        .focusRequester(requesterFor(item.key))
-                        .verticalListEdgeWrap(ordinals[index], lastOrdinal, wrap.toFirst, wrap.toLast),
-                )
-            }
-        }
-    }
-}
-
-/** The main-list row each panel is opened from, so `Back` returns focus there. */
+/** The row each panel is opened from, so `Back` returns focus there. */
 private fun keyFor(panel: SettingsPanel): String = when (panel) {
-    SettingsPanel.Addons -> "addons"
-    SettingsPanel.Portal -> "portal"
+    SettingsPanel.Addons -> ADDONS_ROW_KEY
+    SettingsPanel.Portal -> PORTAL_ROW_KEY
     SettingsPanel.SubtitleStyle -> "subs-style"
     is SettingsPanel.Choice -> when (panel.kind) {
         ChoiceKind.PREFERRED_ADDON -> "autoplay-addon"
-        ChoiceKind.PLAYER -> "player"
+        ChoiceKind.PLAYER -> PLAYER_ROW_KEY
         ChoiceKind.DIALOGUE_BOOST -> "dialogue"
         ChoiceKind.AUDIO_LANGUAGE -> "audio-lang"
         ChoiceKind.SUBTITLE_LANGUAGE -> "subs-lang"
@@ -213,9 +205,8 @@ private fun keyFor(panel: SettingsPanel): String = when (panel) {
         ChoiceKind.PARALLEL_CONNECTIONS -> "parallel"
         ChoiceKind.DOLBY_VISION -> "dolby-vision"
     }
-    SettingsPanel.Main -> FIRST_ROW_KEY
+    SettingsPanel.Main -> PROFILES_ROW_KEY
 }
 
-private const val FIRST_ROW_KEY = "addons"
-private const val LEFT_WEIGHT = 0.3f
+private val PAGE_GUTTER = 56.dp
 private const val TICK_MILLIS = 250L
