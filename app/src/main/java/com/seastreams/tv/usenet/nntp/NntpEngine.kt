@@ -2,6 +2,7 @@ package com.seastreams.tv.usenet.nntp
 
 import com.seastreams.tv.usenet.cache.CachedSegmentSource
 import com.seastreams.tv.usenet.cache.SegmentDiskCache
+import com.seastreams.tv.usenet.yenc.DecodedSegment
 import com.seastreams.tv.usenet.yenc.SegmentBufferPool
 import com.seastreams.tv.usenet.yenc.YencDecoder
 import java.io.Closeable
@@ -81,13 +82,18 @@ class NntpEngine internal constructor(
     }
 
     override fun fetch(messageId: String, part: Int, priority: FetchPriority): SegmentFetch =
-        gated(messageId, priority) { pool -> pool.body(messageId, part, priority) }
+        gated(messageId, priority, DecodedSegment::release) { pool -> pool.body(messageId, part, priority) }
 
     /** STAT through the same failover (census, Milestone 9): `true` = some provider has it. */
     fun stat(messageId: String, priority: FetchPriority = FetchPriority.LOW): NntpFuture<Boolean> =
-        gated(messageId, priority) { pool -> pool.stat(messageId, priority) }
+        gated(messageId, priority, discard = {}) { pool -> pool.stat(messageId, priority) }
 
-    private fun <T> gated(messageId: String, priority: FetchPriority, submit: (ProviderWorkerPool) -> NntpFuture<T>): NntpFuture<T> {
+    private fun <T> gated(
+        messageId: String,
+        priority: FetchPriority,
+        discard: (T) -> Unit,
+        submit: (ProviderWorkerPool) -> NntpFuture<T>,
+    ): NntpFuture<T> {
         val outer = NntpFuture<T>()
         val (candidates, permits) = synchronized(this) { selector.order(pools.values.toList()) to semaphore }
         if (candidates.isEmpty()) {
@@ -96,7 +102,7 @@ class NntpEngine internal constructor(
         }
         val ticket = permits.acquire(priority) { permit ->
             outer.onDone { permit.release() }
-            selector.failover(outer, messageId, candidates, submit)
+            selector.failover(outer, messageId, candidates, discard, submit)
         }
         outer.onDone { if (it.cancelled) ticket.cancel() }
         return outer

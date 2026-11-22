@@ -146,9 +146,7 @@ class UsenetFile(
             arena.get(id)?.let { return it }
             val fetch = if (standalone) start(index) else window?.request(index) ?: start(index)
             try {
-                val segment = fetch.await(segmentTimeoutMs)
-                arena.put(id, segment)
-                return segment
+                return arena.put(id, fetch.await(segmentTimeoutMs))
             } catch (e: FetchCancelledException) {
                 window?.invalidate(index) // cancelled by a seek on another thread: ask again
             }

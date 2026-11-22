@@ -46,13 +46,16 @@ class ProviderSelector(
      * Runs [submit] against each candidate in turn until one succeeds, completing [outer]. A 430 is remembered
      * and moves on; any other failure (auth, limit, breaker, CRC) moves on too. With none left, the result is
      * [ArticleNotFoundException] if any provider answered 430 (`allProviders` when all did), else the last error.
+     * A value that arrives after [outer] was settled (cancelled meanwhile) goes to [discard], so pooled buffers
+     * are returned instead of left unowned.
      */
     fun <T> failover(
         outer: NntpFuture<T>,
         messageId: String,
         candidates: List<ProviderWorkerPool>,
+        discard: (T) -> Unit = {},
         submit: (ProviderWorkerPool) -> NntpFuture<T>,
-    ) = attempt(outer, messageId, candidates, 0, Outcome(), submit)
+    ) = attempt(outer, messageId, candidates, 0, Outcome(), discard, submit)
 
     private class Outcome {
         var sawMissing = false
@@ -66,6 +69,7 @@ class ProviderSelector(
         candidates: List<ProviderWorkerPool>,
         from: Int,
         outcome: Outcome,
+        discard: (T) -> Unit,
         submit: (ProviderWorkerPool) -> NntpFuture<T>,
     ) {
         var index = from
@@ -90,17 +94,17 @@ class ProviderSelector(
             val value = done.result
             val error = done.failure
             when {
-                error == null -> outer.complete(checkNotNullResult(value))
+                error == null -> checkNotNullResult(value).let { if (!outer.complete(it)) discard(it) }
                 outer.cancelled -> Unit
                 error is ProviderMissingException -> {
                     recordMissing(pool, messageId)
                     outcome.sawMissing = true
-                    attempt(outer, messageId, candidates, index + 1, outcome, submit)
+                    attempt(outer, messageId, candidates, index + 1, outcome, discard, submit)
                 }
                 else -> {
                     outcome.allMissing = false
                     outcome.lastError = error
-                    attempt(outer, messageId, candidates, index + 1, outcome, submit)
+                    attempt(outer, messageId, candidates, index + 1, outcome, discard, submit)
                 }
             }
         }

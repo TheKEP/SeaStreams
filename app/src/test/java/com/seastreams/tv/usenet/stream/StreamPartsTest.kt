@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -178,5 +179,22 @@ class StreamPartsTest {
     fun `a file with no articles is refused`() {
         val empty = NzbFile("x", "p", emptyList(), emptyList())
         assertThrows<IllegalArgumentException> { UsenetFile(empty, PartsSource(ByteArray(0), emptyList()), SegmentArena(1), 1) }
+    }
+
+    @Test
+    fun `a duplicate download is released and the held copy kept`() {
+        val source = PartsSource(ByteArray(2_000), List(2) { 1_000 })
+        val arena = SegmentArena(capacityBytes = 10_000)
+        val first = source.segment(0)
+        val again = source.segment(0)
+        assertSame(first, arena.put("a", first))
+        assertSame(first, arena.put("a", first), "the same segment handed in twice is kept once")
+        assertSame(first, arena.put("a", again))
+        assertTrue(again.released, "the duplicate's buffer went back to the pool")
+        assertFalse(first.released)
+        assertEquals(1_000L, arena.sizeBytes())
+        arena.clear()
+        arena.put("a", first)
+        assertEquals(0, arena.count(), "a released segment is never re-added")
     }
 }

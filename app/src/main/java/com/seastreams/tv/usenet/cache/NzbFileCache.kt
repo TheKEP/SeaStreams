@@ -2,11 +2,11 @@ package com.seastreams.tv.usenet.cache
 
 import com.seastreams.tv.core.cache.CacheDirProvider
 import com.seastreams.tv.core.cache.ManagedCache
+import com.seastreams.tv.core.util.sha1Hex
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
-import java.security.MessageDigest
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
 import javax.inject.Inject
@@ -81,8 +81,7 @@ class NzbFileCache internal constructor(
     private fun dir() = File(cacheDir.get(), DIR)
 
     private fun fileOf(key: String): File {
-        val hash = MessageDigest.getInstance("SHA-1").digest(key.toByteArray()).joinToString("") { "%02x".format(it) }
-        return File(dir(), "$hash.nzb.gz")
+        return File(dir(), "${sha1Hex(key)}.nzb.gz")
     }
 
     companion object {

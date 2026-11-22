@@ -1,7 +1,7 @@
 package com.seastreams.tv.usenet.nntp
 
 import com.seastreams.tv.domain.usenet.UsenetPerformance
-import java.security.MessageDigest
+import com.seastreams.tv.core.util.sha1Hex
 
 /**
  * One enabled provider with its decrypted password, as the engine uses it. Never persisted or logged:
@@ -31,13 +31,8 @@ data class NntpEndpoint(
      * login, server or limits replaces its pool, while reordering or renaming keeps the warm one.
      */
     val fingerprint: String by lazy {
-        val digest = MessageDigest.getInstance("SHA-1")
-            .digest("$host\u0000$port\u0000$tls\u0000$username\u0000$password\u0000$maxConnections\u0000$pipelineDepth".toByteArray())
-        digest.joinToString("") { "%02x".format(it) }
+        sha1Hex("$host\u0000$port\u0000$tls\u0000$username\u0000$password\u0000$maxConnections\u0000$pipelineDepth")
     }
-
-    /** Pools and warm connections of the same login (any limits) may share sign-ins. */
-    val loginKey: String get() = "$host:$port:$tls:$username"
 
     override fun toString(): String = "NntpEndpoint($name, $host:$port, tls=$tls, max=$maxConnections, depth=$pipelineDepth)"
 }

@@ -34,54 +34,59 @@ class YencDecoder(private val pool: SegmentBufferPool) {
         var fileSize = -1L
         var spanBegin = -1L
         var spanEnd = -1L
-        while (true) {
-            reader.nextLine()
-            if (reader.atTerminator) break
-            var start = reader.lineStart
-            val stop = reader.lineEnd
-            if (stop > start && buffer[start] == NntpReader.DOT) start++
-            if (stop - start >= 2 && buffer[start] == EQUALS && buffer[start + 1] == LOWER_Y) {
-                val line = reader.lineString(start)
-                when {
-                    line.startsWith("=ybegin ") && header == null -> {
-                        header = line
-                        fileSize = field(line, "size")?.toLongOrNull() ?: -1L
+        try {
+            while (true) {
+                reader.nextLine()
+                if (reader.atTerminator) break
+                var start = reader.lineStart
+                val stop = reader.lineEnd
+                if (stop > start && buffer[start] == NntpReader.DOT) start++
+                if (stop - start >= 2 && buffer[start] == EQUALS && buffer[start + 1] == LOWER_Y) {
+                    val line = reader.lineString(start)
+                    when {
+                        line.startsWith("=ybegin ") && header == null -> {
+                            header = line
+                            fileSize = field(line, "size")?.toLongOrNull() ?: -1L
+                        }
+                        line.startsWith("=ypart ") && partLine == null -> {
+                            partLine = line
+                            spanBegin = field(line, "begin")?.toLongOrNull() ?: -1L
+                            spanEnd = field(line, "end")?.toLongOrNull() ?: -1L
+                        }
+                        line.startsWith("=yend") -> trailer = line
                     }
-                    line.startsWith("=ypart ") && partLine == null -> {
-                        partLine = line
-                        spanBegin = field(line, "begin")?.toLongOrNull() ?: -1L
-                        spanEnd = field(line, "end")?.toLongOrNull() ?: -1L
-                    }
-                    line.startsWith("=yend") -> trailer = line
-                }
-                continue
-            }
-            if (header == null || trailer != null || failure != null) continue
-            if (data == null) {
-                val expected = when {
-                    partLine != null -> if (spanBegin >= 1 && spanEnd >= spanBegin) spanEnd - spanBegin + 1 else -1L
-                    else -> fileSize
-                }
-                if (expected <= 0 || expected > MAX_PART) {
-                    failure = YencException("bad_header", "The article's yEnc header is unusable")
                     continue
                 }
-                data = pool.acquire(expected.toInt())
-                room = expected.toInt()
-            }
-            var index = start
-            while (index < stop) {
-                var value = buffer[index++].toInt()
-                if (value == ESCAPE) {
-                    if (index >= stop) break
-                    value = buffer[index++].toInt() - 64
+                if (header == null || trailer != null || failure != null) continue
+                if (data == null) {
+                    val expected = when {
+                        partLine != null -> if (spanBegin >= 1 && spanEnd >= spanBegin) spanEnd - spanBegin + 1 else -1L
+                        else -> fileSize
+                    }
+                    if (expected <= 0 || expected > MAX_PART) {
+                        failure = YencException("bad_header", "The article's yEnc header is unusable")
+                        continue
+                    }
+                    data = pool.acquire(expected.toInt())
+                    room = expected.toInt()
                 }
-                if (filled >= room) {
-                    failure = YencException("overflow", "The article holds more data than it states")
-                    break
+                var index = start
+                while (index < stop) {
+                    var value = buffer[index++].toInt()
+                    if (value == ESCAPE) {
+                        if (index >= stop) break
+                        value = buffer[index++].toInt() - 64
+                    }
+                    if (filled >= room) {
+                        failure = YencException("overflow", "The article holds more data than it states")
+                        break
+                    }
+                    data[filled++] = (value - 42).toByte()
                 }
-                data[filled++] = (value - 42).toByte()
             }
+        } catch (e: Throwable) {
+            data?.let(pool::recycle) // dropped or stalled mid-article: the buffer goes back to the pool
+            throw e
         }
         try {
             return check(data, filled, header, partLine, trailer, failure, fileSize, spanBegin, spanEnd, expectedPart, verifyCrc)

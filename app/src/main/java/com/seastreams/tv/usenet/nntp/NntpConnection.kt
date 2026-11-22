@@ -14,6 +14,12 @@ import javax.net.ssl.SSLException
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.SSLSocketFactory
 
+/**
+ * A message ID goes on a command line, so it may hold no whitespace, control characters or angle brackets.
+ * The NZB parser already guards it; [ProviderWorkerPool.submit] and the connection check it again.
+ */
+fun isValidMessageId(id: String): Boolean = id.isNotEmpty() && id.none { it <= ' ' || it == '<' || it == '>' }
+
 /** Opens the raw socket for a provider; tests swap it to reach a local fake server. */
 fun interface SocketOpener {
     fun open(endpoint: NntpEndpoint, dialTimeoutMs: Int): Socket
@@ -39,7 +45,7 @@ object DefaultSocketOpener : SocketOpener {
             secure.sslParameters = secure.sslParameters.apply { endpointIdentificationAlgorithm = "HTTPS" }
             secure.startHandshake()
             return secure
-        } catch (e: IOException) {
+        } catch (e: Exception) {
             runCatching { plain.close() }
             throw e
         }
@@ -65,9 +71,9 @@ class NntpConnection private constructor(
     @Volatile
     var lastUsedAt: Long = 0
 
-    fun sendBody(messageId: String) = send("BODY <${checkId(messageId)}>")
+    fun sendBody(messageId: String) = send("BODY <${checkMessageId(messageId)}>")
 
-    fun sendStat(messageId: String) = send("STAT <${checkId(messageId)}>")
+    fun sendStat(messageId: String) = send("STAT <${checkMessageId(messageId)}>")
 
     fun sendDate() = send("DATE")
 
@@ -103,9 +109,8 @@ class NntpConnection private constructor(
     companion object {
         private val CRLF = byteArrayOf('\r'.code.toByte(), '\n'.code.toByte())
 
-        /** A message ID goes on a command line; the NZB parser already guards it, this is the last line of defence. */
-        private fun checkId(id: String): String {
-            require(id.isNotEmpty() && id.none { it <= ' ' || it == '<' || it == '>' }) { "Invalid message ID" }
+        private fun checkMessageId(id: String): String {
+            require(isValidMessageId(id)) { "Invalid message ID" }
             return id
         }
 
@@ -128,6 +133,8 @@ class NntpConnection private constructor(
                 opener.open(endpoint, settings.dialTimeoutMs)
             } catch (e: IOException) {
                 throw dialFailure(endpoint, e)
+            } catch (e: RuntimeException) {
+                throw dialFailure(endpoint, IOException(e.message, e))
             }
             try {
                 socket.soTimeout = settings.dialTimeoutMs
@@ -147,6 +154,9 @@ class NntpConnection private constructor(
             } catch (e: IOException) {
                 runCatching { socket.close() }
                 throw dialFailure(endpoint, e)
+            } catch (e: RuntimeException) {
+                runCatching { socket.close() }
+                throw dialFailure(endpoint, IOException(e.message, e))
             }
         }
 

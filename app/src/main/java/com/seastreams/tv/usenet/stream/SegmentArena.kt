@@ -15,13 +15,22 @@ class SegmentArena(val capacityBytes: Long) {
     fun get(messageId: String): DecodedSegment? = entries[messageId]?.takeUnless { it.released }
 
     /**
-     * Takes ownership of [segment]. If the ID is already held, the held one stays and [segment] is left
-     * unowned (to the GC). Evicts least-recently-used entries, never the one just added.
+     * Takes ownership of [segment] and returns the segment now held for [messageId]. If a live copy is already
+     * held, that one stays and is returned, and [segment] (a duplicate download) is released back to the pool.
+     * Evicts least-recently-used entries, never the one just added. A segment that was already released (handed
+     * in again after the arena evicted it) is not re-added; the caller's copy then fails and it refetches.
      */
-    fun put(messageId: String, segment: DecodedSegment) {
+    fun put(messageId: String, segment: DecodedSegment): DecodedSegment {
         val evicted = ArrayList<DecodedSegment>()
-        synchronized(this) {
-            if (entries.containsKey(messageId)) return
+        val owned = synchronized(this) {
+            val held = entries[messageId]
+            when {
+                held === segment || segment.released -> return held ?: segment
+                held != null -> {
+                    evicted += segment
+                    return@synchronized held
+                }
+            }
             entries[messageId] = segment
             bytes += segment.length
             val iterator = entries.entries.iterator()
@@ -32,8 +41,10 @@ class SegmentArena(val capacityBytes: Long) {
                 bytes -= eldest.value.length
                 evicted += eldest.value
             }
+            segment
         }
         evicted.forEach(DecodedSegment::release)
+        return owned
     }
 
     @Synchronized

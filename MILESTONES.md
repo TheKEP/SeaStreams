@@ -26,7 +26,15 @@
 
 ## Run audit after every milestone
 **Prompt for Claude Code:**
-> Perform a strict codebase audit. Check for: (1) any file exceeding 350 lines that should be split, (2) duplicated logic, (3) any network/disk calls on the Main thread, (4) memory leaks in ExoPlayer or Ktor server lifecycles, and (5) unused dependencies or dead code. Output a prioritized list of fixes, then execute them and verify ./gradlew testDebugUnitTest passes.
+Perform a strict codebase audit. Check for:
+1. Any Kotlin file exceeding 350 lines that should be split,
+2. Duplicated logic,
+3. Any network, socket, or disk I/O running on the Main thread,
+4. Resource and lifecycle leaks: unclosed sockets/NIO channels, leaked worker threads/coroutines, unreturned pooled buffers (`SegmentBufferPool`/`SegmentArena`), or missing cancellation/cleanup in `NntpEngine`, `WarmConnections`, `ParallelRangeReader`, `SubtitleAutoSync`, ExoPlayer, or Ktor server lifecycles,
+5. Secret/security hygiene (no plain-text passwords or API keys in logs, URLs, or portal responses) and non-null `!!` assertions, and
+6. Unused dependencies or dead code.
+
+Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if any files were split or moved, and verify both `./gradlew testDebugUnitTest` and `./gradlew assembleDebug` pass with zero errors.
 
 ---
 
@@ -50,7 +58,15 @@
 
 ## Run audit after every milestone
 **Prompt for Claude Code:**
-> Perform a strict codebase audit. Check for: (1) any file exceeding 350 lines that should be split, (2) duplicated logic, (3) any network/disk calls on the Main thread, (4) memory leaks in ExoPlayer or Ktor server lifecycles, and (5) unused dependencies or dead code. Output a prioritized list of fixes, then execute them and verify ./gradlew testDebugUnitTest passes.
+Perform a strict codebase audit. Check for:
+1. Any Kotlin file exceeding 350 lines that should be split,
+2. Duplicated logic,
+3. Any network, socket, or disk I/O running on the Main thread,
+4. Resource and lifecycle leaks: unclosed sockets/NIO channels, leaked worker threads/coroutines, unreturned pooled buffers (`SegmentBufferPool`/`SegmentArena`), or missing cancellation/cleanup in `NntpEngine`, `WarmConnections`, `ParallelRangeReader`, `SubtitleAutoSync`, ExoPlayer, or Ktor server lifecycles,
+5. Secret/security hygiene (no plain-text passwords or API keys in logs, URLs, or portal responses) and non-null `!!` assertions, and
+6. Unused dependencies or dead code.
+
+Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if any files were split or moved, and verify both `./gradlew testDebugUnitTest` and `./gradlew assembleDebug` pass with zero errors.
 
 ---
 
@@ -82,7 +98,15 @@
 
 ## Run audit after every milestone
 **Prompt for Claude Code:**
-> Perform a strict codebase audit. Check for: (1) any file exceeding 350 lines that should be split, (2) duplicated logic, (3) any network/disk calls on the Main thread, (4) memory leaks in ExoPlayer or Ktor server lifecycles, and (5) unused dependencies or dead code. Output a prioritized list of fixes, then execute them and verify ./gradlew testDebugUnitTest passes.
+Perform a strict codebase audit. Check for:
+1. Any Kotlin file exceeding 350 lines that should be split,
+2. Duplicated logic,
+3. Any network, socket, or disk I/O running on the Main thread,
+4. Resource and lifecycle leaks: unclosed sockets/NIO channels, leaked worker threads/coroutines, unreturned pooled buffers (`SegmentBufferPool`/`SegmentArena`), or missing cancellation/cleanup in `NntpEngine`, `WarmConnections`, `ParallelRangeReader`, `SubtitleAutoSync`, ExoPlayer, or Ktor server lifecycles,
+5. Secret/security hygiene (no plain-text passwords or API keys in logs, URLs, or portal responses) and non-null `!!` assertions, and
+6. Unused dependencies or dead code.
+
+Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if any files were split or moved, and verify both `./gradlew testDebugUnitTest` and `./gradlew assembleDebug` pass with zero errors.
 
 ---
 
@@ -107,7 +131,15 @@
 
 ## Run audit after every milestone
 **Prompt for Claude Code:**
-> Perform a strict codebase audit. Check for: (1) any file exceeding 350 lines that should be split, (2) duplicated logic, (3) any network/disk calls on the Main thread, (4) memory leaks in ExoPlayer or Ktor server lifecycles, and (5) unused dependencies or dead code. Output a prioritized list of fixes, then execute them and verify ./gradlew testDebugUnitTest passes.
+Perform a strict codebase audit. Check for:
+1. Any Kotlin file exceeding 350 lines that should be split,
+2. Duplicated logic,
+3. Any network, socket, or disk I/O running on the Main thread,
+4. Resource and lifecycle leaks: unclosed sockets/NIO channels, leaked worker threads/coroutines, unreturned pooled buffers (`SegmentBufferPool`/`SegmentArena`), or missing cancellation/cleanup in `NntpEngine`, `WarmConnections`, `ParallelRangeReader`, `SubtitleAutoSync`, ExoPlayer, or Ktor server lifecycles,
+5. Secret/security hygiene (no plain-text passwords or API keys in logs, URLs, or portal responses) and non-null `!!` assertions, and
+6. Unused dependencies or dead code.
+
+Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if any files were split or moved, and verify both `./gradlew testDebugUnitTest` and `./gradlew assembleDebug` pass with zero errors.
 
 ---
 
@@ -151,7 +183,15 @@
 
 ## Run audit after every milestone
 **Prompt for Claude Code:**
-> Perform a strict codebase audit. Check for: (1) any file exceeding 350 lines that should be split, (2) duplicated logic, (3) any network/disk calls on the Main thread, (4) memory leaks in ExoPlayer or Ktor server lifecycles, and (5) unused dependencies or dead code. Output a prioritized list of fixes, then execute them and verify ./gradlew testDebugUnitTest passes.
+Perform a strict codebase audit. Check for:
+1. Any Kotlin file exceeding 350 lines that should be split,
+2. Duplicated logic,
+3. Any network, socket, or disk I/O running on the Main thread,
+4. Resource and lifecycle leaks: unclosed sockets/NIO channels, leaked worker threads/coroutines, unreturned pooled buffers (`SegmentBufferPool`/`SegmentArena`), or missing cancellation/cleanup in `NntpEngine`, `WarmConnections`, `ParallelRangeReader`, `SubtitleAutoSync`, ExoPlayer, or Ktor server lifecycles,
+5. Secret/security hygiene (no plain-text passwords or API keys in logs, URLs, or portal responses) and non-null `!!` assertions, and
+6. Unused dependencies or dead code.
+
+Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if any files were split or moved, and verify both `./gradlew testDebugUnitTest` and `./gradlew assembleDebug` pass with zero errors.
 
 ---
 
@@ -205,7 +245,15 @@
 
 ## Run audit after every milestone
 **Prompt for Claude Code:**
-> Perform a strict codebase audit. Check for: (1) any file exceeding 350 lines that should be split, (2) duplicated logic, (3) any network/disk calls on the Main thread, (4) memory leaks in ExoPlayer or Ktor server lifecycles, and (5) unused dependencies or dead code. Output a prioritized list of fixes, then execute them and verify ./gradlew testDebugUnitTest passes.
+Perform a strict codebase audit. Check for:
+1. Any Kotlin file exceeding 350 lines that should be split,
+2. Duplicated logic,
+3. Any network, socket, or disk I/O running on the Main thread,
+4. Resource and lifecycle leaks: unclosed sockets/NIO channels, leaked worker threads/coroutines, unreturned pooled buffers (`SegmentBufferPool`/`SegmentArena`), or missing cancellation/cleanup in `NntpEngine`, `WarmConnections`, `ParallelRangeReader`, `SubtitleAutoSync`, ExoPlayer, or Ktor server lifecycles,
+5. Secret/security hygiene (no plain-text passwords or API keys in logs, URLs, or portal responses) and non-null `!!` assertions, and
+6. Unused dependencies or dead code.
+
+Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if any files were split or moved, and verify both `./gradlew testDebugUnitTest` and `./gradlew assembleDebug` pass with zero errors.
 
 ---
 
@@ -304,7 +352,15 @@
 
 ## Run audit after every milestone
 **Prompt for Claude Code:**
-> Perform a strict codebase audit. Check for: (1) any file exceeding 350 lines that should be split, (2) duplicated logic, (3) any network/disk calls on the Main thread, (4) memory leaks in ExoPlayer or Ktor server lifecycles, and (5) unused dependencies or dead code. Output a prioritized list of fixes, then execute them and verify ./gradlew testDebugUnitTest passes.
+Perform a strict codebase audit. Check for:
+1. Any Kotlin file exceeding 350 lines that should be split,
+2. Duplicated logic,
+3. Any network, socket, or disk I/O running on the Main thread,
+4. Resource and lifecycle leaks: unclosed sockets/NIO channels, leaked worker threads/coroutines, unreturned pooled buffers (`SegmentBufferPool`/`SegmentArena`), or missing cancellation/cleanup in `NntpEngine`, `WarmConnections`, `ParallelRangeReader`, `SubtitleAutoSync`, ExoPlayer, or Ktor server lifecycles,
+5. Secret/security hygiene (no plain-text passwords or API keys in logs, URLs, or portal responses) and non-null `!!` assertions, and
+6. Unused dependencies or dead code.
+
+Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if any files were split or moved, and verify both `./gradlew testDebugUnitTest` and `./gradlew assembleDebug` pass with zero errors.
 
 ---
 
@@ -340,7 +396,15 @@
 
 ## Run audit after every milestone
 **Prompt for Claude Code:**
-> Perform a strict codebase audit. Check for: (1) any file exceeding 350 lines that should be split, (2) duplicated logic, (3) any network/disk calls on the Main thread, (4) memory leaks in ExoPlayer or Ktor server lifecycles, and (5) unused dependencies or dead code. Output a prioritized list of fixes, then execute them and verify ./gradlew testDebugUnitTest passes.
+Perform a strict codebase audit. Check for:
+1. Any Kotlin file exceeding 350 lines that should be split,
+2. Duplicated logic,
+3. Any network, socket, or disk I/O running on the Main thread,
+4. Resource and lifecycle leaks: unclosed sockets/NIO channels, leaked worker threads/coroutines, unreturned pooled buffers (`SegmentBufferPool`/`SegmentArena`), or missing cancellation/cleanup in `NntpEngine`, `WarmConnections`, `ParallelRangeReader`, `SubtitleAutoSync`, ExoPlayer, or Ktor server lifecycles,
+5. Secret/security hygiene (no plain-text passwords or API keys in logs, URLs, or portal responses) and non-null `!!` assertions, and
+6. Unused dependencies or dead code.
+
+Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if any files were split or moved, and verify both `./gradlew testDebugUnitTest` and `./gradlew assembleDebug` pass with zero errors.
 
 ---
 
@@ -387,7 +451,15 @@
 
 ## Run audit after every milestone
 **Prompt for Claude Code:**
-> Perform a strict codebase audit. Check for: (1) any file exceeding 350 lines that should be split, (2) duplicated logic, (3) any network/disk calls on the Main thread, (4) memory leaks in ExoPlayer or Ktor server lifecycles, and (5) unused dependencies or dead code. Output a prioritized list of fixes, then execute them and verify ./gradlew testDebugUnitTest passes.
+Perform a strict codebase audit. Check for:
+1. Any Kotlin file exceeding 350 lines that should be split,
+2. Duplicated logic,
+3. Any network, socket, or disk I/O running on the Main thread,
+4. Resource and lifecycle leaks: unclosed sockets/NIO channels, leaked worker threads/coroutines, unreturned pooled buffers (`SegmentBufferPool`/`SegmentArena`), or missing cancellation/cleanup in `NntpEngine`, `WarmConnections`, `ParallelRangeReader`, `SubtitleAutoSync`, ExoPlayer, or Ktor server lifecycles,
+5. Secret/security hygiene (no plain-text passwords or API keys in logs, URLs, or portal responses) and non-null `!!` assertions, and
+6. Unused dependencies or dead code.
+
+Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if any files were split or moved, and verify both `./gradlew testDebugUnitTest` and `./gradlew assembleDebug` pass with zero errors.
 
 ---
 
@@ -422,7 +494,15 @@
 
 ## Run audit after every milestone
 **Prompt for Claude Code:**
-> Perform a strict codebase audit. Check for: (1) any file exceeding 350 lines that should be split, (2) duplicated logic, (3) any network/disk calls on the Main thread, (4) memory leaks in ExoPlayer or Ktor server lifecycles, and (5) unused dependencies or dead code. Output a prioritized list of fixes, then execute them and verify ./gradlew testDebugUnitTest passes.
+Perform a strict codebase audit. Check for:
+1. Any Kotlin file exceeding 350 lines that should be split,
+2. Duplicated logic,
+3. Any network, socket, or disk I/O running on the Main thread,
+4. Resource and lifecycle leaks: unclosed sockets/NIO channels, leaked worker threads/coroutines, unreturned pooled buffers (`SegmentBufferPool`/`SegmentArena`), or missing cancellation/cleanup in `NntpEngine`, `WarmConnections`, `ParallelRangeReader`, `SubtitleAutoSync`, ExoPlayer, or Ktor server lifecycles,
+5. Secret/security hygiene (no plain-text passwords or API keys in logs, URLs, or portal responses) and non-null `!!` assertions, and
+6. Unused dependencies or dead code.
+
+Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if any files were split or moved, and verify both `./gradlew testDebugUnitTest` and `./gradlew assembleDebug` pass with zero errors.
 
 ---
 
