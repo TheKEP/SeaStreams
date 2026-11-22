@@ -16,7 +16,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -38,9 +37,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.seastreams.tv.domain.model.StreamAddon
 import com.seastreams.tv.domain.model.StreamSource
@@ -48,8 +45,6 @@ import com.seastreams.tv.ui.theme.ListEdgeWrapActions
 import com.seastreams.tv.ui.theme.OutlineDim
 import com.seastreams.tv.ui.theme.SurfaceCard
 import com.seastreams.tv.ui.theme.TextSecondary
-import com.seastreams.tv.ui.theme.focusPillColors
-import com.seastreams.tv.ui.theme.ignoreInitialKeyUp
 import com.seastreams.tv.ui.theme.rememberListEdgeWrap
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
 import com.seastreams.tv.ui.theme.retryEachFrame
@@ -252,14 +247,8 @@ private fun LazyListScope.streamCards(
 
 @Composable
 private fun StatusEntry(text: String, onClick: () -> Unit, modifier: Modifier) {
-    Surface(
-        onClick = onClick,
-        // Long-pressing Play opens this list while OK is still held: its release must not pick a stream.
-        modifier = modifier.ignoreInitialKeyUp().fillMaxWidth(),
-        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(14.dp)),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
-        colors = focusPillColors(containerColor = Color.White.copy(alpha = 0.08f)),
-    ) {
+    // Long-pressing Play opens this list while OK is still held: its release must not pick a stream.
+    StreamPanelEntry(onClick = onClick, modifier = modifier) {
         Text(text, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp))
     }
 }

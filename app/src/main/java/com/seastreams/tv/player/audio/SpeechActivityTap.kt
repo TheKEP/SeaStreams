@@ -34,7 +34,7 @@ class SpeechActivityTap(private val log: SpeechEnergyLog) : BaseAudioProcessor()
     private var totalEnergy = 0.0
 
     override fun onConfigure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
-        val pcm = inputAudioFormat.encoding == C.ENCODING_PCM_16BIT || inputAudioFormat.encoding == C.ENCODING_PCM_FLOAT
+        val pcm = PcmSamples.isSupported(inputAudioFormat.encoding)
         if (!pcm || inputAudioFormat.channelCount <= 0) return AudioProcessor.AudioFormat.NOT_SET
         return inputAudioFormat
     }
@@ -58,7 +58,7 @@ class SpeechActivityTap(private val log: SpeechEnergyLog) : BaseAudioProcessor()
     }
 
     override fun queueInput(inputBuffer: ByteBuffer) {
-        val bytesPerSample = if (encoding == C.ENCODING_PCM_FLOAT) FLOAT_BYTES else SHORT_BYTES
+        val bytesPerSample = PcmSamples.bytesPerSample(encoding)
         val frameBytes = channels * bytesPerSample
         if (frameBytes == 0 || !inputBuffer.hasRemaining()) return
         val frames = inputBuffer.remaining() / frameBytes
@@ -118,17 +118,13 @@ class SpeechActivityTap(private val log: SpeechEnergyLog) : BaseAudioProcessor()
         totalEnergy = 0.0
     }
 
-    private fun read(buffer: ByteBuffer, index: Int): Float =
-        if (encoding == C.ENCODING_PCM_FLOAT) buffer.getFloat(index) else buffer.getShort(index) / SHORT_SCALE
+    private fun read(buffer: ByteBuffer, index: Int): Float = PcmSamples.read(buffer, index, encoding)
 
     private companion object {
         const val CENTER_MIN_CHANNELS = 3
         const val DEFAULT_RATE = 48_000
         const val VOCAL_CENTER_HZ = 1_000f
         const val VOCAL_Q = 0.45f
-        const val SHORT_SCALE = 32_768f
-        const val SHORT_BYTES = 2
-        const val FLOAT_BYTES = 4
         const val HALF = 0.5f
         const val DB_PER_DECADE = 10.0
         const val ENERGY_FLOOR = 1e-12

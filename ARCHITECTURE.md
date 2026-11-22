@@ -74,6 +74,7 @@ app/src/main/java/com/seastreams/tv/
 │   ├── audio/
 │   │   ├── DialogueNightAudioProcessor.kt # Custom Media3 AudioProcessor (Center boost + DRC Night Mode); runs on any PCM output, incl. FFmpeg-decoded Dolby/DTS
 │   │   ├── SpeechActivityTap.kt      # Pass-through PCM tap: per-100 ms voice-band energy + voice share → SpeechEnergyLog, stamped with media time (StreamMetadata.positionOffsetUs + frames)
+│   │   ├── PcmSamples.kt             # Shared 16-bit/float PCM support check, bytes-per-sample and clamped sample read/write for the three processors
 │   │   ├── PassthroughGateSink.kt    # ForwardingAudioSink: non-PCM reported unsupported while passthrough is off (switchable mid-playback) + AudioRendererReset (disable → wait for deselect → re-enable audio)
 │   │   └── SafeDownmix.kt            # SafeDownmixProcessor: clip-safe 3–8 ch → stereo (BS.775 coefficients, rows normalised to Σ|c| ≤ 1), only for stereo-only outputs
 │   └── subtitle/
