@@ -32,8 +32,9 @@ data class SyncAnalysis(
 
 /**
  * One auto-sync analysis pass (PRD §9): builds the reference grid (embedded cue starts, or audio speech
- * activity and onsets), correlates it with the external cues over ±30 s, snaps the lag to dialogue
- * onsets ([OnsetRefiner]) and gates it ([OffsetCorrelator]).
+ * activity and onsets), correlates it with the external cues over ±60 s, snaps the lag to dialogue
+ * onsets ([OnsetRefiner]), checks both halves of the window agree ([HalfAgreement]) and gates it
+ * ([OffsetCorrelator]). The cues passed in are already on the candidate rate's clock ([SyncRate]).
  */
 object SyncAnalyzer {
 
@@ -111,9 +112,12 @@ object SyncAnalyzer {
             onsetsUs, cues.map { it.startUs }, coarse.offsetMs, cellStartUs(reference.startCell), cellStartUs(reference.startCell + reference.size),
         )
         val estimate = fit?.let { coarse.copy(offsetMs = it.offsetMs) } ?: coarse
+        // Halves only matter for the full tier, which needs a minute of reference anyway.
+        val halves = heard >= GateTier.FULL.minOverlapCells && HalfAgreement.agree(reference, subtitles, cues, coarse.offsetMs)
         val evidence = WindowEvidence(
             cueCount = cuesInWindow(cues, reference, estimate.offsetMs),
             onsetAgreement = OffsetCorrelator.onsetAgreement(reference, cues, estimate.offsetMs),
+            halvesAgree = halves,
         )
         return SyncAnalysis(OffsetCorrelator.gate(estimate, profile, evidence), heard, evidence.cueCount, estimate, evidence)
     }

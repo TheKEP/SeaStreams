@@ -57,7 +57,7 @@ internal fun subtitleInfoRows(state: PlayerUiState): List<InfoRow> {
         InfoRow("Subtitles", subtitle?.label ?: "Off"),
         InfoRow("Subtitle language", PlayerTracks.languageName(subtitle?.language) ?: subtitle?.language ?: "—"),
         InfoRow("Subtitle source", subtitle?.source?.label ?: "—"),
-        if (state.externalSubtitleActive) InfoRow("Subtitle sync", syncInfoText(state.subtitleOffsetMs, state.subtitleSyncStatus)) else null,
+        if (state.externalSubtitleActive) InfoRow("Subtitle sync", syncInfoText(state.subtitleOffsetMs, state.subtitleSyncStatus, state.subtitleRate)) else null,
     )
 }
 

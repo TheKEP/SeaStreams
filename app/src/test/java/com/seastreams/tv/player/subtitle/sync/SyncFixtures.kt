@@ -64,3 +64,20 @@ internal fun noisy(grid: ActivityGrid, fraction: Double, seed: Int): ActivityGri
     val active = BooleanArray(grid.size) { if (random.nextDouble() < fraction) !grid.active[it] else grid.active[it] }
     return ActivityGrid(grid.startCell, active, grid.covered.copyOf())
 }
+
+/**
+ * [cues] (true media timing) as a file timed on [rate]'s clock and [offsetMs] late would carry them:
+ * applying [rate] and then the offset `offsetMs` maps each cue back exactly onto the truth.
+ */
+internal fun onClock(cues: List<TimedCue>, rate: SyncRate, offsetMs: Long): List<TimedCue> = cues.map {
+    TimedCue(Math.round((it.startUs + offsetMs * 1_000) / rate.factor), Math.round((it.endUs + offsetMs * 1_000) / rate.factor), it.text)
+}
+
+/**
+ * The largest error (µs) between [truth] starts in `[fromUs, toUs)` and where [lock] shows the matching
+ * line of [external] (built 1:1 from the truth, e.g. by [onClock]).
+ */
+internal fun mappingErrorUs(truth: List<TimedCue>, external: List<TimedCue>, lock: SyncLock, fromUs: Long, toUs: Long): Long =
+    truth.indices.filter { truth[it].startUs in fromUs until toUs }.maxOf { i ->
+        kotlin.math.abs(Math.round(external[i].startUs * lock.rate.factor) - lock.offsetMs * 1_000 - truth[i].startUs)
+    }

@@ -32,9 +32,16 @@ sealed interface AutoSyncStatus {
 
     /**
      * An offset was applied; [refining] while a fuller analysis may still adjust it, [tracking] while
-     * drift is followed after the final lock.
+     * drift is followed after the final lock. [rate] is the file's detected clock; [referenceLanguage]
+     * is set when the embedded reference is in another language than the external track.
      */
-    data class Locked(val source: SyncSource, val refining: Boolean, val tracking: Boolean = false) : AutoSyncStatus
+    data class Locked(
+        val source: SyncSource,
+        val refining: Boolean,
+        val tracking: Boolean = false,
+        val rate: SyncRate = SyncRate.UNIT,
+        val referenceLanguage: String? = null,
+    ) : AutoSyncStatus
 
     /** Gave up without a confident result: the offset was left alone. */
     data object NoMatch : AutoSyncStatus
@@ -52,20 +59,26 @@ fun AutoSyncStatus.hudCaption(): String? = when (this) {
 
 /**
  * Info overlay `Subtitle sync` value, e.g. `Syncing… · embedded (0 cues), 20 s`,
- * `Syncing… · audio (18 cues, best +5.1s @ 0.42, 60% onsets), 25 s` or `+2.3s · Auto (audio) · refining`.
+ * `Syncing… · audio (18 cues, best +5.1s @ 0.42, 60% onsets), 25 s`, `+2.3s · Auto (audio) · refining`
+ * or `+0.4s · Auto (embedded subtitles, fr) · 25→23.976 fps · tracking`. [rate] is the clock in use
+ * (kept after a manual nudge).
  */
-fun syncInfoText(offsetMs: Long, status: AutoSyncStatus): String {
+fun syncInfoText(offsetMs: Long, status: AutoSyncStatus, rate: SyncRate = SyncRate.UNIT): String {
     val value = SubtitleOffset.label(offsetMs)
+    val clock = if (rate == SyncRate.UNIT) "" else " · ${rate.label}"
     return when (status) {
-        AutoSyncStatus.Off -> value
+        AutoSyncStatus.Off -> value + clock
         is AutoSyncStatus.Scanning -> scanningText(status)
-        is AutoSyncStatus.Locked -> "$value · $AUTO (${status.source.label})" + when {
-            status.refining -> " · refining"
-            status.tracking -> " · tracking"
-            else -> ""
+        is AutoSyncStatus.Locked -> {
+            val language = status.referenceLanguage?.takeIf { status.source == SyncSource.EMBEDDED }?.let { ", $it" }.orEmpty()
+            "$value · $AUTO (${status.source.label}$language)$clock" + when {
+                status.refining -> " · refining"
+                status.tracking -> " · tracking"
+                else -> ""
+            }
         }
         AutoSyncStatus.NoMatch -> "$value · no confident match"
-        AutoSyncStatus.Manual -> "$value · Manual"
+        AutoSyncStatus.Manual -> "$value · Manual$clock"
     }
 }
 

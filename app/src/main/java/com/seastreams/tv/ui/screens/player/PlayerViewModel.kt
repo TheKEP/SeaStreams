@@ -21,6 +21,7 @@ import com.seastreams.tv.player.StreamFallbackController
 import com.seastreams.tv.player.knownOrZero
 import com.seastreams.tv.player.subtitle.ExternalSubtitleLoader
 import com.seastreams.tv.player.subtitle.sync.AutoSyncStatus
+import com.seastreams.tv.player.subtitle.sync.SyncRate
 import dagger.Lazy
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -170,6 +171,7 @@ class PlayerViewModel @Inject constructor(
                 subtitleOptions = subtitles.options(emptyList(), settings.subtitles.preferredLanguage, settings.subtitles.hideNonPreferredLanguages),
                 selectedSubtitleId = null,
                 subtitleOffsetMs = 0,
+                subtitleRate = SyncRate.UNIT,
                 subtitleSyncStatus = AutoSyncStatus.Off,
                 audioOptions = emptyList(),
                 selectedAudioId = null,
@@ -316,7 +318,7 @@ class PlayerViewModel @Inject constructor(
         sessionJob = null
         switching.cancel()
         fallback.cancel()
-        autoSync.stop()
+        autoSync.clear()
         subtitles.clear()
         _manager.value?.release()
         _manager.value = null

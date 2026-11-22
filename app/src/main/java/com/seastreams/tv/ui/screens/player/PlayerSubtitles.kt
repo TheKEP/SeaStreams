@@ -9,6 +9,7 @@ import com.seastreams.tv.player.subtitle.CleanSdhTextRenderer
 import com.seastreams.tv.player.subtitle.ExternalSubtitleLoader
 import com.seastreams.tv.player.subtitle.ExternalSubtitleTimeline
 import com.seastreams.tv.player.subtitle.sync.ReferenceTrackPicker
+import com.seastreams.tv.player.subtitle.sync.SyncRate
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -91,10 +92,14 @@ class PlayerSubtitles(private val scope: CoroutineScope, private val loader: sus
     }
 
     /** Cue text at [positionMs] shifted by the sync [offsetMs]; embedded [cues] when no addon track is active. */
-    fun textAt(positionMs: Long, offsetMs: Long, externalActive: Boolean, cues: List<CharSequence?>): String? {
+    /**
+     * The cue text at [positionMs]: an active addon track's cues at `(position + offset)` moved onto the
+     * file's own clock by [rate] (auto-sync's frame-rate fit), else the embedded [cues].
+     */
+    fun textAt(positionMs: Long, offsetMs: Long, externalActive: Boolean, cues: List<CharSequence?>, rate: SyncRate = SyncRate.UNIT): String? {
         if (!externalActive) return renderer.render(cues)
         val active = timeline ?: return null
-        return renderer.render(active.textsAt((positionMs + offsetMs) * MICROS_PER_MILLI))
+        return renderer.render(active.textsAt(rate.toSubtitleUs((positionMs + offsetMs) * MICROS_PER_MILLI)))
     }
 
     fun clear() {

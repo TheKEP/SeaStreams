@@ -17,6 +17,7 @@ import com.seastreams.tv.domain.playback.SubtitleSource
 import com.seastreams.tv.player.DynamicRange
 import com.seastreams.tv.player.audio.AudioDspConfig
 import com.seastreams.tv.player.subtitle.sync.AutoSyncStatus
+import com.seastreams.tv.player.subtitle.sync.SyncRate
 import com.seastreams.tv.ui.components.MetadataFormat
 
 /** The in-player overlays opened from the bottom bar. */
@@ -82,6 +83,8 @@ data class PlayerUiState(
     val subtitleOptions: List<SubtitleOption> = emptyList(),
     val selectedSubtitleId: String? = null,
     val subtitleOffsetMs: Long = 0,
+    /** The active external file's clock (auto-sync's frame-rate fit; `UNIT` unless detected). */
+    val subtitleRate: SyncRate = SyncRate.UNIT,
     /** Live auto-sync state of the active external track (HUD caption, Info row). */
     val subtitleSyncStatus: AutoSyncStatus = AutoSyncStatus.Off,
     val cleanSdh: Boolean = false,

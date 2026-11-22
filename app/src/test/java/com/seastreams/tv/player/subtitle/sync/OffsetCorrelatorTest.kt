@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test
 import kotlin.math.abs
 import kotlin.random.Random
 
-/** Cross-correlation over ±30.0 s in 0.1 s steps and the two-tier confidence gate (PRD §9 Auto-Sync). */
+/** Cross-correlation over ±60.0 s in 0.1 s steps and the two-tier confidence gate (PRD §9 Auto-Sync). */
 class OffsetCorrelatorTest {
 
     private val truth = dialogue(seed = 7)
@@ -49,12 +49,23 @@ class OffsetCorrelatorTest {
     }
 
     @Test
-    fun `offsets up to the search edge are found and a 31 s shift never is`() {
-        assertEquals(29_900L, gate(29_900)?.offsetMs)
-        assertEquals(-29_900L, gate(-29_900)?.offsetMs)
-        assertNull(gate(31_000))
-        assertNull(gate(-31_000))
-        assertNull(gate(31_000, cells = 200, source = talk))
+    fun `offsets up to the search edge are found and a 61 s shift never is`() {
+        assertEquals(59_900L, gate(59_900)?.offsetMs)
+        assertEquals(-59_900L, gate(-59_900)?.offsetMs)
+        assertNull(gate(61_000))
+        assertNull(gate(-61_000))
+        assertNull(gate(61_000, cells = 200, source = talk))
+    }
+
+    @Test
+    fun `an offset beyond 30 s locks on the full tier only`() {
+        assertEquals(GateResult(45_000, GateTier.FULL), gate(45_000, source = talk))
+        assertEquals(GateResult(-45_000, GateTier.FULL), gate(-45_000, source = talk))
+        // 20 s of conversation never locks a far offset (the early tier would be needed).
+        assertNull(gate(45_000, cells = 200, source = talk))
+        val early = SyncEstimate(31_000, peak = 0.9, secondPeak = 0.2, zScore = 20.0, overlapCells = 300)
+        assertNull(OffsetCorrelator.gate(early, GateProfile.EMBEDDED, WindowEvidence(8, 1.0)))
+        assertEquals(GateTier.EARLY, OffsetCorrelator.gate(early.copy(offsetMs = 30_000), GateProfile.EMBEDDED, WindowEvidence(8, 1.0))?.tier)
     }
 
     /**
@@ -226,8 +237,8 @@ class OffsetCorrelatorTest {
     }
 
     @Test
-    fun `the search covers exactly 601 lags in 0_1 s steps`() {
-        assertEquals(300, OffsetCorrelator.MAX_LAG_CELLS)
+    fun `the search covers exactly 1201 lags in 0_1 s steps`() {
+        assertEquals(600, OffsetCorrelator.MAX_LAG_CELLS)
         assertEquals(100_000L, CELL_US)
         val (ref, subs) = grids(truth, shifted(truth, 100), start, window)
         assertEquals(100L, OffsetCorrelator.estimate(ref, subs)?.offsetMs)

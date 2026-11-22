@@ -8,6 +8,7 @@ import com.seastreams.tv.domain.playback.TrackOrdering
 import com.seastreams.tv.player.PlayerTracks
 import com.seastreams.tv.player.SeaStreamsPlayerManager
 import com.seastreams.tv.player.subtitle.sync.AutoSyncStatus
+import com.seastreams.tv.player.subtitle.sync.SyncRate
 import com.seastreams.tv.domain.playback.PlayerProgressTracker
 import com.seastreams.tv.player.knownOrZero
 import kotlinx.coroutines.delay
@@ -48,7 +49,7 @@ fun PlayerViewModel.selectSubtitle(option: SubtitleOption?) {
     autoSync.stop()
     autoSync.manualOverride = false
     subtitleChoice = SubtitleChoice.of(option)
-    _state.update { it.copy(selectedSubtitleId = option?.id, subtitleOffsetMs = 0, subtitleSyncStatus = AutoSyncStatus.Off) }
+    _state.update { it.copy(selectedSubtitleId = option?.id, subtitleOffsetMs = 0, subtitleRate = SyncRate.UNIT, subtitleSyncStatus = AutoSyncStatus.Off) }
     PlayerTracks.selectEmbeddedText(manager.player, option?.takeIf { it.source == SubtitleSource.EMBEDDED }?.id)
     subtitles.activate(option, onLoaded = { startAutoSync(it) }) {
         _state.update { it.copy(selectedSubtitleId = null) }
@@ -56,11 +57,15 @@ fun PlayerViewModel.selectSubtitle(option: SubtitleOption?) {
     }
 }
 
-/** HUD `−`/`+`: a manual nudge always wins over auto-sync for the rest of this track. */
+/**
+ * HUD `−`/`+`: a manual nudge always wins over auto-sync for the rest of this track, and is remembered
+ * for it (detection is stopped first, so no auto result can land after the nudge).
+ */
 fun PlayerViewModel.stepSubtitleOffset(direction: Int) {
     autoSync.stop()
     autoSync.manualOverride = true
     _state.update { it.withManualStep(direction) }
+    autoSync.rememberManual(_state.value)
     currentManager()?.let { refreshCue(it) }
 }
 

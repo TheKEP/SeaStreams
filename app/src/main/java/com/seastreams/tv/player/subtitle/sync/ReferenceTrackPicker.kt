@@ -5,17 +5,34 @@ import com.seastreams.tv.domain.playback.SubtitleSource
 import java.util.Locale
 import java.util.MissingResourceException
 
+/**
+ * The embedded track auto-sync times against. [otherLanguage] is its language (ISO 639-2, or `null`
+ * when unknown) when it isn't known to be the external track's language: such a reference needs two
+ * agreeing passes, since a translation splits and merges lines differently.
+ */
+data class ReferencePick(val option: SubtitleOption, val sameLanguage: Boolean) {
+    val otherLanguage: String? get() = if (sameLanguage) null else ReferenceTrackPicker.normalize(option.language) ?: UNKNOWN_LANGUAGE
+
+    private companion object {
+        const val UNKNOWN_LANGUAGE = "other language"
+    }
+}
+
 /** Picks the embedded subtitle track auto-sync may use as a timing reference for an external track. */
 object ReferenceTrackPicker {
 
     /**
      * The first full embedded track in [options] whose language matches [language] (`en`, `eng` and
-     * `en-US` all match). Partial tracks ([isPartial]) are never used: they show only a few cues, so
-     * when nothing else matches this is `null` and auto-sync goes straight to audio.
+     * `en-US` all match); otherwise the first full embedded track of any language (also when [language]
+     * is unknown): a foreign track of the same release still follows the speech far better than audio
+     * voice activity. Partial tracks ([isPartial]) are never used: they show only a few cues, so when
+     * only partial tracks exist this is `null` and auto-sync goes straight to audio.
      */
-    fun pick(language: String?, options: List<SubtitleOption>): SubtitleOption? {
-        val wanted = normalize(language) ?: return null
-        return options.firstOrNull { it.source == SubtitleSource.EMBEDDED && normalize(it.language) == wanted && !isPartial(it) }
+    fun pick(language: String?, options: List<SubtitleOption>): ReferencePick? {
+        val full = options.filter { it.source == SubtitleSource.EMBEDDED && !isPartial(it) }
+        val wanted = normalize(language)
+        wanted?.let { code -> full.firstOrNull { normalize(it.language) == code }?.let { return ReferencePick(it, sameLanguage = true) } }
+        return full.firstOrNull()?.let { ReferencePick(it, sameLanguage = false) }
     }
 
     /**

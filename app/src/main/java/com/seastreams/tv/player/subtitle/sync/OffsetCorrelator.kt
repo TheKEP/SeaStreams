@@ -16,7 +16,7 @@ data class SyncEstimate(
     val zScore: Double,
     /** Cells compared at the best lag. */
     val overlapCells: Int,
-    /** The best lag sits on the `±30.0s` search edge: the true peak may lie beyond it. */
+    /** The best lag sits on the search edge (`±60.0s`, or a local range's edge): the true peak may lie beyond it. */
     val atSearchEdge: Boolean = false,
 )
 
@@ -56,20 +56,27 @@ enum class GateTier(
     FULL(minOverlapCells = 600, minCues = 12, minPeakRatio = 1.5, minZScore = 6.0, minOnsetAgreement = 0.5),
 }
 
-/** What the compared window holds at the found offset: its cues and how well their starts line up. */
-data class WindowEvidence(val cueCount: Int, val onsetAgreement: Double)
+/**
+ * What the compared window holds at the found offset: its cues, how well their starts line up, and
+ * whether both halves of the window independently agree on the offset ([HalfAgreement]; required for
+ * [GateTier.FULL]).
+ */
+data class WindowEvidence(val cueCount: Int, val onsetAgreement: Double, val halvesAgree: Boolean = true)
 
 /** An estimate that passed the gate, and the strictest tier it passed. */
 data class GateResult(val offsetMs: Long, val tier: GateTier)
 
 /**
- * 1D sliding-window cross-correlation of activity grids across `±30.0s` in `0.1s` steps, and the
- * confidence gate deciding whether a result may be applied automatically.
+ * 1D sliding-window cross-correlation of activity grids across `±60.0s` (the HUD's manual range) in
+ * `0.1s` steps, and the confidence gate deciding whether a result may be applied automatically.
  */
 object OffsetCorrelator {
 
-    /** ±30.0 s in 0.1 s cells. */
-    const val MAX_LAG_CELLS = 300
+    /** ±60.0 s in 0.1 s cells. */
+    const val MAX_LAG_CELLS = 600
+
+    /** Offsets beyond ±30.0 s are rarer and easier to hit by chance: they lock on [GateTier.FULL] only. */
+    const val FAR_OFFSET_MS = 30_000L
     /** A cue start "lands on" a reference onset within ±0.3 s. */
     const val ONSET_TOLERANCE_CELLS = 3
 
@@ -80,14 +87,15 @@ object OffsetCorrelator {
     /**
      * Finds the lag where [subtitles] (external cue activity) best matches [reference] (true timing):
      * subtitle cell `t + lag` against reference cell `t`, Pearson-correlated over cells covered in
-     * both. `null` when nothing overlaps.
+     * both, for every lag in [lagCells] (default `±60.0s`). `null` when nothing overlaps.
      */
-    fun estimate(reference: ActivityGrid, subtitles: ActivityGrid): SyncEstimate? {
-        val lags = 2 * MAX_LAG_CELLS + 1
+    fun estimate(reference: ActivityGrid, subtitles: ActivityGrid, lagCells: IntRange = -MAX_LAG_CELLS..MAX_LAG_CELLS): SyncEstimate? {
+        val lags = lagCells.last - lagCells.first + 1
+        if (lags <= 0) return null
         val scores = DoubleArray(lags)
         val overlaps = IntArray(lags)
         for (index in 0 until lags) {
-            val lag = index - MAX_LAG_CELLS
+            val lag = lagCells.first + index
             var n = 0
             var sumR = 0
             var sumS = 0
@@ -116,7 +124,7 @@ object OffsetCorrelator {
         val std = sqrt(background.sumOf { (it - mean) * (it - mean) } / background.size.coerceAtLeast(1))
         val z = (scores[best] - mean) / std.coerceAtLeast(MIN_STD)
         return SyncEstimate(
-            offsetMs = (best - MAX_LAG_CELLS) * (CELL_US / MICROS_PER_MILLI),
+            offsetMs = (lagCells.first + best) * (CELL_US / MICROS_PER_MILLI),
             peak = scores[best],
             secondPeak = secondPeak,
             zScore = z,
@@ -138,7 +146,8 @@ object OffsetCorrelator {
     /**
      * The offset to apply and the strictest tier it passed ([GateTier.FULL] before [GateTier.EARLY]), or
      * `null` when the estimate isn't trustworthy enough (too little overlap or dialogue, a weak,
-     * ambiguous or out-of-range peak), in which case the current offset is left alone. [evidence]
+     * ambiguous or out-of-range peak, halves that disagree), in which case the current offset is left
+     * alone. An offset beyond ±[FAR_OFFSET_MS] needs the full tier. [evidence]
      * describes the external cues inside the compared (covered) window at the found offset.
      */
     fun gate(estimate: SyncEstimate?, profile: GateProfile, evidence: WindowEvidence): GateResult? {
@@ -150,6 +159,8 @@ object OffsetCorrelator {
     fun passes(estimate: SyncEstimate, profile: GateProfile, evidence: WindowEvidence, tier: GateTier): Boolean {
         if (estimate.atSearchEdge || evidence.cueCount < tier.minCues || estimate.overlapCells < tier.minOverlapCells) return false
         if (evidence.onsetAgreement < tier.minOnsetAgreement) return false
+        if (tier == GateTier.FULL && !evidence.halvesAgree) return false
+        if (tier == GateTier.EARLY && abs(estimate.offsetMs) > FAR_OFFSET_MS) return false
         if (estimate.peak < profile.minPeak(tier) || estimate.zScore < tier.minZScore) return false
         return estimate.secondPeak <= 0 || estimate.peak / estimate.secondPeak >= tier.minPeakRatio
     }

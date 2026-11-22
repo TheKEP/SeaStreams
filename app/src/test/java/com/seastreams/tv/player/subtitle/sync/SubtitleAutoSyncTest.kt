@@ -61,13 +61,14 @@ class SubtitleAutoSyncTest {
 
     private class Recorder {
         val detected = mutableListOf<Pair<Long, Long>>() // (time ms, offset)
+        val locks = mutableListOf<SyncLock>()
         val statuses = mutableListOf<AutoSyncStatus>()
     }
 
     private fun TestScope.autoSync(source: AutoSyncSource, recorder: Recorder) = SubtitleAutoSync(
         backgroundScope,
         source,
-        onDetected = { recorder.detected += currentTime to it },
+        onDetected = { recorder.detected += currentTime to it.offsetMs; recorder.locks += it },
         onStatus = { recorder.statuses += it },
         analysis = StandardTestDispatcher(testScheduler),
     )
@@ -156,12 +157,15 @@ class SubtitleAutoSyncTest {
         autoSync(source, recorder).start(shifted(truth, 5_000), referenceTrackId = "0:2")
 
         advanceTimeBy(29_999)
-        assertEquals(listOf<String?>("0:2"), source.referenceCalls)
+        assertEquals(SyncSource.EMBEDDED, (recorder.statuses.last() as AutoSyncStatus.Scanning).source)
         advanceTimeBy(2)
-        assertEquals(listOf<String?>("0:2", null), source.referenceCalls, "handed over at 30 s")
+        assertEquals(SyncSource.AUDIO, (recorder.statuses.last() as AutoSyncStatus.Scanning).source, "handed over at 30 s")
+        // The reference stays on for rate search until audio locks, then is released at once.
+        assertEquals(listOf<String?>("0:2"), source.referenceCalls)
         advanceTimeBy(10_000)
         assertTrue(abs(recorder.detected.first().second - 5_000) <= 200)
         assertEquals(SyncSource.AUDIO, (recorder.statuses.last() as AutoSyncStatus.Locked).source)
+        assertEquals(listOf<String?>("0:2", null), source.referenceCalls)
     }
 
     @Test
@@ -242,7 +246,7 @@ class SubtitleAutoSyncTest {
     }
 
     @Test
-    fun `the reference is a full same-language embedded track, never a partial one`() {
+    fun `the reference prefers a full same-language embedded track, never a partial one`() {
         val options = listOf(
             SubtitleOption("0:1", "English · Forced", "eng", SubtitleSource.EMBEDDED),
             SubtitleOption("0:4", "English (Signs & Songs)", "eng", SubtitleSource.EMBEDDED),
@@ -252,14 +256,21 @@ class SubtitleAutoSyncTest {
             SubtitleOption("0:3", "German", "ger", SubtitleSource.EMBEDDED),
             SubtitleOption("https://x", "English · OpenSubtitles", "eng", SubtitleSource.EXTERNAL),
         )
-        assertEquals("0:2", ReferenceTrackPicker.pick("eng", options)?.id)
-        assertEquals("0:2", ReferenceTrackPicker.pick("en-US", options)?.id)
-        assertEquals("0:3", ReferenceTrackPicker.pick("de", options)?.id)
-        assertNull(ReferenceTrackPicker.pick("en", options.filter { it.id != "0:2" }), "only partial English tracks: use audio")
+        assertEquals("0:2", ReferenceTrackPicker.pick("eng", options)?.option?.id)
+        assertEquals("0:2", ReferenceTrackPicker.pick("en-US", options)?.option?.id)
+        assertEquals(true, ReferenceTrackPicker.pick("eng", options)?.sameLanguage)
+        assertEquals("0:3", ReferenceTrackPicker.pick("de", options)?.option?.id)
+        // No full English track: the German one still times the dialogue better than audio would.
+        val noEnglish = ReferenceTrackPicker.pick("en", options.filter { it.id != "0:2" })
+        assertEquals("0:3", noEnglish?.option?.id)
+        assertEquals("deu", noEnglish?.otherLanguage)
         listOf("0:1", "0:4", "0:5", "0:6").forEach { id -> assertTrue(ReferenceTrackPicker.isPartial(options.first { it.id == id }), id) }
-        assertNull(ReferenceTrackPicker.pick("fr", options))
-        assertNull(ReferenceTrackPicker.pick(null, options))
-        assertNull(ReferenceTrackPicker.pick("und", options))
+        listOf("fr", null, "und").forEach { language ->
+            val pick = ReferenceTrackPicker.pick(language, options)
+            assertEquals("0:2", pick?.option?.id, "$language")
+            assertEquals(false, pick?.sameLanguage)
+        }
+        assertNull(ReferenceTrackPicker.pick("en", options.filter { it.id != "0:2" && it.id != "0:3" }), "only partial tracks: use audio")
     }
 
     @Test
