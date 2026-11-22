@@ -150,4 +150,25 @@ class ProviderWorkerPoolTest {
         assertEquals(0, pool.openConnections)
         assertTrue(pool.stat(file.segments[0].messageId, FetchPriority.LOW).await(5_000), "a new slot opens on demand")
     }
+
+    @Test
+    fun `an invalid message ID fails at once without opening a connection`() {
+        val pool = pool(server.endpoint())
+        val error = assertThrows<NntpException> { pool.body("bad id@t", 1, FetchPriority.HIGH).await(1_000) }
+        assertEquals(NntpErrorKind.PROTOCOL, error.kind)
+        assertEquals(0, server.accepted.get())
+    }
+
+    @Test
+    fun `a result that arrives after the caller cancelled is discarded`() {
+        val pool = pool(server.endpoint())
+        val outer = NntpFuture<String>()
+        val inner = NntpFuture<String>()
+        val discarded = ArrayList<String>()
+        // The race: the answer lands (inner done), then the caller cancels before failover's listener runs.
+        inner.onDone { outer.cancel() }
+        ProviderSelector(clock).failover(outer, "a@t", listOf(pool), discarded::add) { inner }
+        inner.complete("late")
+        assertEquals(listOf("late"), discarded)
+    }
 }

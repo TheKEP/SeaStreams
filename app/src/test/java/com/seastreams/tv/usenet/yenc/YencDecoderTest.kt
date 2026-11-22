@@ -1,6 +1,7 @@
 package com.seastreams.tv.usenet.yenc
 
 import com.seastreams.tv.testutil.YencTestEncoder
+import com.seastreams.tv.usenet.nntp.NntpException
 import com.seastreams.tv.usenet.nntp.NntpReader
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -130,5 +131,13 @@ class YencDecoderTest {
         assertEquals(false, segment.copyTo(0, ByteArray(10), 0, 10))
         val reused = pool.acquire(70_000)
         assertTrue(reused.size >= 70_000)
+    }
+
+    @Test
+    fun `a body cut off mid-article returns its buffer to the pool`() {
+        val body = YencTestEncoder.encode(Random(3).nextBytes(5_000), lineLength = 128)
+        val cut = body.copyOf(body.size / 2)
+        assertThrows<NntpException> { decoder.decode(NntpReader.of(cut), null, true) }
+        assertTrue(pool.pooledBytes() > 0, "the half-filled buffer went back to the pool")
     }
 }

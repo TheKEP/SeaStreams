@@ -1,6 +1,7 @@
 package com.seastreams.tv.usenet.cache
 
 import com.seastreams.tv.core.cache.ManagedCache
+import com.seastreams.tv.core.util.daemonExecutor
 import com.seastreams.tv.usenet.nntp.FetchPriority
 import com.seastreams.tv.usenet.nntp.SegmentFetch
 import com.seastreams.tv.usenet.nntp.SegmentSource
@@ -10,10 +11,8 @@ import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoSet
+import java.io.IOException
 import java.util.concurrent.Executor
-import java.util.concurrent.LinkedBlockingQueue
-import java.util.concurrent.ThreadPoolExecutor
-import java.util.concurrent.TimeUnit
 
 /**
  * Puts the [SegmentDiskCache] in front of [network] (normally the `NntpEngine`): a lookup runs on [readers]
@@ -30,7 +29,12 @@ class CachedSegmentSource(
         val outer = SegmentFetch()
         readers.execute {
             if (outer.isDone) return@execute
-            val cached = disk.get(messageId, pool, part)
+            // A lookup that throws (a bug, not a miss) must still settle the fetch: a reader may await it unbounded.
+            val cached = try {
+                disk.get(messageId, pool, part)
+            } catch (e: RuntimeException) {
+                null
+            }
             if (cached != null) {
                 if (!outer.complete(cached)) cached.release()
                 return@execute
@@ -39,11 +43,12 @@ class CachedSegmentSource(
             outer.onDone { if (it.cancelled) inner.cancel() }
             inner.onDone { done ->
                 val segment = done.result
-                if (segment != null) {
+                if (segment == null) {
+                    outer.fail(done.failure ?: IOException("The article couldn't be fetched"))
+                } else if (outer.complete(segment)) {
                     disk.putAsync(messageId, segment)
-                    outer.complete(segment)
                 } else {
-                    outer.fail(done.failure ?: java.io.IOException("The article couldn't be fetched"))
+                    segment.release() // cancelled while it arrived: nobody owns it
                 }
             }
         }
@@ -51,9 +56,7 @@ class CachedSegmentSource(
     }
 
     private companion object {
-        fun defaultReaders(): Executor = ThreadPoolExecutor(2, 2, 30, TimeUnit.SECONDS, LinkedBlockingQueue()) {
-            Thread(it, "nntp-cache-reader").apply { isDaemon = true }
-        }.apply { allowCoreThreadTimeOut(true) }
+        fun defaultReaders(): Executor = daemonExecutor(2, "nntp-cache-reader")
     }
 }
 

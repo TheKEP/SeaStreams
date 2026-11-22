@@ -21,6 +21,9 @@ class WarmConnections(
     private val held = HashMap<String, ArrayDeque<Held>>()
     private val opening = HashMap<String, Int>()
     private var settings = NntpEngineSettings()
+
+    /** Fingerprints still configured ([retain]); `null` = no filter yet. Dials or pings finishing for others close. */
+    private var wanted: Set<String>? = null
     private var sweeper: ScheduledExecutorService? = null
     private var closed = false
 
@@ -83,15 +86,16 @@ class WarmConnections(
                 continue
             }
             entry.pingedAt = clock()
-            synchronized(this) {
-                if (closed) entry.connection.close() else held.getOrPut(entry.connection.endpoint.fingerprint) { ArrayDeque() }.addLast(entry)
-            }
+            val key = entry.connection.endpoint.fingerprint
+            val keep = synchronized(this) { holdLocked(key) && held.getOrPut(key) { ArrayDeque() }.add(entry) }
+            if (!keep) entry.connection.close()
         }
     }
 
     /** Closes the warm connections of providers whose fingerprint is not in [keep]. */
     fun retain(keep: Set<String>) {
         val dropped = synchronized(this) {
+            wanted = keep
             val gone = held.keys.filter { it !in keep }
             gone.flatMap { held.remove(it).orEmpty().map(Held::connection) }
         }
@@ -115,18 +119,17 @@ class WarmConnections(
             NntpConnection.connect(endpoint, settings, opener, clock)
         } catch (e: java.io.IOException) {
             null // No warm connection then: the pool signs in as usual.
+        } finally {
+            synchronized(this) { opening[key] = ((opening[key] ?: 1) - 1).coerceAtLeast(0) }
         }
-        synchronized(this) {
-            opening[key] = ((opening[key] ?: 1) - 1).coerceAtLeast(0)
-            if (connection == null) return
-            if (closed) {
-                connection.close()
-                return
-            }
-            val now = clock()
-            held.getOrPut(key) { ArrayDeque() }.addLast(Held(connection, now, now))
-        }
+        if (connection == null) return
+        val now = clock()
+        val keep = synchronized(this) { holdLocked(key) && held.getOrPut(key) { ArrayDeque() }.add(Held(connection, now, now)) }
+        if (!keep) connection.close()
     }
+
+    /** Whether a connection for [key] may be held: not closed, and the provider is still configured. */
+    private fun holdLocked(key: String): Boolean = !closed && wanted?.contains(key) != false
 
     private fun startSweeperLocked() {
         if (sweeper != null) return

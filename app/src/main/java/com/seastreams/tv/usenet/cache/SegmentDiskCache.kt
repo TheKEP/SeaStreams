@@ -2,6 +2,8 @@ package com.seastreams.tv.usenet.cache
 
 import com.seastreams.tv.core.cache.CacheDirProvider
 import com.seastreams.tv.core.cache.ManagedCache
+import com.seastreams.tv.core.util.daemonExecutor
+import com.seastreams.tv.core.util.sha1Hex
 import com.seastreams.tv.usenet.yenc.DecodedSegment
 import com.seastreams.tv.usenet.yenc.SegmentBufferPool
 import java.io.BufferedOutputStream
@@ -14,11 +16,7 @@ import java.nio.channels.SeekableByteChannel
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.nio.file.StandardOpenOption
-import java.security.MessageDigest
 import java.util.concurrent.Executor
-import java.util.concurrent.LinkedBlockingQueue
-import java.util.concurrent.ThreadPoolExecutor
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -194,7 +192,12 @@ class SegmentDiskCache internal constructor(
         val nameBuffer = ByteBuffer.allocate(nameLength)
         if (!fill(channel, nameBuffer)) return null
         val data = pool.acquire(length)
-        if (!fill(channel, ByteBuffer.wrap(data, 0, length))) {
+        val filled = try {
+            fill(channel, ByteBuffer.wrap(data, 0, length))
+        } catch (e: IOException) {
+            false
+        }
+        if (!filled) {
             pool.recycle(data)
             return null
         }
@@ -218,11 +221,8 @@ class SegmentDiskCache internal constructor(
         private const val MAX_NAME = 255
         private const val MAX_SEGMENT = 16 * 1024 * 1024
 
-        fun keyOf(messageId: String): String =
-            MessageDigest.getInstance("SHA-1").digest(messageId.toByteArray()).joinToString("") { "%02x".format(it) }
+        fun keyOf(messageId: String): String = sha1Hex(messageId)
 
-        private fun defaultWriter(): Executor = ThreadPoolExecutor(1, 1, 30, TimeUnit.SECONDS, LinkedBlockingQueue()) {
-            Thread(it, "nntp-cache-writer").apply { isDaemon = true }
-        }.apply { allowCoreThreadTimeOut(true) }
+        private fun defaultWriter(): Executor = daemonExecutor(1, "nntp-cache-writer")
     }
 }

@@ -1,5 +1,6 @@
 package com.seastreams.tv.usenet.nzb
 
+import com.seastreams.tv.core.util.toHex
 import java.security.MessageDigest
 
 /**
@@ -153,7 +154,7 @@ object NzbParser {
     private fun key(files: List<NzbFile>): String {
         val digest = MessageDigest.getInstance("SHA-1")
         files.flatMap { file -> file.segments.map { it.messageId } }.toSortedSet().forEach { digest.update("$it\n".toByteArray()) }
-        return digest.digest().joinToString("") { "%02x".format(it) }
+        return digest.digest().toHex()
     }
 
     /** `<name` followed by whitespace, `/` or `>` (so `<segments>` never matches `segment`). */

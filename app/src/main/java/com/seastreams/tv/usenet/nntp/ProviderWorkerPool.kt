@@ -79,6 +79,8 @@ class ProviderWorkerPool(
     fun submit(request: ArticleRequest) {
         val rejection: IOException? = synchronized(lock) {
             when {
+                // Refused here rather than on the wire, where it would kill the worker thread and its connection.
+                !isValidMessageId(request.messageId) -> NntpException(NntpErrorKind.PROTOCOL, "Invalid message ID")
                 state == State.CLOSED -> NntpException(NntpErrorKind.NO_PROVIDERS, "${endpoint.name} is closed")
                 state == State.AUTH_FAILED -> lastError ?: authFailed()
                 breaker.isOpen() -> resting()

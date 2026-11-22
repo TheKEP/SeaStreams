@@ -166,4 +166,19 @@ class NntpEngineTest {
         slow.cancel()
         assertEquals(0, engine.downloadPermits().waiting)
     }
+
+    @Test
+    fun `a warm dial that finishes after its provider was removed is closed`() {
+        val pending = ArrayList<Runnable>()
+        val warm = WarmConnections(clock = { now.get() }, dialer = { pending += it })
+        val endpoint = primary.endpoint("P")
+        warm.warm(endpoint, 1, settings)
+        warm.retain(emptySet())
+        pending.forEach(Runnable::run)
+        assertEquals(0, warm.heldCount(endpoint))
+        warm.retain(setOf(endpoint.fingerprint))
+        warm.warm(endpoint, 1, settings)
+        assertEquals(2, pending.size, "the finished dial released its opening slot")
+        warm.close()
+    }
 }
