@@ -26,14 +26,17 @@ sealed interface PortalStatus {
  * Embedded Ktor CIO server exposing the Web Portal on the LAN (all interfaces, port [DEFAULT_PORT]).
  *
  * [start]/[stop] are idempotent and blocking (binding a socket), so call them off the main thread.
- * The [PortalController] graph (repositories, HTTP client, disk cache) is resolved lazily on that
+ * The [PortalController] / [PortalUsenetController] graphs (repositories, HTTP client, disk cache) are resolved lazily on that
  * same off-main path, so injecting this server into an Activity stays cheap.
  */
 @Singleton
-class LocalPortalServer @Inject constructor(private val controller: Lazy<PortalController>) {
+class LocalPortalServer @Inject constructor(
+    private val controller: Lazy<PortalController>,
+    private val usenet: Lazy<PortalUsenetController>,
+) {
 
-    /** Test/composition convenience for an already-built controller. */
-    constructor(controller: PortalController) : this(Lazy { controller })
+    /** Test/composition convenience for already-built controllers. */
+    constructor(controller: PortalController, usenet: PortalUsenetController) : this(Lazy { controller }, Lazy { usenet })
 
     private val lock = Any()
     private var server: EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration>? = null
@@ -56,7 +59,7 @@ class LocalPortalServer @Inject constructor(private val controller: Lazy<PortalC
     /** Starts the server if needed and returns the bound port, or `null` if binding failed. */
     fun start(port: Int = DEFAULT_PORT, host: String = ALL_INTERFACES): Int? = synchronized(lock) {
         (_status.value as? PortalStatus.Running)?.let { return it.port }
-        val candidate = embeddedServer(CIO, port = port, host = host) { portalModule(controller.get()) }
+        val candidate = embeddedServer(CIO, port = port, host = host) { portalModule(controller.get(), usenet.get()) }
         return try {
             candidate.start(wait = false)
             val bound = runBlocking { candidate.engine.resolvedConnectors().first().port }

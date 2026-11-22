@@ -243,6 +243,159 @@
 ---
 
 
+## Milestone 7: Sources Foundation — Usenet Providers, Indexers, Request Headers & Performance Profiles (`feat/usenet-sources`)
+**Prompt for Claude Code:**
+> Read `CLAUDE.md`, `PRD.md` (§8, §11 `Sources`, §12), and `ARCHITECTURE.md` (§1, §10). Execute **Milestone 7** (configuration only, no streaming):
+> 1. **Room v7:**
+>    - Add the app-wide `UsenetProviderEntity` (`usenet_providers`) and `NewznabIndexerEntity` (`newznab_indexers`) with their DAOs.
+>    - Add `UsenetSourcesMigration` (6→7, Room's exported createSql verbatim) and `app/schemas/…/7.json`.
+>    - Register both in `DatabaseModule`.
+> 2. **Secrets:** add `core/security/SecretCipher.kt`, an Android Keystore AES-256-GCM cipher behind an interface. Passwords and API keys are stored only encrypted.
+> 3. **Repository:** add `data/usenet/UsenetSourcesRepository.kt` (CRUD, enable, move, remove, validation, CR/LF rejection, blank secret keeps the stored one).
+> 4. **Presets:** add `presets/UsenetProviderPresets.kt` (29 providers) and `presets/IndexerPresets.kt`.
+> 5. **Headers:** add `headers/RequestHeaderPresets.kt` and `headers/HeaderVersionUpdater.kt` (GitHub `releases/latest`, ≤ once per 24 h, Update now).
+> 6. **Settings model:** add `domain/usenet/UsenetPerformance.kt` (profiles, Custom on edit, clamps) and `core/datastore/UsenetSettingsStore.kt`.
+> 7. **Settings UI:**
+>    - Add `SettingsCategory.SOURCES` (7 tabs, still Home ⇄ Other).
+>    - Add `ui/screens/settings/sources/`: rows, providers/indexers panels, performance panel, header choices, `SourcesViewModel`.
+> 8. **Portal:** add `PortalUsenetRoutes` + `PortalUsenetScript` (secrets never returned).
+> 9. **Startup:** call `HeaderVersionUpdater.checkIfDue()` from `SeaStreamsApp`.
+> 10. **Tests:**
+>     - migration (sqlite-jdbc);
+>     - repository validation;
+>     - cipher round-trip (fake);
+>     - presets sanity;
+>     - updater (24 h gate, `v` strip, bad tags ignored, failure keeps last);
+>     - profile templates / Custom / clamps / JSON round-trip;
+>     - Sources rows and order;
+>     - tab bar width ≤ 848 dp;
+>     - portal routes (secrets masked, blank keeps).
+>
+> Run `./gradlew testDebugUnitTest` and `./gradlew assembleDebug`.
+
+**Acceptance Criteria:**
+- `Settings` shows seven tabs, `Home`…`Subtitles`, `Sources`, `Other`, on one row at 960×540 dp. A fresh `Left`/`Right` wraps `Home` ⇄ `Other`.
+- `Sources` rows: `Usenet providers`, `Indexers`, `Search request headers`, `Download request headers`, `Update header versions`, `Usenet performance`, `Web portal`.
+- Providers and indexers added from the Web Portal (presets prefill host/port or API URL) appear on TV at once.
+- On TV a provider or indexer can be enabled/disabled, moved and removed. The panels follow the Manage addons focus rules (two-way wrap, keep focus on `Remove`, `Back` → opening row).
+- Passwords and API keys are stored encrypted and are never returned by `/api/usenet`.
+- Picking `Conservative`/`Balanced`/`High` fills every PRD §12 value. Stepping or toggling any value switches the profile to `Custom`. Values persist across restarts and are the same on every profile.
+- The header rows show `Prowlarr 2.7.0.5723` / `SABnzbd 5.1.3` until a check succeeds. `Update header versions` refreshes them, and an automatic check runs at most once per 24 h.
+
+---
+
+## Milestone 8: NNTP Engine Core — Connections, Pipelining, yEnc, NZB, Read-Ahead & Bounded Segment Cache
+**Prompt for Claude Code:**
+> Read `CLAUDE.md`, `PRD.md` §12 and `ARCHITECTURE.md` §3 and §10. Use `C:\Users\Ken\Downloads\Nabrio\pov-rajput-android-tv` (`dev/pov/tv/usenet/`) and `C:\Users\Ken\Downloads\AIOStreams\AIOStreams` (`packages/core/src/usenet/`) as references. Execute **Milestone 8** (pure JVM engine, no player wiring):
+> 1. **`usenet/nntp/`:**
+>    - `NntpConnection` (TLS, auth classification, pipelined BODY/STAT/DATE), `NntpReader`, `NntpErrors`, `SegmentFetch`.
+>    - `ProviderWorkerPool` (lazy slots, HIGH/LOW priority share, AIMD connection-limit throttle, idle TTL), `ProviderSelector` (priority groups → backups, negative cache), `CircuitBreaker`, `ConnectionThrottle`, `WarmConnections`, `PrioritySemaphore`.
+>    - `NntpEngine` (registry keyed by provider fingerprint) and `NntpConnectionTester` (the provider `Test` button on TV and in the portal).
+> 2. **`usenet/yenc/`:** `YencDecoder` (single pass, pooled output, pcrc32 / single-part crc32, `wrong_part`) and `SegmentBufferPool`.
+> 3. **`usenet/nzb/`:** `NzbParser` (`indexOf` scanner, message-ID guard, password, backfill, per-article merge, SHA-1 key), `NzbModels`, `SubjectNames`.
+> 4. **`usenet/stream/`:** `UsenetFile` (size discovery, random access), `SegmentLocator`, `ReadAheadWindow` (profile window, heap clamp, head/tail pins), `SegmentArena`.
+> 5. **`usenet/cache/`:** `SegmentDiskCache` + `SegmentCacheIndex` (byte-bounded LRU, profile cap ∩ 25% free ∩ ≥ 2 GB left), `NzbFileCache`.
+> 6. **`CacheManager`:** add `ManagedCache` and add `nntp_segments`/`nntp_nzb` to `MANAGED_DIRS`.
+> 7. **Tests**, using a new `testutil/FakeNntpServer` (real localhost socket, yEnc encoder, 430/481/482/502, stall and CRC-corrupt modes):
+>    - auth classification; pipelining FIFO at depths 1–16;
+>    - pool limits / AIMD / breaker (virtual time); failover order and negative cache;
+>    - yEnc vectors; NZB parser edge cases; locator with uneven parts;
+>    - read-ahead cancel on seek; interrupt → `InterruptedIOException`;
+>    - arena LRU; disk cache caps and clear-while-reading; `CacheManager` integration.
+>
+> Run `./gradlew testDebugUnitTest` and `./gradlew assembleDebug`.
+
+**Acceptance Criteria:**
+- Random-access reads over an NZB file are byte-exact.
+- A 430 fails over to a backup provider, and 482/502 throttles connections instead of failing the account.
+- The circuit breaker rests a failing provider. Warm connections are reused.
+- The segment cache never exceeds its cap or the free-space guard. `Clear cache` empties it; the orphan sweep never deletes it.
+- The provider `Test` button reports success / bad login / connection limit / unreachable.
+
+---
+
+## Run audits after every 2 milestones
+**Prompt for Claude Code:**
+> Perform a strict codebase audit. Check for: (1) any file exceeding 300 lines that should be split, (2) duplicated logic, (3) any network/disk calls on the Main thread, (4) memory leaks in ExoPlayer, NNTP sockets/worker threads or Ktor server lifecycles, and (5) unused dependencies or dead code. Output a prioritized list of fixes, then execute them and verify ./gradlew testDebugUnitTest passes.
+
+---
+
+## Milestone 9: Indexer Search, Archives, Verification & Usenet Playback (ExoPlayer + External Players)
+**Prompt for Claude Code:**
+> Read `CLAUDE.md`, `PRD.md` §12 and `ARCHITECTURE.md` §10. Execute **Milestone 9**:
+> 1. **`data/usenet/newznab/`:**
+>    - `NewznabClient`: caps cached 14 d; `t=movie&imdbid`, `t=tvsearch&imdbid&season&ep`, `cat` 2000/5000, `extended=1`, `q=` fallback; error codes 100–104.
+>    - `NewznabXmlScanner`.
+>    - `NzbGrabber`: Download headers, `maxNzbSize`, must contain `<segment`.
+>    - `UsenetStreamSearch`: priority tiers, backup-only indexers last, `maxConcurrentImports`.
+>    - `ReleaseMatch`: year / SxxEyy.
+>    - Indexer `Test` (caps) on TV and in the portal.
+> 2. **`usenet/archive/`:** stored RAR4/RAR5, every volume header parsed (lazily when enabled), `.partNN`/`.rNN`/`.s00–.z99` naming, duplicate collapse, obfuscated ordering via yEnc `name=`, `.001` splits, `MediaSelector` (largest video; sample/proof < 5% excluded; par2/nfo/sfv ignored). Refuse compressed, encrypted and 7z sets.
+> 3. **`usenet/verify/`:** census STAT on pooled LOW connections, `verifyBudgetMs`, content sniff, `DamagePolicy`, `HoleFiller` (≤ 4 / ≤ 64 / ≤ 2%), `MatroskaHoleRepair` (EBML Void), `ReleaseHealthCache`.
+> 4. **`usenet/session/`:** `UsenetSessionRegistry` (≤ 4 sessions, stream idle reaper), `UsenetSessionOpener`, `UsenetStreamRegistry` (token → grab descriptor; no API keys in URLs).
+> 5. **`player/usenet/`:** `NntpDataSource`, `PlaybackDataSources` (scheme routing, called from `SeaStreamsPlayerManager.playStream`), `UsenetLoadErrorPolicy`.
+> 6. **External players:**
+>    - `core/webserver/NntpProxyRoutes` + `ByteRange`: loopback-only `GET/HEAD /nntp/{token}/{name}`, 206/416.
+>    - `LocalPortalServer` lease, plus a lease check in `MainActivity.onStop`.
+>    - `player/external/NntpProxyService` (foreground `mediaPlayback`, manifest permissions) and `ExternalStreamUrls` (rewrite + head warm-up, called from `PlaybackViewModel.start`).
+> 7. **Hooks:**
+>    - `ResolveStreamsUseCase` adds the built-in `Usenet` stream addon (after Stremio addons; only when ≥ 1 provider and ≥ 1 indexer are enabled).
+>    - `StremioResources` parses `nzbUrl` + `servers` streams.
+> 8. **Tests:**
+>    - Newznab fixtures and query building, tiers and headers;
+>    - RAR4/RAR5 builders, naming, refusal, obfuscation;
+>    - census strict/tolerant, hole limits, MKV Void bytes;
+>    - `NntpDataSource` open/read/seek;
+>    - proxy ranges / loopback-only / 404, lease across `onStop`;
+>    - resolve use case shows the Usenet card only when configured;
+>    - LAST USED on Usenet streams.
+>
+> Run `./gradlew testDebugUnitTest` and `./gradlew assembleDebug`.
+
+**Acceptance Criteria:**
+- A title with configured sources lists releases under a `Usenet` card, and they play in ExoPlayer: plain files, stored RAR sets (incl. obfuscated and `.sNN` rollover) and `.001` splits.
+- Non-streamable releases are dropped and failover moves on. Census catches broken releases.
+- Seeking inside the cache is instant.
+- Just Player, Vimu and Kodi play via `127.0.0.1:8765` while SeaStreams is backgrounded. LAN clients get `403` on `/nntp/*`.
+- Auto-play, failover and LAST USED work for Usenet streams.
+
+---
+
+## Milestone 10: Stream Filtering, Sorting & Formatter (AIOStreams-style, per profile)
+**Prompt for Claude Code:**
+> Read `CLAUDE.md`, `PRD.md` §13 and `ARCHITECTURE.md` §11, and inspect `docs/ui-references/aio-filters.png`, `aio-sorting.png` and `aio-formatter.png`. Use AIOStreams `packages/core/src/{parser,streams,formatters}` as the reference. Execute **Milestone 10**:
+> 1. **`domain/streams/parse/`:** `ReleaseRegexTables`, `LanguageTable`, `ReleaseParser`, `ParsedStream`.
+> 2. **`filter/`:** `StreamFilterEngine` (include override; required / excluded / preferred per attribute; language any/all; keywords; regex with the `n` negate flag; seeders; age; size per resolution for movies/series; bitrate; result limits), `KeywordMatcher`, `SizeBitrateRules`, `StreamDeduplicator`.
+> 3. **`sort/StreamSorter`:** Global/Movies/Series/Anime lists, per-criterion direction, preferred-index keys.
+> 4. **`format/`:** template lexer / parser / AST / renderer / modifiers / fields, plus `PredefinedFormatters` (Torrentio, GDrive, Light GDrive, Minimalistic GDrive, Prism, Custom).
+> 5. **`ProcessStreamsUseCase`**, run inside `ResolveStreamsUseCase` before `topStream`. `StreamSource.parsed`/`display`; the raw `label`/`description` are kept for LAST USED.
+> 6. **Settings storage:** per-profile ScopedKeys `stream_filters`, `stream_sort`, `stream_formatter` (JSON; defaults = no change).
+> 7. **Sources rows:** `Stream filters`, `Stream sorting`, `Stream formatter` (`MultiChoicePanel`, sort order with Move up/down + direction, formatter picker + preview).
+> 8. **Portal:** `PortalStreamRoutes` / `PortalStreamScript` (regex, keywords, sizes, custom templates + `/api/streams/format-preview`).
+> 9. **Tests:**
+>    - parser fixtures;
+>    - each filter's semantics;
+>    - dedupe;
+>    - sorter;
+>    - formatter (the `aio-formatter.png` preview as a golden test);
+>    - raw label preserved;
+>    - per-profile isolation.
+>
+> Run `./gradlew testDebugUnitTest` and `./gradlew assembleDebug`.
+
+**Acceptance Criteria:**
+- `Movie.Title.2023.2160p.BluRay.HEVC.DV.TrueHD.Atmos.7.1.iTA.ENG-GROUP.mkv` renders exactly like the `aio-formatter.png` preview.
+- Excluded resolutions disappear and preferred ones sort first. Auto-play, failover and Addons counts follow the processed list.
+- One profile's filters never affect another's. Every new panel follows the D-pad wrap / Back / KeyUp rules.
+
+---
+
+## Run audits after every 2 milestones
+**Prompt for Claude Code:**
+> Perform a strict codebase audit. Check for: (1) any file exceeding 300 lines that should be split, (2) duplicated logic, (3) any network/disk calls on the Main thread, (4) memory leaks in ExoPlayer, NNTP sockets/worker threads or Ktor server lifecycles, and (5) unused dependencies or dead code. Output a prioritized list of fixes, then execute them and verify ./gradlew testDebugUnitTest passes.
+
+---
+
 ## Post-Launch Workflow (Every new feature or change)
 1. Create a Git Branch First: Before making any changes to a working app, tell Claude Code:
 

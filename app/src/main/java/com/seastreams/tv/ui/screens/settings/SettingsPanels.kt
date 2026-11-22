@@ -207,7 +207,7 @@ fun PortalPanel(link: PortalLink?, onDone: () -> Unit) {
 }
 
 @Composable
-private fun RoundIconButton(icon: ImageVector, description: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+internal fun RoundIconButton(icon: ImageVector, description: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         modifier = modifier.size(46.dp),
@@ -220,7 +220,7 @@ private fun RoundIconButton(icon: ImageVector, description: String, modifier: Mo
 }
 
 @Composable
-private fun PanelColumn(
+internal fun PanelColumn(
     title: String,
     listState: LazyListState = rememberLazyListState(),
     content: LazyListScope.() -> Unit,

@@ -30,7 +30,7 @@ import com.seastreams.tv.ui.theme.tryRequestFocus
 
 /**
  * The Settings Category Tab Bar (`settings-top-nav.jpg`): a centred translucent pill container
- * holding `Home`, `UI`, `Playback`, `Audio`, `Subtitles`, `Other`. Moving focus onto a tab selects
+ * holding `Home`, `UI`, `Playback`, `Audio`, `Subtitles`, `Sources`, `Other`. Moving focus onto a tab selects
  * it at once. `Home` ⇄ `Other` wrap on a fresh `Left`/`Right` (held keys stop, §1); `Up` is
  * consumed (the main nav bar is hidden here); `Down` runs [onDown] (focus the list's first row).
  * While [focusable] is false (a sub-panel is open) no tab can take focus.

@@ -7,7 +7,11 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.seastreams.tv.core.datastore.PlayerSettings
 import com.seastreams.tv.core.datastore.SettingsDataStore
+import com.seastreams.tv.data.usenet.headers.HeaderUse
 import com.seastreams.tv.ui.components.SeaIcons
+import com.seastreams.tv.ui.screens.settings.sources.SourcesUiState
+import com.seastreams.tv.ui.screens.settings.sources.sourcesItems
+import java.time.ZoneId
 
 /** One entry of a Settings category list. */
 sealed interface SettingsItem {
@@ -44,6 +48,15 @@ sealed interface SettingsPanel {
     data object Portal : SettingsPanel
 
     data object SubtitleStyle : SettingsPanel
+
+    data object UsenetProviders : SettingsPanel
+
+    data object UsenetIndexers : SettingsPanel
+
+    data object UsenetPerformance : SettingsPanel
+
+    /** Search / Download request header picker (PRD §12). */
+    data class Headers(val use: HeaderUse) : SettingsPanel
 }
 
 enum class ChoiceKind {
@@ -67,6 +80,8 @@ class SettingsCallbacks(
     val undoClear: () -> Unit,
     val clearCache: () -> Unit,
     val openProfiles: () -> Unit,
+    /** `Sources → Update header versions`. */
+    val updateHeaders: () -> Unit = {},
 )
 
 /**
@@ -81,12 +96,16 @@ fun settingsItems(
     clearSecondsLeft: Int?,
     cacheBytes: Long?,
     cb: SettingsCallbacks,
+    sources: SourcesUiState = SourcesUiState(),
+    nowMillis: Long = System.currentTimeMillis(),
+    zone: ZoneId = ZoneId.systemDefault(),
 ): List<SettingsItem> = when (category) {
     SettingsCategory.HOME -> homeItems(state, cb)
     SettingsCategory.UI -> uiItems(state, swatchesOpen, cb)
     SettingsCategory.PLAYBACK -> playbackItems(state, cb)
     SettingsCategory.AUDIO -> audioItems(state, cb)
     SettingsCategory.SUBTITLES -> subtitleItems(state, cb)
+    SettingsCategory.SOURCES -> sourcesItems(sources, cb, nowMillis, zone)
     SettingsCategory.OTHER -> otherItems(clearSecondsLeft, cacheBytes, cb)
 }
 

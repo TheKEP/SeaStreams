@@ -13,7 +13,7 @@ object PortalHtmlTemplate {
         val avatars = ProfileAvatar.entries.joinToString(",", "[", "]") { "{\"g\":\"${it.glyph}\",\"c\":\"${it.cssColor}\"}" }
         return HTML
             .replace("/*AVATARS*/", "window.AVATARS = $avatars;")
-            .replace("/*SCRIPT*/", PortalScript.JS)
+            .replace("/*SCRIPT*/", PortalScript.JS + "\n" + PortalUsenetScript.JS)
     }
 
     private val HTML = """
@@ -43,7 +43,7 @@ form { display: grid; gap: 10px; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .row > .grow { flex: 1 1 180px; min-width: 0; }
 label.field { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
-input[type=text], input[type=url], select {
+input[type=text], input[type=url], input[type=password], input[type=number], select {
   width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line);
   border-radius: 10px; padding: 11px 12px; font: inherit; min-width: 0; }
 input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -73,6 +73,10 @@ ul.list li.disabled .title { color: var(--muted); text-decoration: line-through;
 .avatars input:focus-visible + .avatar { outline: 3px dashed var(--accent); outline-offset: 2px; }
 .kids-only[hidden] { display: none; }
 .empty { color: var(--muted); font-size: 14px; margin: 12px 0 0; }
+#sources h3 { margin: 18px 0 0; font-size: 16px; }
+#sources details { margin-top: 10px; }
+#sources summary { cursor: pointer; color: var(--muted); }
+.perf-grid { display: grid; gap: 8px; margin-top: 8px; }
 #toast { position: fixed; left: 16px; right: 16px; bottom: max(16px, env(safe-area-inset-bottom));
   max-width: 560px; margin: 0 auto; padding: 12px 16px; border-radius: 12px; background: var(--surface-2);
   border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(0,0,0,.4); opacity: 0;
@@ -135,6 +139,8 @@ ul.list li.disabled .title { color: var(--muted); text-decoration: line-through;
     </form>
     <ul class="list" id="addon-list"></ul>
   </section>
+
+  <section id="sources"></section>
 
   <section id="import">
     <h2>Import a list into a Library</h2>
