@@ -6,7 +6,9 @@ import com.seastreams.tv.data.usenet.UsenetSourcesRepository
 import com.seastreams.tv.data.usenet.headers.HeaderPreset
 import com.seastreams.tv.data.usenet.headers.HeaderVersionUpdater
 import com.seastreams.tv.domain.usenet.UsenetProfile
+import com.seastreams.tv.usenet.nntp.NntpConnectionTester
 import com.seastreams.tv.testutil.FakeNewznabIndexerDao
+import com.seastreams.tv.testutil.FakeNntpServer
 import com.seastreams.tv.testutil.FakeSecretCipher
 import com.seastreams.tv.testutil.FakeUsenetProviderDao
 import io.ktor.client.HttpClient
@@ -59,7 +61,7 @@ class PortalUsenetRoutesTest {
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         store = UsenetSettingsStore(PreferenceDataStoreFactory.create(scope = scope) { File(dir, "s.preferences_pb") })
         val repository = UsenetSourcesRepository(providerDao, indexerDao, cipher, Dispatchers.IO)
-        portal = LocalPortalServer(mockk<PortalController>(relaxed = true), PortalUsenetController(repository, store, updater))
+        portal = LocalPortalServer(mockk<PortalController>(relaxed = true), PortalUsenetController(repository, store, updater, NntpConnectionTester(Dispatchers.IO)))
         val port = requireNotNull(portal.start(port = 0, host = "127.0.0.1"))
         base = "http://127.0.0.1:$port"
         browser = HttpClient(OkHttp)
@@ -135,6 +137,47 @@ class PortalUsenetRoutesTest {
     }
 
     @Test
+    fun `several providers are added, edited by id and removed without touching each other`() = runTest {
+        assertEquals("Provider added", message(post("/api/usenet/providers", """{"name":"Newshosting","host":"news.newshosting.com","username":"nh","password":"one"}""")).message)
+        assertEquals("Provider added", message(post("/api/usenet/providers", """{"id":null,"name":"Eweka","host":"news.eweka.nl","username":"ew","password":"two","priority":1}""")).message)
+        val (newshosting, eweka) = state().providers.map { it.id }
+        assertTrue(newshosting != eweka)
+
+        val edited = post("/api/usenet/providers", """{"id":$eweka,"name":"Eweka NL","host":"news.eweka.nl","username":"ew2","password":"","priority":1}""")
+        assertEquals("Provider saved", message(edited).message)
+        assertEquals(
+            listOf("Newshosting" to "nh", "Eweka NL" to "ew2"),
+            state().providers.map { it.name to it.username },
+        )
+        val rows = providerDao.rows.value.associateBy { it.id }
+        assertEquals(cipher.encrypt("one"), rows.getValue(newshosting).passwordCipher)
+        assertEquals(cipher.encrypt("two"), rows.getValue(eweka).passwordCipher, "a blank password keeps the stored one")
+
+        post("/api/usenet/providers/enabled", """{"id":$newshosting,"enabled":false}""")
+        post("/api/usenet/providers/move", """{"id":$eweka,"offset":-1}""")
+        assertEquals(listOf("Eweka NL" to true, "Newshosting" to false), state().providers.map { it.name to it.enabled })
+
+        assertEquals("Provider removed", message(post("/api/usenet/providers/remove", """{"id":$eweka}""")).message)
+        // A form still holding the removed row's id must not resurrect it or overwrite another provider.
+        val stale = post("/api/usenet/providers", """{"id":$eweka,"name":"Eweka NL","host":"news.eweka.nl","password":"two"}""")
+        assertEquals(400, stale.status.value)
+        assertEquals("Provider not found", message(stale).message)
+        assertEquals(listOf("Newshosting" to "nh"), state().providers.map { it.name to it.username })
+
+        assertEquals("Provider added", message(post("/api/usenet/providers", """{"name":"Eweka","host":"news.eweka.nl","password":"three"}""")).message)
+        assertEquals(2, state().providers.size)
+    }
+
+    @Test
+    fun `the portal script resets the provider form on remove, on Add and when a preset is picked`() = runTest {
+        val page = browser.get("$base/").bodyAsText()
+        assertTrue(page.contains("async function removeSource("), "remove resets the form")
+        assertTrue(page.contains("onclick: () => openForm('providers', null) }, '+ Add provider')"), "an Add provider action")
+        assertTrue(page.contains("editProvider(null);\n    providerPreset.value = p.name;"), "a preset starts a new provider")
+        assertTrue(page.contains("if (provider === undefined) editProvider(null);"), "a row removed elsewhere resets the form")
+    }
+
+    @Test
     fun `presets, header choices and performance are served and saved`() = runTest {
         val initial = state()
         assertEquals(29, initial.providerPresets.size)
@@ -175,5 +218,26 @@ class PortalUsenetRoutesTest {
             socket.getInputStream().bufferedReader().readLine()
         }
         assertTrue(statusLine.contains("403"), statusLine)
+    }
+
+    @Test
+    fun `the provider Test signs in with the stored or typed password and reports failures as errors`() = runTest {
+        val news = FakeNntpServer()
+        try {
+            val form = """{"name":"Fake","host":"127.0.0.1","port":${news.port},"tls":false,"username":"user","password":"pass","maxConnections":2}"""
+            post("/api/usenet/providers", form)
+            val id = state().providers.single().id
+            val savedBody = form.replace("\"password\":\"pass\"", "\"id\":$id")
+            val saved = message(post("/api/usenet/providers/test", savedBody))
+            assertTrue(saved.ok, saved.message + " for " + savedBody)
+            assertTrue(saved.message.startsWith("Fake: connected and signed in"))
+            val typed = post("/api/usenet/providers/test", form.replace("\"pass\"", "\"wrong\""))
+            assertEquals(400, typed.status.value)
+            assertEquals("Fake rejected the username or password. Server said: 481 Authentication rejected", message(typed).message)
+            news.sessionLimit = 0
+            assertTrue(message(post("/api/usenet/providers/test", form)).message.contains("connection limit"))
+        } finally {
+            news.close()
+        }
     }
 }

@@ -60,8 +60,26 @@ function sourceRow(item, kind, sub) {
       h('button', { type: 'button', class: 'icon', onclick: (e) => uApi(path + '/enabled', { id: item.id, enabled: !item.enabled }, e.currentTarget) }, item.enabled ? 'Disable' : 'Enable'),
       h('button', { type: 'button', class: 'icon', onclick: (e) => uApi(path + '/move', { id: item.id, offset: -1 }, e.currentTarget) }, '↑'),
       h('button', { type: 'button', class: 'icon', onclick: (e) => uApi(path + '/move', { id: item.id, offset: 1 }, e.currentTarget) }, '↓'),
-      h('button', { type: 'button', class: 'icon', onclick: () => (kind === 'providers' ? editProvider(item) : editIndexer(item)) }, 'Edit'),
-      h('button', { type: 'button', class: 'icon danger', onclick: (e) => { if (confirm('Remove ' + item.name + '?')) uApi(path + '/remove', { id: item.id }, e.currentTarget); } }, 'Remove')));
+      kind === 'providers' ? h('button', { type: 'button', class: 'icon', onclick: (e) => api('/usenet/providers/test', Object.assign({}, item, { password: null }), e.currentTarget) }, 'Test') : null,
+      h('button', { type: 'button', class: 'icon', onclick: () => openForm(kind, item) }, 'Edit'),
+      h('button', { type: 'button', class: 'icon danger', onclick: (e) => removeSource(kind, item, e.currentTarget) }, 'Remove')));
+}
+
+// Removing a source always returns its form to a blank "Add" state, so no name, server or credentials of the
+// removed row linger (and a later Save can never target the deleted id).
+async function removeSource(kind, item, button) {
+  if (!confirm('Remove ' + item.name + '?')) return;
+  if (await uApi('/usenet/' + kind + '/remove', { id: item.id }, button)) {
+    if (kind === 'providers') editProvider(null); else editIndexer(null);
+  }
+}
+
+// Edit (item) or Add (null): fills the form from scratch and brings it into view.
+function openForm(kind, item) {
+  if (kind === 'providers') editProvider(item); else editIndexer(item);
+  const form = byId(kind === 'providers' ? 'up-form' : 'ui-form');
+  form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  byId(kind === 'providers' ? 'up-name' : 'ui-name').focus({ preventScroll: true });
 }
 
 function setupUsenet() {
@@ -78,18 +96,23 @@ function setupUsenet() {
   byId('sources').append(
     h('h2', null, 'Usenet sources'),
     h('p', { class: 'hint' }, 'Shared by every profile. Passwords and API keys are stored encrypted on the TV and are never shown again; leave them blank when editing to keep them.'),
-    h('h3', null, 'Providers'), h('ul', { class: 'list', id: 'up-list' }),
+    h('div', { class: 'row' }, h('h3', null, 'Providers'), h('button', { type: 'button', id: 'up-new', onclick: () => openForm('providers', null) }, '+ Add provider')),
+    h('ul', { class: 'list', id: 'up-list' }),
     h('form', { id: 'up-form', autocomplete: 'off', style: 'margin-top:12px' },
       h('h4', { id: 'up-title', style: 'margin:0' }, 'Add a provider'), providerPreset,
       field('Name', textInput('up-name', { required: true, maxLength: 60 })),
       h('div', { class: 'row' }, field('Server', textInput('up-host', { required: true, placeholder: 'news.example.com' })), field('Port', numberInput('up-port', 1, 65535))),
       check('TLS (recommended)', checkbox('up-tls')),
-      h('div', { class: 'row' }, field('Username', textInput('up-user')), field('Password', h('input', { type: 'password', id: 'up-pass', autocomplete: 'new-password' }))),
+      h('div', { class: 'row' }, field('Username', textInput('up-user', { name: 'nntp-username', autocomplete: 'off' })),
+        field('Password', h('input', { type: 'password', id: 'up-pass', name: 'nntp-password', autocomplete: 'new-password' }))),
       h('div', { class: 'row' }, field('Max connections (1–100)', numberInput('up-conns', 1, 100)), field('Pipeline depth (1–16)', numberInput('up-depth', 1, 16)),
         field('Priority (0 = first)', numberInput('up-prio', 0, 99))),
       check('Backup (only for articles the others are missing)', checkbox('up-backup')),
-      h('div', { class: 'row' }, h('button', { class: 'primary', type: 'submit' }, 'Save provider'), h('button', { type: 'button', onclick: () => editProvider(null) }, 'Cancel'))),
-    h('h3', null, 'Indexers'), h('ul', { class: 'list', id: 'ui-list' }),
+      h('div', { class: 'row' }, h('button', { class: 'primary', type: 'submit', id: 'up-save' }, 'Add provider'),
+        h('button', { type: 'button', onclick: (e) => api('/usenet/providers/test', providerBody(), e.currentTarget) }, 'Test'),
+        h('button', { type: 'button', onclick: () => editProvider(null) }, 'Cancel'))),
+    h('div', { class: 'row' }, h('h3', null, 'Indexers'), h('button', { type: 'button', id: 'ui-new', onclick: () => openForm('indexers', null) }, '+ Add indexer')),
+    h('ul', { class: 'list', id: 'ui-list' }),
     h('form', { id: 'ui-form', autocomplete: 'off', style: 'margin-top:12px' },
       h('h4', { id: 'ui-title', style: 'margin:0' }, 'Add an indexer'), indexerPreset,
       field('Name', textInput('ui-name', { required: true, maxLength: 60 })),
@@ -97,7 +120,7 @@ function setupUsenet() {
       field('API key', h('input', { type: 'password', id: 'ui-key', autocomplete: 'off' })),
       field('Priority (0 = first)', numberInput('ui-prio', 0, 99)),
       check('Backup only (searched when the others find nothing)', checkbox('ui-backup')),
-      h('div', { class: 'row' }, h('button', { class: 'primary', type: 'submit' }, 'Save indexer'), h('button', { type: 'button', onclick: () => editIndexer(null) }, 'Cancel'))),
+      h('div', { class: 'row' }, h('button', { class: 'primary', type: 'submit', id: 'ui-save' }, 'Add indexer'), h('button', { type: 'button', onclick: () => editIndexer(null) }, 'Cancel'))),
     h('h3', null, 'Request headers'),
     h('div', { class: 'row' }, field('Search', h('select', { id: 'uh-search' })), field('Download', h('select', { id: 'uh-download' }))),
     h('p', { class: 'sub', id: 'uh-checked' }),
@@ -113,24 +136,22 @@ function setupUsenet() {
   providerPreset.addEventListener('change', () => {
     const p = U.st && U.st.providerPresets.find((x) => x.name === providerPreset.value);
     if (!p) return;
+    // A preset always starts a new provider: it never rewrites the one being edited, nor keeps its credentials.
+    editProvider(null);
+    providerPreset.value = p.name;
     byId('up-name').value = p.name; byId('up-host').value = p.host; byId('up-port').value = p.port;
     byId('up-tls').checked = p.tls; byId('up-conns').value = p.maxConnections;
   });
   indexerPreset.addEventListener('change', () => {
     const p = U.st && U.st.indexerPresets.find((x) => x.name === indexerPreset.value);
     if (!p) return;
+    editIndexer(null);
+    indexerPreset.value = p.name;
     byId('ui-name').value = p.name; byId('ui-url').value = p.baseUrl; byId('ui-path').value = p.apiPath;
   });
   byId('up-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const body = {
-      id: U.provider ? U.provider.id : null, name: byId('up-name').value, host: byId('up-host').value,
-      port: Number(byId('up-port').value) || 563, tls: byId('up-tls').checked, username: byId('up-user').value,
-      password: byId('up-pass').value || null, maxConnections: Number(byId('up-conns').value) || 20,
-      pipelineDepth: Number(byId('up-depth').value) || 2, priority: Number(byId('up-prio').value) || 0,
-      isBackup: byId('up-backup').checked, enabled: U.provider ? U.provider.enabled : true,
-    };
-    if (await uApi('/usenet/providers', body, submitButton(e))) editProvider(null);
+    if (await uApi('/usenet/providers', providerBody(), submitButton(e))) editProvider(null);
   });
   byId('ui-form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -145,9 +166,22 @@ function setupUsenet() {
   editIndexer(null);
 }
 
+function providerBody() {
+  return {
+    id: U.provider ? U.provider.id : null, name: byId('up-name').value, host: byId('up-host').value,
+    port: Number(byId('up-port').value) || 563, tls: byId('up-tls').checked, username: byId('up-user').value,
+    password: byId('up-pass').value || null, maxConnections: Number(byId('up-conns').value) || 20,
+    pipelineDepth: Number(byId('up-depth').value) || 2, priority: Number(byId('up-prio').value) || 0,
+    isBackup: byId('up-backup').checked, enabled: U.provider ? U.provider.enabled : true,
+  };
+}
+
+// Every field (and the stored-password state) is set on both paths, so switching rows or back to Add never
+// carries a value over.
 function editProvider(p) {
   U.provider = p;
   byId('up-title').textContent = p ? 'Edit ' + p.name : 'Add a provider';
+  byId('up-save').textContent = p ? 'Save changes' : 'Add provider';
   byId('up-name').value = p ? p.name : ''; byId('up-host').value = p ? p.host : ''; byId('up-port').value = p ? p.port : 563;
   byId('up-tls').checked = p ? p.tls : true; byId('up-user').value = p ? p.username : ''; byId('up-pass').value = '';
   byId('up-pass').placeholder = p && p.hasPassword ? 'Stored — leave blank to keep' : '';
@@ -159,6 +193,7 @@ function editProvider(p) {
 function editIndexer(x) {
   U.indexer = x;
   byId('ui-title').textContent = x ? 'Edit ' + x.name : 'Add an indexer';
+  byId('ui-save').textContent = x ? 'Save changes' : 'Add indexer';
   byId('ui-name').value = x ? x.name : ''; byId('ui-url').value = x ? x.baseUrl : ''; byId('ui-path').value = x ? x.apiPath : '/api';
   byId('ui-key').value = ''; byId('ui-key').placeholder = x && x.hasApiKey ? 'Stored — leave blank to keep' : '';
   byId('ui-prio').value = x ? x.priority : 0; byId('ui-backup').checked = x ? x.backupOnly : false;
@@ -175,8 +210,19 @@ function perfValues() {
   return v;
 }
 
+// A row being edited that is gone from the TV (removed elsewhere) returns its form to Add; one still there keeps
+// the latest copy so enabled / stored-password state stay current. Typed values are left alone.
+function keepEditing(current, list) {
+  if (!current) return null;
+  return list.find((x) => x.id === current.id) || undefined;
+}
+
 function renderUsenet() {
   const st = U.st;
+  const provider = keepEditing(U.provider, st.providers);
+  if (provider === undefined) editProvider(null); else if (provider) U.provider = provider;
+  const indexer = keepEditing(U.indexer, st.indexers);
+  if (indexer === undefined) editIndexer(null); else if (indexer) U.indexer = indexer;
   const presetOptions = (select, items, label) => {
     if (select.options.length > 1) return;
     items.forEach((p) => select.append(h('option', { value: p.name }, label(p))));

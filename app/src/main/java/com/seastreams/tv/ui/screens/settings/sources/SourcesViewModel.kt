@@ -14,11 +14,14 @@ import com.seastreams.tv.data.usenet.headers.RequestHeaderSettings
 import com.seastreams.tv.domain.usenet.UsenetPerformance
 import com.seastreams.tv.domain.usenet.UsenetProfile
 import com.seastreams.tv.ui.navigation.WhileUiSubscribed
+import com.seastreams.tv.usenet.nntp.NntpConnectionTester
+import kotlinx.coroutines.Job
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -40,7 +43,10 @@ class SourcesViewModel @Inject constructor(
     private val repository: UsenetSourcesRepository,
     private val store: UsenetSettingsStore,
     private val updater: HeaderVersionUpdater,
+    private val tester: NntpConnectionTester,
 ) : ViewModel() {
+
+    private var testJob: Job? = null
 
     private val _messages = Channel<String>(Channel.BUFFERED)
     val messages: Flow<String> = _messages.receiveAsFlow()
@@ -60,6 +66,27 @@ class SourcesViewModel @Inject constructor(
     fun moveProvider(id: Long, offset: Int) = act { repository.moveProvider(id, offset) }
 
     fun removeProvider(id: Long) = act { repository.removeProvider(id) }
+
+    /**
+     * The provider `Test` button: one sign-in outside the engine's pools, reported as a toast (success, bad login,
+     * connection limit or unreachable). A second press while one runs is ignored.
+     */
+    fun testProvider(id: Long) {
+        if (testJob?.isActive == true) return
+        testJob = viewModelScope.launch {
+            val message = try {
+                val endpoint = repository.endpoint(id)
+                _messages.send("Testing ${endpoint.name}…")
+                val dialTimeoutMs = store.performance.first().dialTimeoutSeconds * 1_000
+                tester.test(endpoint, dialTimeoutMs).message
+            } catch (e: UserFacingException) {
+                e.message ?: "That didn't work"
+            } catch (e: IOException) {
+                "Couldn't read the Usenet settings"
+            }
+            _messages.send(message)
+        }
+    }
 
     fun setIndexerEnabled(id: Long, enabled: Boolean) = act { repository.setIndexerEnabled(id, enabled) }
 

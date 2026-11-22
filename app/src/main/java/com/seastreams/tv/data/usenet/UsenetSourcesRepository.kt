@@ -7,6 +7,7 @@ import com.seastreams.tv.core.database.entity.UsenetProviderEntity
 import com.seastreams.tv.core.security.SecretCipher
 import com.seastreams.tv.core.util.IoDispatcher
 import com.seastreams.tv.data.UserFacingException
+import com.seastreams.tv.usenet.nntp.NntpEndpoint
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
@@ -113,6 +114,61 @@ class UsenetSourcesRepository @Inject constructor(
         indexerDao.get(id) ?: throw UserFacingException("Indexer not found")
         indexerDao.delete(id)
         indexerDao.reorder(indexerDao.getAll().map { it.id })
+    }
+
+    /** Enabled providers in sort order with decrypted passwords, for the NNTP engine. Undecryptable ones are skipped. */
+    suspend fun enabledEndpoints(): List<NntpEndpoint> = withContext(io) {
+        providerDao.getAll().filter { it.enabled }.mapNotNull { row ->
+            val password = row.passwordCipher?.let(cipher::decrypt)
+            when {
+                row.passwordCipher != null && password == null -> null
+                row.username.isNotEmpty() && password.isNullOrEmpty() -> null
+                else -> endpointOf(row.id, row.toDraft(), password)
+            }
+        }
+    }
+
+    /** One saved provider for its `Test` button. A password that can't be decrypted is reported as *Password needed*. */
+    suspend fun endpoint(id: Long): NntpEndpoint {
+        val row = providerDao.get(id) ?: throw UserFacingException("Provider not found")
+        return withContext(io) { endpointOf(row.id, row.toDraft(), storedPassword(row)) }
+    }
+
+    /**
+     * A portal form being tested before it is saved: validated like a save; a blank password on an existing
+     * provider ([id]) uses the stored one.
+     */
+    suspend fun endpointForDraft(id: Long?, draft: ProviderDraft): NntpEndpoint {
+        val valid = UsenetSourceValidation.provider(draft)
+        val typed = valid.password?.takeIf { it.isNotEmpty() }
+        val password = typed ?: id?.let { providerDao.get(it) ?: throw UserFacingException("Provider not found") }
+            ?.let { withContext(io) { storedPassword(it) } }
+        return endpointOf(id ?: 0, valid, password)
+    }
+
+    private fun storedPassword(row: UsenetProviderEntity): String? = row.passwordCipher?.let {
+        cipher.decrypt(it) ?: throw UserFacingException("Password needed: enter it again in the Web Portal")
+    }
+
+    private fun UsenetProviderEntity.toDraft() = ProviderDraft(
+        name, host, port, tls, username, null, maxConnections, pipelineDepth, priority, isBackup, enabled,
+    )
+
+    private fun endpointOf(id: Long, draft: ProviderDraft, password: String?): NntpEndpoint {
+        if (draft.username.isNotEmpty() && password.isNullOrEmpty()) throw UserFacingException("Enter the provider's password")
+        return NntpEndpoint(
+            id = id,
+            name = draft.name,
+            host = draft.host,
+            port = draft.port,
+            tls = draft.tls,
+            username = draft.username,
+            password = password.orEmpty(),
+            maxConnections = draft.maxConnections,
+            pipelineDepth = draft.pipelineDepth,
+            priority = draft.priority,
+            isBackup = draft.isBackup,
+        )
     }
 
     /** A new non-blank secret is encrypted; a blank or absent one keeps [stored]. */

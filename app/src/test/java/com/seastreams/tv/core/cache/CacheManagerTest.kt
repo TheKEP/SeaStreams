@@ -4,6 +4,10 @@ import com.seastreams.tv.core.image.IMAGE_CACHE_DIR
 import com.seastreams.tv.core.image.IMAGE_DISK_CACHE_BYTES
 import com.seastreams.tv.core.network.NetworkModule
 import com.seastreams.tv.testutil.TestHttpServer
+import com.seastreams.tv.usenet.cache.NzbFileCache
+import com.seastreams.tv.usenet.cache.SegmentDiskCache
+import com.seastreams.tv.usenet.yenc.DecodedSegment
+import com.seastreams.tv.usenet.yenc.SegmentBufferPool
 import io.ktor.http.ContentType
 import io.ktor.server.response.header
 import io.ktor.server.response.respondText
@@ -38,6 +42,8 @@ class CacheManagerTest {
     private lateinit var server: TestHttpServer
     private lateinit var httpCache: Cache
     private lateinit var manager: CacheManager
+    private lateinit var segments: SegmentDiskCache
+    private lateinit var nzbs: NzbFileCache
 
     @BeforeEach
     fun setUp() {
@@ -48,10 +54,13 @@ class CacheManagerTest {
             }
         }
         httpCache = Cache(File(cacheDir, NetworkModule.HTTP_CACHE_DIR), NetworkModule.HTTP_CACHE_SIZE_BYTES)
+        segments = SegmentDiskCache({ record(); cacheDir }, { 100L * 1024 * 1024 * 1024 }, { it.run() }, 16)
+        nzbs = NzbFileCache({ record(); cacheDir }, System::currentTimeMillis, NzbFileCache.MAX_FILES, NzbFileCache.MAX_AGE_MILLIS)
         manager = CacheManager(
             cacheDirProvider = { record(); cacheDir },
             httpCache = { record(); httpCache },
             imageCaches = imageCaches,
+            managedCaches = setOf(segments, nzbs),
             io = io,
         )
     }
@@ -139,7 +148,39 @@ class CacheManagerTest {
         assertEquals("http_cache", NetworkModule.HTTP_CACHE_DIR)
         assertEquals(150L * 1024 * 1024, IMAGE_DISK_CACHE_BYTES)
         assertEquals("image_cache", IMAGE_CACHE_DIR)
-        assertEquals(setOf("http_cache", "image_cache"), CacheManager.MANAGED_DIRS)
+        assertEquals(setOf("http_cache", "image_cache", "nntp_segments", "nntp_nzb"), CacheManager.MANAGED_DIRS)
+    }
+
+    @Test
+    fun `clear cache empties the Usenet caches through their own APIs and keeps their folders managed`() = runBlocking {
+        val pool = SegmentBufferPool()
+        segments.putAsync("a@x", DecodedSegment(ByteArray(5_000), 5_000, 0, 5_000, "a.bin", 1, 1))
+        nzbs.put("https://indexer/getnzb?id=1", "<nzb/>")
+        assertTrue(segments.indexedBytes() > 0)
+        assertTrue(manager.totalSizeBytes() >= 5_000)
+
+        manager.clearAll()
+
+        assertEquals(0L, segments.indexedBytes())
+        assertEquals(null, segments.get("a@x", pool))
+        assertEquals(null, nzbs.get("https://indexer/getnzb?id=1"))
+        assertEquals(0L, segments.sizeBytes() + nzbs.sizeBytes())
+        segments.putAsync("b@x", DecodedSegment(ByteArray(10), 10, 0, 10, "b.bin", 1, 1))
+        assertTrue(segments.get("b@x", pool) != null, "the cache keeps working after a clear")
+    }
+
+    @Test
+    fun `the startup sweep never deletes the Usenet caches`() = runBlocking {
+        val now = System.currentTimeMillis()
+        segments.putAsync("a@x", DecodedSegment(ByteArray(100), 100, 0, 100, "a.bin", 1, 1))
+        nzbs.put("k", "<nzb/>")
+        File(cacheDir, SegmentDiskCache.DIR).setLastModified(now - 2 * HOUR)
+        File(cacheDir, NzbFileCache.DIR).setLastModified(now - 2 * HOUR)
+
+        manager.sweepOrphans(now)
+
+        assertTrue(segments.get("a@x", SegmentBufferPool()) != null)
+        assertEquals("<nzb/>", nzbs.get("k"))
     }
 
     private fun record() {
