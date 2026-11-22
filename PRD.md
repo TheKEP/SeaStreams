@@ -168,6 +168,12 @@
   1. Enter/update TMDB API key & profile fields.
   2. Install Stremio addons via manifest URL (`https://`, `http://`, `stremio://`, or a bare LAN `IP:port` such as `192.168.4.173:3000`; the field is plain text so the browser doesn't reject scheme-less addresses), remove, rename, disable, or reorder addons for one selected profile (the editor shows which profile it is editing and defaults to the TV's active profile; changes never reach other profiles).
   3. Import `mdblist.com` list URLs into a profile's `Movies` or `TV Shows` Library (one-time import with no ongoing list tracking/syncing).
+  4. Configure the app-wide **Usenet sources** (§12):
+     - add, edit, enable/disable, reorder and remove NNTP providers and Newznab indexers, starting from a preset;
+     - pick the `Search` / `Download` request header presets and trigger *Update now*;
+     - choose a Usenet performance profile or edit its values.
+
+     Passwords and API keys can be typed or replaced here but are never sent back to the browser: the portal only shows whether one is stored. A blank password or API key field keeps the stored one.
 
 ## 9. Playback Engine (Media3 ExoPlayer) & Audio/Subtitle Controls
 - **Default & External Players (with Full Watch Progress Sync):**
@@ -266,7 +272,7 @@
 ## 11. General Settings Screen (`settings-top-nav.jpg`)
 - **Layout & Visual Style (`docs/ui-references/settings-top-nav.jpg`):**
   - **Full-screen page:** `SettingsScreen` opens as a full-screen layer over the current tab. The main app Top Navigation Bar (§1) stays hidden while it is open, and there is no large title/subtitle header block: the Settings Category Tab Bar sits directly at the top of the page.
-  - **Settings Category Tab Bar:** A centred, dark translucent rounded pill container holding six category tabs, left to right: `Home`, `UI`, `Playback`, `Audio`, `Subtitles`, `Other`. The active tab renders as a high-contrast light pill (`#E5E9F0`) with dark bold text (`#0B0D12`); inactive tabs use muted light text (`#A0A8B8`, white `#FFFFFF` while focused). Moving D-pad focus `Left`/`Right` across the bar immediately switches the active category and the settings list below it.
+  - **Settings Category Tab Bar:** A centred, dark translucent rounded pill container holding seven category tabs, left to right: `Home`, `UI`, `Playback`, `Audio`, `Subtitles`, `Sources`, `Other`. All seven fit on one row of a 960×540 dp screen inside the 56 dp page gutters. The active tab renders as a high-contrast light pill (`#E5E9F0`) with dark bold text (`#0B0D12`); inactive tabs use muted light text (`#A0A8B8`, white `#FFFFFF` while focused). Moving D-pad focus `Left`/`Right` across the bar immediately switches the active category and the settings list below it.
   - **Category header & card:** Below the bar, a compact uppercase category label with a small leading icon (e.g. `PLAYBACK`), then the category's settings rows inside one dark rounded card (`#161A23`) with subtle dividers between rows. Each row shows a left icon, a sentence-case title, a muted subtitle with the current value, and a right chevron `>` (sub-menus/pickers), toggle switch, or `‹ value ›` stepper. The focused row inverts to a high-contrast light pill (`#E5E9F0`) with dark text/icons.
   - **Sentence case:** Every label capitalizes only its first word and proper nouns/acronyms (`HDR`, `Dolby Vision`, `SDH`).
   - **Indented conditional sub-settings:** `Mute auto-play trailers` and `Trailer auto-play delay` (under `Auto-play trailers`) and `Failover timeout duration` (under `Automatic stream failover`) appear only while their parent toggle is `ON`, directly beneath it, with a start indent and a thin vertical connector line so they read as belonging to the parent. Their stored values are kept while hidden.
@@ -275,7 +281,7 @@
   - **Tab bar wrap (two-way, §1 rule):** A fresh `Left` (`repeatCount == 0`) on `Home` wraps to `Other`; a fresh `Right` on `Other` wraps to `Home`. Holding `Left`/`Right` (`repeatCount > 0`) stops on the edge tab and never wraps.
   - **Tab bar ⇄ list:** `Up` on any tab is consumed and keeps focus on the bar (the main Top Navigation Bar is hidden). `Down` on any tab scrolls the active category's list to the top and focuses its first row; `Up` on the first row returns to the active tab (see below).
   - **Category list wrap (one-way bottom-to-top, §1 rule, every category):** A fresh `Down` (`repeatCount == 0`) on the last row of a category scrolls back to the top and focuses its first row; holding `Down` (`repeatCount > 0`) stops on the last row. `Up` never wraps to the bottom: a fresh `Up` on the first row moves focus to the active category pill in the Settings Category Tab Bar, and holding `Up` stops on the first row. With a single row, `Up` goes to the active pill and `Down` keeps focus on that row. The bottom edge follows conditional sub-settings as they appear or disappear, and stays the same while the background swatch strip is open or the Clear library Undo row is showing.
-  - **Back:** Inside a sub-panel (`Manage addons`, `Web portal`, `Subtitle styling`, a choice list, or the open background swatch strip), `Back` closes/reverts it and returns focus to the row that opened it. On any settings row, `Back` moves focus up to the active category tab. On the tab bar, `Back` closes Settings and returns focus to the `Settings` gear in the Top Navigation Bar.
+  - **Back:** Inside a sub-panel (`Manage addons`, `Web portal`, `Subtitle styling`, `Usenet providers`, `Indexers`, `Usenet performance`, a choice list, or the open background swatch strip), `Back` closes/reverts it and returns focus to the row that opened it. On any settings row, `Back` moves focus up to the active category tab. On the tab bar, `Back` closes Settings and returns focus to the `Settings` gear in the Top Navigation Bar.
   - **Manage addons sub-panel (two-way wrap, §1 rule):** The panel lists one row per installed addon, then the `Install more addons` row, which is always last. A fresh `Up` from *any* control of the first addon row (its toggle pill, `Move up`, `Move down` or `Remove`) scrolls to and focuses `Install more addons`; a fresh `Down` on `Install more addons` scrolls back to the top and focuses the first addon row's toggle pill. Holding `Up`/`Down` (`repeatCount > 0`) stops on whichever edge control has focus and never wraps or moves sideways. Middle rows use ordinary focus moves, and the edges follow the list after a reorder or removal. With no addons installed, `Install more addons` is the only row and consumes both `Up` and `Down`.
   - **Focus after `Remove`:** Removing an addon never loses D-pad focus. Before the row disappears, focus moves to the addon directly below it (which then slides up into the removed slot), landing on its `Remove` button so further removals keep the same column, or on its toggle pill if it is a built-in without `Remove`. Removing the last addon in the list focuses `Install more addons`. The removal click fires on release, so the newly focused control never receives a phantom click.
 - **Visual Background Color Picker:**
@@ -322,7 +328,105 @@
     4. `Clean SDH` toggle (default `ON`).
     5. `Subtitle styling`: global styling (font size `100%`, bold `ON`, italic `OFF`, text color white `#FFFFFF`, outline/drop-shadow = outline, background opacity `0%` by default) in the live preview sub-screen below.
     6. `Auto-sync external subtitles` toggle (default `ON`).
+  - **`Sources`** (app-wide: shared by every profile, §12):
+    1. `Usenet providers`: value `N of M enabled`, or `None yet — add one from your phone`. Opens the providers sub-panel. It works like *Manage addons*:
+       - One row per provider: a toggle pill (name + `host:port`), then `Move up`, `Move down`, `Test` (from Milestone 8) and `Remove` buttons.
+       - The list ends with an `Add a provider` row that opens the Web Portal panel.
+       - It follows the same two-way edge-wrap rule (first row ⇄ `Add a provider`) and the same keep-focus-on-`Remove` rule.
+    2. `Indexers`: the same sub-panel for Newznab indexers, ending with an `Add an indexer` row.
+    3. `Search request headers`: choice list of header presets (`Prowlarr` [default], `NZBHydra2`, `Sonarr`, `Radarr`, `SABnzbd`, `NZBGet`, `SeaStreams`). The value shows the preset and its version, e.g. `Prowlarr 2.7.0.5723`.
+    4. `Download request headers`: the same list (`SABnzbd` [default]).
+    5. `Update header versions`: fetches the latest Prowlarr, Sonarr, Radarr, SABnzbd, NZBGet and NZBHydra2 release versions now. The value reads `Checked today` / `Last checked 3 Nov` / `Updating…` / `Never checked`.
+    6. `Usenet performance`: value = the profile (`Balanced`, …). Opens the performance sub-panel (§12 *Performance profiles*).
+    7. `Web portal`: the Web Portal QR panel (shared with `Home`).
   - **`Other`:**
     1. `Clear library`: clears the profile's library with a 5-second Undo snackbar/toast before permanent deletion (the row reads `Undo clear library` while it can be undone).
     2. `Clear cache` (app-wide, not per profile). Its subtitle shows the live total cache size (`148 MB used`, or `0 MB` when empty; `Calculating…` while measuring), computed off the main thread each time Settings opens. Pressing it clears the image cache (memory + disk), evicts every HTTP cache entry and deletes any other temporary files in the app's cache folder, refreshes the subtitle (back to `0 MB`) and shows a brief `Cache cleared` toast. Repeated presses while clearing are ignored. It is the last row of `Other`, the bottom edge of that category's two-way wrap. Saved library, progress, profiles, addons and settings are never touched.
   - **Live Subtitle Style Preview (`SubtitleStyleScreen` / Sub-View):** Selecting `Subtitle styling` replaces the category list below the (non-focusable) Settings Category Tab Bar with a two-column split that fills the remaining height. **Left column (~54% width):** an uppercase `SUBTITLE STYLING` label with a small icon (same style as the category headers), then the scrollable list of styling controls (font size, bold, italic, visual text color swatches, outline/drop-shadow, background opacity) with enough spacing that several rows are visible at once. **Text color swatches (two-way horizontal wrap, §1 rule):** `White`, `Yellow`, `Cyan`, `Green`, `Pink`, `Light grey`; focusing a swatch previews it and `Enter` saves it. A fresh `Left` (`repeatCount == 0`) on `White` wraps to `Light grey` and a fresh `Right` on `Light grey` wraps to `White`; holding `Left`/`Right` (`repeatCount > 0`) stops on the edge swatch and never wraps. Wrapping previews the newly focused colour like any other move. Initial focus is `Font size`. The list follows the same one-way bottom-to-top rule: a fresh `Down` on the last control wraps to `Font size` (held `Down` stops), while `Up` on `Font size` is consumed and keeps focus there (the tab bar can't take focus while a sub-panel is open). **Right column (~46% width, vertically centred):** the live 16:9 widescreen cinematic preview card (a high-contrast scene backdrop with a sample two-line subtitle rendered via the player's subtitle renderer). Every adjustment on the left updates the preview beside it in real time, with no scrolling. `Back` returns to the `Subtitle styling` row.
+
+## 12. Usenet Streaming (NNTP) — Sources
+SeaStreams streams Usenet releases natively: Newznab indexer search → NZB → yEnc articles fetched from the user's NNTP providers. They play in the built-in ExoPlayer, and in external players through a loopback proxy. Everything in this section is **app-wide** (shared by all profiles), because provider connection limits belong to the account and the device. Delivered across Milestones 7–9.
+
+- **Providers (NNTP):**
+  - Fields: name, host, port (default `563`), TLS (default on), username, password, *Max connections* (`1..100`, default `20`), *Pipeline depth* (`1..16`, default `2`; requests kept in flight per connection), priority (`0..99`, lower = preferred), *Backup* flag, enabled.
+  - Providers with the same priority share load. Backups are used only for articles the primaries can't supply.
+  - Passwords are encrypted at rest with an Android Keystore key. A password that can't be decrypted (e.g. after a restore to a new device) shows as *Password needed*.
+  - **Provider presets** fill in name, host, port `563`, TLS and max connections. The 29 entries are: Newshosting, Easynews, Tweaknews (Newshosting deal), Tweaknews (standalone), Eweka, UsenetServer, Giganews, Frugal Usenet, NewsDemon, Usenet.Farm, UsenetExpress, NewsgroupDirect, Newsgroup Ninja, Supernews, Pure Usenet, Sunny Usenet, XS News, ThunderNews, Astraweb, ViperNews, Cheapnews, Fast Usenet, UsenetNow, UsenetPrime, Easy Usenet, Bulknews, XLned, 123 Usenet, Hitnews. Every field stays editable.
+- **Indexers (Newznab):**
+  - Fields: name, base URL (`https://` or a LAN `http://` address), API path (default `/api`), API key (encrypted like passwords), priority, *Backup only* flag (searched only when no other indexer returned results), enabled.
+  - **Indexer presets** fill in the API URL: abNZB, altHUB, AmeNZB, Anime Tosho, Aninzb, ClubNZB, Digital Carnage, DOGnzb, DrunkenSlug, GingaDADDY, Miatrix, NewzBay, NinjaCentral, NZB Atlas, Nzb.life, NZBFinder, NZBgeek, NzbNest, NzbNoob, NzbPlanet, NZBStars, PourCeSoir, SearchNZB, SquareEyed, Tabula Rasa, Treasure Maps, Usenet Crawler, Videothek, plus the LAN templates `NZBHydra2 (your server)` and `Prowlarr (your server)`.
+- **Request headers:**
+  - Indexer **searches** send the `Search` preset's headers (default `Prowlarr`). NZB **downloads** send the `Download` preset's (default `SABnzbd`).
+  - Presets:
+
+    | Preset | User-Agent |
+    |---|---|
+    | Prowlarr | `Prowlarr/{v} (alpine 3.24.4)` |
+    | NZBHydra2 | `NZBHydra2 {v}` |
+    | Sonarr | `Sonarr/{v} (alpine 3.24.4)` |
+    | Radarr | `Radarr/{v} (alpine 3.24.4)` |
+    | SABnzbd | `SABnzbd/{v}` |
+    | NZBGet | `nzbget/{v}` |
+    | SeaStreams | `SeaStreams/{app version}` |
+
+    Prowlarr/Sonarr/Radarr/NZBHydra2 also send an RSS `Accept` header; SABnzbd/NZBGet send `Accept: */*`. `Accept-Encoding` is left to OkHttp (transparent gzip).
+  - **Version auto-updater:** at most once every 24 h (on app start, and when the `Sources` tab opens), SeaStreams reads the latest stable release version of each tool from its public GitHub `releases/latest` endpoint, sending a generic `SeaStreams` User-Agent and no user data. Only a plain version (`2.7.0.5723`, a leading `v` stripped) is accepted.
+  - A failed check keeps the last good version. The built-in fallbacks are Prowlarr `2.7.0.5723`, Sonarr `4.0.20.3014`, Radarr `7.0.3.10918`, SABnzbd `5.1.3`, NZBGet `26.3` and NZBHydra2 `9.3.1`.
+  - `Update header versions` checks immediately.
+- **Performance profiles:**
+  - One profile governs every value of the `Usenet performance` sub-panel. Picking `Conservative`, `Balanced` (default) or `High` overwrites all of them. Editing any single value switches the profile to `Custom` and keeps the edited values.
+  - The sub-panel is one list grouped under the screenshot sections (`aio-usenet-settings1–6.png`): **Performance**, **Connections & timeouts**, **Reliability**, **Archive handling**, **Verification**, **Import**.
+  - Numbers and choices are `‹ value ›` steppers (`Left`/`Right` step, `OK` steps forward and wraps). Switches are toggles.
+  - The list follows the §11 one-way bottom-to-top wrap. `Up` on the first row (`Performance profile`) is consumed, and `Back` returns to the `Usenet performance` row.
+
+  | Setting | Conservative | **Balanced** | High | Custom range |
+  |---|---|---|---|---|
+  | Read-ahead (segments) | 16 | 32 | 64 | 1–256 |
+  | Max concurrent downloads (`0` = auto: Σ connections × depth) | 30 | 0 | 0 | 0–400 |
+  | Segment disk cache | 512 MB | 1 GB | 2 GB | Off–4 GB |
+  | Warm connections | 0 | 2 | 4 | 0 / 2 / 4 |
+  | Streaming priority share | 0.90 | 0.80 | 0.80 | 0.50–1.00 |
+  | Segment timeout | 30s | 30s | 15s | Never–120s |
+  | Segment stall timeout | 30s | 30s | 10s | 5–60s |
+  | Dial timeout | 15s | 15s | 15s | 5–60s |
+  | Idle connection TTL | 1m | 1m | 1m | 15s–10m |
+  | Stream idle timeout | 1h | 1h | 1h | Off–4h |
+  | Circuit breaker threshold | 5 | 5 | 5 | 1–20 |
+  | Circuit breaker cooldown | 30s | 30s | 30s | 10s–5m |
+  | Lazy RAR resolution | On | On | On | toggle |
+  | Strict archive membership | Off | Off | Off | toggle |
+  | Verify mode | Census | Census | Census | Census / None |
+  | Verify budget | 0 ms | 0 ms | 0 ms | 0–5000 ms |
+  | Verify file contents | Off | Off | Off | toggle |
+  | Verify article checksums | On | On | On | toggle |
+  | Damage policy | Strict | Strict | Strict | Strict / Tolerant |
+  | Matroska hole repair | On | On | On | toggle |
+  | Census background concurrency | 4 | 8 | 12 | 1–32 |
+  | Census max lifetime | 30m | 30m | 30m | 5m–2h |
+  | Max NZB size | 150 MB | 150 MB | 150 MB | 25–500 MB |
+  | Max concurrent imports (`0` = unlimited) | 2 | 4 | 4 | 0–8 |
+
+- **Storage bound:** the segment disk cache never exceeds the profile value, 25% of the device's free space, or whatever leaves 2 GB free, whichever is smallest. It is cleared by `Clear cache` (§11). The NZB cache keeps at most 40 files for 14 days.
+- **Playback (Milestone 9):**
+  - Usenet releases appear under a built-in `Usenet` card in the stream panel's Addons column, after the Stremio addons, only while at least one provider and one indexer are enabled.
+  - Addon streams carrying an `nzbUrl` play through the same engine.
+  - Plain files, stored (uncompressed) RAR4/RAR5 sets, including obfuscated names, and raw `.001` splits are streamable. Compressed or password-protected RARs without the NZB password, and all 7z archives, are *not streamable*: they are dropped, and failover moves on.
+  - External players reach Usenet streams at `http://127.0.0.1:8765/nntp/<token>/<name>`. The route answers loopback clients only; other clients get `403`. A foreground notification keeps it alive while the external player runs.
+- **Out of scope:** the SABnzbd-compatible download API, *Hold SABnzbd hand-off for the census*, *Library recheck* (SeaStreams keeps no saved NZB library), and 7z archives.
+
+## 13. Stream Filtering, Sorting & Formatter (Milestone 10)
+Per profile (`p{id}/` keys). Applied to every resolved stream list (Stremio addons and Usenet) in this order: parse → filter → deduplicate → sort → result limits → format. Auto-play, failover order, LAST USED and the Addons column counts all use the processed list. The defaults are no filters, no sorting and the original addon text, so behaviour only changes once the user opts in.
+
+- **Filters** (`aio-filters.png`):
+  - Groups: Stream type, Seeders, Age, Resolution, Quality, Encode, Visual tag, Audio tag, Audio channel, Language, Subtitle, Size, Bitrate, Keyword, Release group, Regex, Result limits, Deduplicator.
+  - Each attribute filter has *Required*, *Excluded*, *Included* (kept regardless of every other filter) and *Preferred* (ordered, used by sorting) lists.
+  - Languages are excluded only when every language of the stream is excluded, and required when any one matches.
+  - Size limits can be set per resolution, separately for movies and series. Bitrate is estimated from size ÷ TMDB runtime.
+- **Sorting** (`aio-sorting.png`):
+  - `Global`, `Movies`, `Series` and `Anime` lists. A non-empty type list replaces `Global`.
+  - Criteria: Quality, Resolution, Language, Subtitle, Visual tag, Audio tag, Audio channel, Encode, Stream type, Size, Bitrate (estimate), Seeders, Age, Addon, Keyword, Regex patterns. Each has its own direction.
+  - Preferred-list criteria rank by position in the matching Preferred list.
+- **Formatter** (`aio-formatter.png`):
+  - Name and description templates use the AIOStreams template syntax: `{stream.resolution::=2160p["4K"||""]}`, `::exists`, `::join(' | ')`, `::rbytes`, `::time`, `{? … ?}` groups, `{tools.newLine}`.
+  - Predefined: Torrentio, GDrive, Light GDrive, Minimalistic GDrive, Prism, Custom. The TV picks a predefined formatter with a live preview card; custom templates are typed in the Web Portal.
+- **Out of scope:** the Stream Expression language and debrid cache filters.

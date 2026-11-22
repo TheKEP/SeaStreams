@@ -1,6 +1,7 @@
 package com.seastreams.tv.ui.screens.settings
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.PlayArrow
@@ -15,6 +16,9 @@ enum class SettingsCategory(val label: String, private val iconProvider: () -> I
     PLAYBACK("Playback", { Icons.Filled.PlayArrow }),
     AUDIO("Audio", { SeaIcons.Volume }),
     SUBTITLES("Subtitles", { SeaIcons.Subtitles }),
+
+    /** App-wide Usenet sources (PRD §12), shared by every profile. */
+    SOURCES("Sources", { Icons.AutoMirrored.Filled.List }),
     OTHER("Other", { Icons.Filled.Build }),
     ;
 

@@ -11,6 +11,7 @@ import com.seastreams.tv.core.util.ApplicationScope
 import com.seastreams.tv.data.setup.BuiltInAddonGuard
 import com.seastreams.tv.data.setup.DebugProfileSeeder
 import com.seastreams.tv.data.trailer.NewPipeInitializer
+import com.seastreams.tv.data.usenet.headers.HeaderVersionUpdater
 import com.seastreams.tv.data.setup.ProfileSettingsMigrator
 import dagger.Lazy
 import dagger.hilt.android.HiltAndroidApp
@@ -41,6 +42,10 @@ class SeaStreamsApp : Application(), SingletonImageLoader.Factory {
     @Inject
     lateinit var cacheManager: Lazy<CacheManager>
 
+    /** Daily Prowlarr/SABnzbd/… header version check (PRD §12); lazy because it holds the OkHttp client. */
+    @Inject
+    lateinit var headerVersions: Lazy<HeaderVersionUpdater>
+
     /** Process-lifetime scope (off the main thread) for fire-and-forget startup work. */
     @Inject
     @ApplicationScope
@@ -68,6 +73,9 @@ class SeaStreamsApp : Application(), SingletonImageLoader.Factory {
             // The HTTP and image caches bound themselves (LRU); this only drops files nothing owns.
             runCatching { cacheManager.get().sweepOrphans() }
                 .onFailure { Log.e("SeaStreamsApp", "Sweeping orphaned cache files failed", it) }
+            // At most once per 24 h; a failed check keeps the last good (or built-in) versions.
+            runCatching { headerVersions.get().checkIfDue() }
+                .onFailure { Log.e("SeaStreamsApp", "Checking request header versions failed", it) }
         }
     }
 }

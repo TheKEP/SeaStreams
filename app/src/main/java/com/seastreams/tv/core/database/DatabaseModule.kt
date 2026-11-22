@@ -5,7 +5,9 @@ import androidx.room.Room
 import com.seastreams.tv.core.database.dao.AddonDao
 import com.seastreams.tv.core.database.dao.LastUsedStreamDao
 import com.seastreams.tv.core.database.dao.LibraryDao
+import com.seastreams.tv.core.database.dao.NewznabIndexerDao
 import com.seastreams.tv.core.database.dao.ProfileDao
+import com.seastreams.tv.core.database.dao.UsenetProviderDao
 import com.seastreams.tv.core.database.dao.WatchProgressDao
 import dagger.Module
 import dagger.Provides
@@ -22,7 +24,7 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): SeaStreamsDatabase =
         Room.databaseBuilder(context, SeaStreamsDatabase::class.java, SeaStreamsDatabase.NAME)
-            .addMigrations(ProfileAddonsMigration, LastUsedStreamMigration)
+            .addMigrations(ProfileAddonsMigration, LastUsedStreamMigration, UsenetSourcesMigration)
             .build()
 
     @Provides
@@ -39,4 +41,10 @@ object DatabaseModule {
 
     @Provides
     fun provideLastUsedStreamDao(db: SeaStreamsDatabase): LastUsedStreamDao = db.lastUsedStreamDao()
+
+    @Provides
+    fun provideUsenetProviderDao(db: SeaStreamsDatabase): UsenetProviderDao = db.usenetProviderDao()
+
+    @Provides
+    fun provideNewznabIndexerDao(db: SeaStreamsDatabase): NewznabIndexerDao = db.newznabIndexerDao()
 }

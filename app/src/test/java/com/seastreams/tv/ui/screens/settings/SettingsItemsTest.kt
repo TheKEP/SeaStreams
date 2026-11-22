@@ -34,6 +34,10 @@ class SettingsItemsTest {
                 "Subtitles always on/off", "Preferred subtitle language", "Hide non-preferred language",
                 "Clean SDH", "Subtitle styling", "Auto-sync external subtitles",
             ),
+            SettingsCategory.SOURCES to listOf(
+                "Usenet providers", "Indexers", "Search request headers", "Download request headers",
+                "Update header versions", "Usenet performance", "Web portal",
+            ),
             SettingsCategory.OTHER to listOf("Clear library", "Clear cache"),
         )
         assertEquals(SettingsCategory.entries.toSet(), expected.keys)

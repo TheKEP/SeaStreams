@@ -22,7 +22,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Search
 import com.seastreams.tv.core.util.MILLIS_PER_SECOND
+import com.seastreams.tv.data.usenet.headers.HeaderUse
+import com.seastreams.tv.ui.screens.settings.sources.HEADERS_DOWNLOAD_ROW_KEY
+import com.seastreams.tv.ui.screens.settings.sources.HEADERS_SEARCH_ROW_KEY
+import com.seastreams.tv.ui.screens.settings.sources.INDEXERS_ROW_KEY
+import com.seastreams.tv.ui.screens.settings.sources.PERFORMANCE_ROW_KEY
+import com.seastreams.tv.ui.screens.settings.sources.PROVIDERS_ROW_KEY
+import com.seastreams.tv.ui.screens.settings.sources.SourceListPanel
+import com.seastreams.tv.ui.screens.settings.sources.SourceRow
+import com.seastreams.tv.ui.screens.settings.sources.SourcesViewModel
+import com.seastreams.tv.ui.screens.settings.sources.UsenetPerformancePanel
+import com.seastreams.tv.ui.screens.settings.sources.headerChoiceSpec
+import com.seastreams.tv.ui.screens.settings.sources.indexerSubtitle
+import com.seastreams.tv.ui.screens.settings.sources.performanceItems
+import com.seastreams.tv.ui.screens.settings.sources.providerSubtitle
 import com.seastreams.tv.ui.components.LocalFocusOrigins
 import com.seastreams.tv.ui.components.LocalLayerCovered
 import com.seastreams.tv.ui.components.LocalTransientMessages
@@ -46,9 +63,11 @@ fun SettingsScreen(
     profileId: Long,
     viewModel: SettingsViewModel,
     appearance: AppearanceViewModel,
+    sources: SourcesViewModel,
     onOpenProfiles: () -> Unit,
 ) {
     val state by viewModel.state.collectAsState()
+    val sourcesState by sources.state.collectAsState()
     val savedBackground by appearance.saved.collectAsState()
     val cacheBytes by viewModel.cacheBytes.collectAsState()
     val messages = LocalTransientMessages.current
@@ -72,6 +91,9 @@ fun SettingsScreen(
         viewModel.refreshCacheSize()
     }
     LaunchedEffect(viewModel) { viewModel.messages.collect { messages?.show(it) } }
+    LaunchedEffect(sources) { sources.messages.collect { messages?.show(it) } }
+    // Opening the Sources tab runs the daily header-version check when it's due (PRD §12).
+    LaunchedEffect(category) { if (category == SettingsCategory.SOURCES) sources.checkHeadersIfDue() }
     LaunchedEffect(Unit) { pillRequesters[SettingsCategory.HOME.ordinal].requestFocusAfterFrame() }
     // Leaving a panel: land on the row that opened it.
     LaunchedEffect(panel) {
@@ -121,7 +143,9 @@ fun SettingsScreen(
                 origins?.mark(requesterFor(PROFILES_ROW_KEY))
                 onOpenProfiles()
             },
+            updateHeaders = sources::updateHeadersNow,
         ),
+        sources = sourcesState,
     )
 
     Column(
@@ -182,6 +206,34 @@ fun SettingsScreen(
                     onOpenPortal = { panel = SettingsPanel.Portal },
                 )
                 SettingsPanel.Portal -> PortalPanel(state.portal) { panel = SettingsPanel.Main }
+                SettingsPanel.UsenetProviders -> SourceListPanel(
+                    title = "Usenet providers",
+                    icon = Icons.Filled.Lock,
+                    rows = sourcesState.providers.map { SourceRow(it.id, it.name, providerSubtitle(it), it.enabled) },
+                    addTitle = "Add a provider",
+                    addHint = "Enter the server and login in the Web Portal",
+                    onToggle = { sources.setProviderEnabled(it.id, !it.enabled) },
+                    onMove = { row, offset -> sources.moveProvider(row.id, offset) },
+                    onRemove = { sources.removeProvider(it.id) },
+                    onAdd = { panel = SettingsPanel.Portal },
+                )
+                SettingsPanel.UsenetIndexers -> SourceListPanel(
+                    title = "Indexers",
+                    icon = Icons.Filled.Search,
+                    rows = sourcesState.indexers.map { SourceRow(it.id, it.name, indexerSubtitle(it), it.enabled) },
+                    addTitle = "Add an indexer",
+                    addHint = "Enter the indexer address and API key in the Web Portal",
+                    onToggle = { sources.setIndexerEnabled(it.id, !it.enabled) },
+                    onMove = { row, offset -> sources.moveIndexer(row.id, offset) },
+                    onRemove = { sources.removeIndexer(it.id) },
+                    onAdd = { panel = SettingsPanel.Portal },
+                )
+                SettingsPanel.UsenetPerformance -> UsenetPerformancePanel(
+                    performanceItems(sourcesState.performance, sources::setProfile, sources::editPerformance),
+                )
+                is SettingsPanel.Headers -> ChoicePanel(headerChoiceSpec(current.use, sourcesState, sources::setHeaderPreset)) {
+                    panel = SettingsPanel.Main
+                }
                 SettingsPanel.SubtitleStyle -> SubtitleStyleScreen(state.settings.subtitles.style) { transform ->
                     viewModel.updateSubtitles { it.copy(style = transform(it.style)) }
                 }
@@ -195,6 +247,10 @@ private fun keyFor(panel: SettingsPanel): String = when (panel) {
     SettingsPanel.Addons -> ADDONS_ROW_KEY
     SettingsPanel.Portal -> PORTAL_ROW_KEY
     SettingsPanel.SubtitleStyle -> "subs-style"
+    SettingsPanel.UsenetProviders -> PROVIDERS_ROW_KEY
+    SettingsPanel.UsenetIndexers -> INDEXERS_ROW_KEY
+    SettingsPanel.UsenetPerformance -> PERFORMANCE_ROW_KEY
+    is SettingsPanel.Headers -> if (panel.use == HeaderUse.SEARCH) HEADERS_SEARCH_ROW_KEY else HEADERS_DOWNLOAD_ROW_KEY
     is SettingsPanel.Choice -> when (panel.kind) {
         ChoiceKind.PREFERRED_ADDON -> "autoplay-addon"
         ChoiceKind.PLAYER -> PLAYER_ROW_KEY

@@ -109,7 +109,7 @@ class PortalServerTest {
             importMdbList = importUseCase,
             settings = settings,
         )
-        portal = LocalPortalServer(controller)
+        portal = LocalPortalServer(controller, mockk(relaxed = true))
         port = requireNotNull(portal.start(port = 0, host = "127.0.0.1"))
         base = "http://127.0.0.1:$port"
         browser = HttpClient(OkHttp)

@@ -22,7 +22,11 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
 
-private val portalJson = Json { ignoreUnknownKeys = true }
+private val portalJson = Json {
+    ignoreUnknownKeys = true
+    // Responses always carry every field (e.g. performance values equal to their defaults).
+    encodeDefaults = true
+}
 
 private const val MAX_BODY_CHARS = 64 * 1024
 private const val TAG = "LocalPortal"
@@ -32,12 +36,13 @@ private const val TAG = "LocalPortal"
  * - `GET /` – the single-page portal ([PortalHtmlTemplate])
  * - `GET /api/state` – [PortalState]
  * - `POST /api/…` – JSON mutations, each answering [ApiMessage]
+ * - `/api/usenet…` – app-wide Usenet Sources ([usenetRoutes])
  *
  * Mutations require `Content-Type: application/json`, which browsers cannot send cross-origin
  * without a CORS preflight this server never approves (CSRF protection). Requests whose `Host` is
  * not an IP literal or `localhost` are refused, which defeats DNS-rebinding attacks.
  */
-fun Application.portalModule(controller: PortalController) {
+fun Application.portalModule(controller: PortalController, usenet: PortalUsenetController) {
     routing {
         get("/") {
             if (!call.hasTrustedHost()) return@get call.respondForbiddenHost()
@@ -67,19 +72,20 @@ fun Application.portalModule(controller: PortalController) {
             post("/addons/move") { call.mutate<AddonMoveRequest>(controller::moveAddon) }
             post("/addons/reorder") { call.mutate<AddonReorderRequest>(controller::reorderAddons) }
             post("/library/import") { call.mutate<LibraryImportRequest>(controller::importToLibrary) }
+            usenetRoutes(usenet)
         }
     }
 }
 
 private fun requireId(id: Long?): Long = id ?: throw UserFacingException("Invalid id")
 
-private suspend inline fun <reified T> ApplicationCall.mutate(noinline action: suspend (T) -> String) =
+internal suspend inline fun <reified T> ApplicationCall.mutate(noinline action: suspend (T) -> String) =
     mutateWithBody(serializer<T>(), action)
 
-private suspend fun ApplicationCall.mutateWithoutBody(action: suspend () -> String) =
+internal suspend fun ApplicationCall.mutateWithoutBody(action: suspend () -> String) =
     guarded { action() }
 
-private suspend fun <T> ApplicationCall.mutateWithBody(deserializer: KSerializer<T>, action: suspend (T) -> String) =
+internal suspend fun <T> ApplicationCall.mutateWithBody(deserializer: KSerializer<T>, action: suspend (T) -> String) =
     guarded {
         val body = receiveText()
         if (body.length > MAX_BODY_CHARS) throw UserFacingException("Request too large")
@@ -92,7 +98,7 @@ private suspend fun <T> ApplicationCall.mutateWithBody(deserializer: KSerializer
     }
 
 /** Shared checks + error mapping for every mutation. */
-private suspend fun ApplicationCall.guarded(action: suspend () -> String) {
+internal suspend fun ApplicationCall.guarded(action: suspend () -> String) {
     if (!hasTrustedHost()) return respondForbiddenHost()
     if (!request.contentType().match(ContentType.Application.Json)) {
         return respondJson(HttpStatusCode.UnsupportedMediaType, ApiMessage(false, "Expected application/json"), serializer())
@@ -114,10 +120,10 @@ private suspend fun ApplicationCall.guarded(action: suspend () -> String) {
     respondJson(status, message, serializer())
 }
 
-private suspend fun <T> ApplicationCall.respondJson(status: HttpStatusCode, body: T, serializer: KSerializer<T>) =
+internal suspend fun <T> ApplicationCall.respondJson(status: HttpStatusCode, body: T, serializer: KSerializer<T>) =
     respondText(portalJson.encodeToString(serializer, body), ContentType.Application.Json, status)
 
-private suspend fun ApplicationCall.respondForbiddenHost() =
+internal suspend fun ApplicationCall.respondForbiddenHost() =
     respondJson(HttpStatusCode.Forbidden, ApiMessage(false, "Open the portal using the TV's IP address"), serializer())
 
 /** Accepts IPv4/IPv6 literals and `localhost`; rejects DNS names (DNS-rebinding defence). */

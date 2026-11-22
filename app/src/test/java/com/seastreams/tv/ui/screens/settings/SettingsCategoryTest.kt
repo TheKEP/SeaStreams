@@ -9,13 +9,26 @@ import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
+import androidx.compose.ui.unit.dp
 import org.junit.jupiter.api.Test
 
 class SettingsCategoryTest {
 
     @Test
-    fun `the tab bar reads Home, UI, Playback, Audio, Subtitles, Other`() {
-        assertEquals(listOf("Home", "UI", "Playback", "Audio", "Subtitles", "Other"), SettingsCategory.entries.map { it.label })
+    fun `the tab bar reads Home, UI, Playback, Audio, Subtitles, Sources, Other`() {
+        assertEquals(listOf("Home", "UI", "Playback", "Audio", "Subtitles", "Sources", "Other"), SettingsCategory.entries.map { it.label })
+    }
+
+    @Test
+    fun `all seven tabs fit on one row of a 960 dp TV inside the page gutters`() {
+        // Upper bound for a bold titleMedium (16 sp) label: 0.7 em per character, plus each tab's 22 dp side padding.
+        val tabs = SettingsCategory.entries.map { 16.dp * 0.7f * it.label.length + 22.dp * 2 }
+        val gaps = 4.dp * (tabs.size - 1)
+        val container = 6.dp * 2
+        val total = tabs.fold(gaps + container) { sum, width -> sum + width }
+        val available = 960.dp - 56.dp * 2
+        assertTrue(total <= available, "tab bar needs " + total + " of " + available)
     }
 
     @Test
