@@ -171,9 +171,6 @@ class SeaStreamsPlayerManager(
         schedule = { delayMs, action -> mainHandler.postDelayed(action, delayMs) },
     )
 
-    /** Whether HDMI passthrough is currently allowed (session Audio overlay; starts from General Settings). */
-    val passthroughAllowed: Boolean get() = engine.passthroughGate.allowPassthrough
-
     /**
      * Switches passthrough during playback: the gate changes what the sink accepts, then the audio
      * renderer re-decides (bitstream vs. decode to PCM) without restarting the video.

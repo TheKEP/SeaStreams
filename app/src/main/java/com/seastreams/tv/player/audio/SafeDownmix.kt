@@ -6,7 +6,6 @@ import androidx.media3.common.audio.BaseAudioProcessor
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.math.abs
-import kotlin.math.roundToInt
 
 /**
  * Clip-safe multichannel → stereo downmix, installed only when the connected output takes no more
@@ -22,7 +21,7 @@ class SafeDownmixProcessor : BaseAudioProcessor() {
     private var encoding = C.ENCODING_INVALID
 
     override fun onConfigure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
-        val pcm = inputAudioFormat.encoding == C.ENCODING_PCM_16BIT || inputAudioFormat.encoding == C.ENCODING_PCM_FLOAT
+        val pcm = PcmSamples.isSupported(inputAudioFormat.encoding)
         val coefficients = stereoMatrix(inputAudioFormat.channelCount)
         if (!pcm || coefficients == null) return AudioProcessor.AudioFormat.NOT_SET
         matrix = coefficients
@@ -32,7 +31,7 @@ class SafeDownmixProcessor : BaseAudioProcessor() {
     }
 
     override fun queueInput(inputBuffer: ByteBuffer) {
-        val bytesPerSample = if (encoding == C.ENCODING_PCM_FLOAT) FLOAT_BYTES else SHORT_BYTES
+        val bytesPerSample = PcmSamples.bytesPerSample(encoding)
         val frameBytes = channels * bytesPerSample
         if (frameBytes == 0 || !inputBuffer.hasRemaining()) return
         val input = inputBuffer.order(ByteOrder.nativeOrder())
@@ -51,23 +50,12 @@ class SafeDownmixProcessor : BaseAudioProcessor() {
         output.flip()
     }
 
-    private fun read(buffer: ByteBuffer): Float =
-        if (encoding == C.ENCODING_PCM_FLOAT) buffer.getFloat() else buffer.getShort() / SHORT_SCALE
+    private fun read(buffer: ByteBuffer): Float = PcmSamples.read(buffer, encoding)
 
-    private fun write(buffer: ByteBuffer, value: Float) {
-        val clamped = value.coerceIn(-1f, 1f)
-        if (encoding == C.ENCODING_PCM_FLOAT) {
-            buffer.putFloat(clamped)
-        } else {
-            buffer.putShort((clamped * SHORT_SCALE).roundToInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort())
-        }
-    }
+    private fun write(buffer: ByteBuffer, value: Float) = PcmSamples.write(buffer, encoding, value)
 
     companion object {
         private const val STEREO = 2
-        private const val SHORT_SCALE = 32_768f
-        private const val SHORT_BYTES = 2
-        private const val FLOAT_BYTES = 4
         private const val FRONT = 1f
         private const val MINUS_3_DB = 0.7071f
         private const val MINUS_6_DB = 0.5f

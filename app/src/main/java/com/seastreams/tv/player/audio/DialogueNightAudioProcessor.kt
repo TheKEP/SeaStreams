@@ -6,7 +6,6 @@ import androidx.media3.common.audio.BaseAudioProcessor
 import com.seastreams.tv.core.util.MILLIS_PER_SECOND
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import kotlin.math.roundToInt
 
 /** Live DSP settings; the player swaps them in for session-only changes from the Audio overlay. */
 data class AudioDspConfig(val dialogueBoostDb: Int = 0, val nightMode: Boolean = false, val delayMs: Int = 0)
@@ -44,7 +43,7 @@ class DialogueNightAudioProcessor(initial: AudioDspConfig = AudioDspConfig()) : 
     private var framesToSkip = 0L
 
     override fun onConfigure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
-        val supported = inputAudioFormat.encoding == C.ENCODING_PCM_16BIT || inputAudioFormat.encoding == C.ENCODING_PCM_FLOAT
+        val supported = PcmSamples.isSupported(inputAudioFormat.encoding)
         if (!supported || inputAudioFormat.channelCount <= 0) return AudioProcessor.AudioFormat.NOT_SET
         return inputAudioFormat
     }
@@ -53,7 +52,7 @@ class DialogueNightAudioProcessor(initial: AudioDspConfig = AudioDspConfig()) : 
         channels = inputAudioFormat.channelCount
         sampleRate = inputAudioFormat.sampleRate
         encoding = inputAudioFormat.encoding
-        bytesPerSample = if (encoding == C.ENCODING_PCM_FLOAT) FLOAT_BYTES else SHORT_BYTES
+        bytesPerSample = PcmSamples.bytesPerSample(encoding)
         bandpass = Array(if (channels <= 2) 1 else 0) { Biquad.bandpass(sampleRate, VOCAL_CENTER_HZ, VOCAL_Q) }
         compressor.configure(sampleRate)
         appliedDelayFrames = 0
@@ -134,17 +133,9 @@ class DialogueNightAudioProcessor(initial: AudioDspConfig = AudioDspConfig()) : 
         }
     }
 
-    private fun readSample(buffer: ByteBuffer): Float =
-        if (encoding == C.ENCODING_PCM_FLOAT) buffer.getFloat() else buffer.getShort() / SHORT_SCALE
+    private fun readSample(buffer: ByteBuffer): Float = PcmSamples.read(buffer, encoding)
 
-    private fun writeSample(buffer: ByteBuffer, value: Float) {
-        val clamped = value.coerceIn(-1f, 1f)
-        if (encoding == C.ENCODING_PCM_FLOAT) {
-            buffer.putFloat(clamped)
-        } else {
-            buffer.putShort((clamped * SHORT_SCALE).roundToInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort())
-        }
-    }
+    private fun writeSample(buffer: ByteBuffer, value: Float) = PcmSamples.write(buffer, encoding, value)
 
     companion object {
         const val CENTER_INDEX = 2
@@ -152,9 +143,6 @@ class DialogueNightAudioProcessor(initial: AudioDspConfig = AudioDspConfig()) : 
         private const val VOCAL_CENTER_HZ = 1_000f
         /** Q of a band centred on 1 kHz spanning roughly 300 Hz–3.4 kHz. */
         private const val VOCAL_Q = 0.45f
-        private const val SHORT_SCALE = 32_768f
-        private const val SHORT_BYTES = 2
-        private const val FLOAT_BYTES = 4
         private const val HALF = 0.5f
     }
 }

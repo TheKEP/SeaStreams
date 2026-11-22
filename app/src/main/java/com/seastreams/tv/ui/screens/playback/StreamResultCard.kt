@@ -2,6 +2,7 @@ package com.seastreams.tv.ui.screens.playback
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,6 +29,23 @@ import com.seastreams.tv.ui.theme.LastUsedGold
 import com.seastreams.tv.ui.theme.Obsidian
 import com.seastreams.tv.ui.theme.focusPillColors
 import com.seastreams.tv.ui.theme.ignoreInitialKeyUp
+
+/**
+ * The full-width focusable pill every stream panel entry sits in (result cards and the panel's
+ * status rows). Long-pressing Play opens the panel while OK is still held, so a held `OK` that
+ * started before the entry was focused never fires it ([ignoreInitialKeyUp]).
+ */
+@Composable
+internal fun StreamPanelEntry(onClick: () -> Unit, modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier.ignoreInitialKeyUp().fillMaxWidth(),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(14.dp)),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+        colors = focusPillColors(containerColor = Color.White.copy(alpha = 0.08f)),
+        content = content,
+    )
+}
 
 /** The text a stream result card shows: nothing is shortened, merged or dropped. */
 internal data class StreamCardText(val header: String, val title: String, val detailLines: List<String>)
@@ -59,13 +77,7 @@ fun StreamResultCard(
     lastUsed: Boolean = false,
 ) {
     val text = streamCardText(stream, rank)
-    Surface(
-        onClick = onClick,
-        modifier = modifier.ignoreInitialKeyUp().fillMaxWidth(),
-        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(14.dp)),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
-        colors = focusPillColors(containerColor = Color.White.copy(alpha = 0.08f)),
-    ) {
+    StreamPanelEntry(onClick = onClick, modifier = modifier) {
         Column(
             Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
