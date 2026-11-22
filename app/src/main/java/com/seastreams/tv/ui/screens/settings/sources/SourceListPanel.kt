@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -38,7 +39,8 @@ data class SourceRow(val id: Long, val title: String, val subtitle: String, val 
 
 /**
  * The `Usenet providers` / `Indexers` sub-panel (PRD §11 `Sources`). It follows the *Manage addons*
- * rules: each row = toggle pill + `Move up` / `Move down` / `Remove`, closed by an `Add …` row that
+ * rules: each row = toggle pill + (providers only, when [onTest] is set) `Test connection` + `Move up` /
+ * `Move down` / `Remove`, closed by an `Add …` row that
  * opens the Web Portal (credentials are typed on a phone). Two-way §1 edge-stop-then-wrap between
  * every control of the first row and the `Add …` row; `Remove` moves focus to the next row's `Remove`
  * (or `Add …` after the last row) *before* removing, so focus is never lost.
@@ -54,6 +56,7 @@ fun SourceListPanel(
     onMove: (SourceRow, Int) -> Unit,
     onRemove: (SourceRow) -> Unit,
     onAdd: () -> Unit,
+    onTest: ((SourceRow) -> Unit)? = null,
 ) {
     val listState = rememberLazyListState()
     val first = remember { FocusRequester() }
@@ -92,6 +95,7 @@ fun SourceListPanel(
                         .then(if (index == 0) Modifier.focusRequester(first).ignoreInitialKeyUp() else Modifier)
                         .then(edge),
                 )
+                if (onTest != null) RoundIconButton(Icons.Filled.Refresh, "Test connection", edge) { onTest(row) }
                 RoundIconButton(Icons.Filled.KeyboardArrowUp, "Move up", edge) { onMove(row, -1) }
                 RoundIconButton(Icons.Filled.KeyboardArrowDown, "Move down", edge) { onMove(row, 1) }
                 RoundIconButton(Icons.Filled.Close, "Remove", edge.focusRequester(removeOf(row))) { removeKeepingFocus(index, row) }

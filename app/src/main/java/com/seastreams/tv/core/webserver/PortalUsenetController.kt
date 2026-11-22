@@ -12,6 +12,8 @@ import com.seastreams.tv.data.usenet.headers.HeaderVersionUpdater
 import com.seastreams.tv.data.usenet.presets.IndexerPresets
 import com.seastreams.tv.data.usenet.presets.UsenetProviderPresets
 import com.seastreams.tv.domain.usenet.UsenetProfile
+import com.seastreams.tv.usenet.nntp.NntpConnectionTester
+import com.seastreams.tv.usenet.nntp.ProviderTestResult
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -22,6 +24,7 @@ class PortalUsenetController @Inject constructor(
     private val sources: UsenetSourcesRepository,
     private val store: UsenetSettingsStore,
     private val updater: HeaderVersionUpdater,
+    private val tester: NntpConnectionTester,
 ) {
 
     suspend fun state(): UsenetPortalState {
@@ -47,12 +50,24 @@ class PortalUsenetController @Inject constructor(
     }
 
     suspend fun saveProvider(request: ProviderRequest): String {
-        val draft = with(request) {
-            ProviderDraft(name, host, port, tls, username, password, maxConnections, pipelineDepth, priority, isBackup, enabled)
-        }
-        sources.saveProvider(request.id, draft)
+        sources.saveProvider(request.id, request.toDraft())
         return if (request.id == null) "Provider added" else "Provider saved"
     }
+
+    /**
+     * The portal's provider `Test`: tests the form as typed (a blank password on a saved provider uses the stored
+     * one). Success is a confirmation; a bad login, connection limit or unreachable server is an error toast.
+     */
+    suspend fun testProvider(request: ProviderRequest): String {
+        val endpoint = sources.endpointForDraft(request.id, request.toDraft())
+        val dialTimeoutMs = store.performance.first().dialTimeoutSeconds * 1_000
+        val result = tester.test(endpoint, dialTimeoutMs)
+        if (result !is ProviderTestResult.Success) throw UserFacingException(result.message)
+        return result.message
+    }
+
+    private fun ProviderRequest.toDraft() =
+        ProviderDraft(name, host, port, tls, username, password, maxConnections, pipelineDepth, priority, isBackup, enabled)
 
     suspend fun removeProvider(request: SourceIdRequest): String {
         sources.removeProvider(request.id)

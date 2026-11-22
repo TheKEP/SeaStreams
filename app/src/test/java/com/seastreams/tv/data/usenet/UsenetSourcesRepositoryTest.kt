@@ -107,4 +107,34 @@ class UsenetSourcesRepositoryTest {
         repository.removeIndexer(id)
         assertTrue(repository.indexers.first().isEmpty())
     }
+
+    @Test
+    fun `endpoints carry the decrypted password for the engine and skip unusable providers`() = runTest {
+        val id = repository.saveProvider(null, eweka)
+        repository.saveProvider(null, eweka.copy(name = "Off", enabled = false))
+        repository.saveProvider(null, eweka.copy(name = "Nopass", password = null))
+        val endpoints = repository.enabledEndpoints()
+        assertEquals(listOf("Eweka"), endpoints.map { it.name })
+        assertEquals("s3cret", endpoints.single().password)
+        assertEquals(id, endpoints.single().id)
+        assertFalse(endpoints.single().toString().contains("s3cret"))
+        assertEquals("s3cret", repository.endpoint(id).password)
+
+        cipher.broken = true
+        assertTrue(repository.enabledEndpoints().isEmpty())
+        assertEquals(
+            "Password needed: enter it again in the Web Portal",
+            assertThrows<UserFacingException> { repository.endpoint(id) }.message,
+        )
+    }
+
+    @Test
+    fun `a portal draft tests with the typed password, or the stored one when left blank`() = runTest {
+        val id = repository.saveProvider(null, eweka)
+        assertEquals("typed", repository.endpointForDraft(id, eweka.copy(password = "typed")).password)
+        assertEquals("s3cret", repository.endpointForDraft(id, eweka.copy(password = "")).password)
+        assertEquals("news.eweka.nl", repository.endpointForDraft(null, eweka).host)
+        assertThrows<UserFacingException> { repository.endpointForDraft(null, eweka.copy(password = null)) }
+        assertThrows<UserFacingException> { repository.endpointForDraft(null, eweka.copy(host = "")) }
+    }
 }

@@ -5,6 +5,8 @@ import coil3.SingletonImageLoader
 import com.seastreams.tv.core.image.IMAGE_CACHE_DIR
 import com.seastreams.tv.core.network.NetworkModule
 import com.seastreams.tv.core.util.IoDispatcher
+import com.seastreams.tv.usenet.cache.NzbFileCache
+import com.seastreams.tv.usenet.cache.SegmentDiskCache
 import dagger.Binds
 import dagger.Lazy
 import dagger.Module
@@ -31,6 +33,18 @@ interface ImageCaches {
     fun clearDisk()
 }
 
+/**
+ * A bounded cache that owns one `cacheDir` folder ([dirName], listed in [CacheManager.MANAGED_DIRS]) and empties
+ * itself through its own API, so its in-memory index stays consistent (ARCHITECTURE §3). Called on the IO dispatcher.
+ */
+interface ManagedCache {
+    val dirName: String
+
+    fun clear()
+
+    fun sizeBytes(): Long
+}
+
 /** Coil's singleton loader (configured by `buildImageLoader`). */
 class CoilImageCaches @Inject constructor(@ApplicationContext private val context: Context) : ImageCaches {
     override fun clearMemory() {
@@ -44,8 +58,8 @@ class CoilImageCaches @Inject constructor(@ApplicationContext private val contex
 
 /**
  * Owns everything SeaStreams keeps in `context.cacheDir`: the 100 MB OkHttp cache ([NetworkModule.HTTP_CACHE_DIR]),
- * the 150 MB Coil cache ([IMAGE_CACHE_DIR]) and any stray files left by older builds or libraries. Playback and
- * trailers stream through memory only, so nothing else is expected there. Every call runs on [io].
+ * the 150 MB Coil cache ([IMAGE_CACHE_DIR]), the bounded Usenet caches ([managedCaches]) and any stray files left by
+ * older builds or libraries. Other playback and trailers stream through memory only. Every call runs on [io].
  */
 @Singleton
 class CacheManager @Inject constructor(
@@ -53,6 +67,7 @@ class CacheManager @Inject constructor(
     /** Lazy: building the OkHttp cache opens its journal, so it is resolved on [io], never the main thread. */
     private val httpCache: Lazy<Cache>,
     private val imageCaches: ImageCaches,
+    private val managedCaches: Set<@JvmSuppressWildcards ManagedCache>,
     @IoDispatcher private val io: CoroutineDispatcher,
 ) {
 
@@ -60,13 +75,14 @@ class CacheManager @Inject constructor(
     suspend fun totalSizeBytes(): Long = withContext(io) { sizeOf(cacheDirProvider.get()) }
 
     /**
-     * Empties the image caches (memory + disk) and the HTTP cache through their own APIs, so their live LRU
-     * journals stay valid, then deletes every other entry in `cacheDir`. Returns the size left afterwards.
+     * Empties the image caches (memory + disk), the HTTP cache and every [ManagedCache] through their own APIs, so
+     * their live LRU journals and indexes stay valid, then deletes every other entry in `cacheDir`. Returns the size left afterwards.
      */
     suspend fun clearAll(): Long = withContext(io) {
         imageCaches.clearMemory()
         imageCaches.clearDisk()
         httpCache.get().evictAll()
+        managedCaches.forEach { it.clear() }
         val dir = cacheDirProvider.get()
         unmanagedEntries(dir).forEach { it.deleteRecursively() }
         sizeOf(dir)
@@ -88,7 +104,8 @@ class CacheManager @Inject constructor(
     private fun sizeOf(dir: File): Long = dir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
 
     companion object {
-        val MANAGED_DIRS: Set<String> = setOf(NetworkModule.HTTP_CACHE_DIR, IMAGE_CACHE_DIR)
+        val MANAGED_DIRS: Set<String> =
+            setOf(NetworkModule.HTTP_CACHE_DIR, IMAGE_CACHE_DIR, SegmentDiskCache.DIR, NzbFileCache.DIR)
         const val ORPHAN_MIN_AGE_MILLIS: Long = 60L * 60 * 1000
     }
 }

@@ -216,6 +216,7 @@ fun SettingsScreen(
                     onMove = { row, offset -> sources.moveProvider(row.id, offset) },
                     onRemove = { sources.removeProvider(it.id) },
                     onAdd = { panel = SettingsPanel.Portal },
+                    onTest = { sources.testProvider(it.id) },
                 )
                 SettingsPanel.UsenetIndexers -> SourceListPanel(
                     title = "Indexers",
