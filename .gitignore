@@ -22,3 +22,6 @@ local.properties
 
 # Local scratch: extracted androidx classes
 /fnd/
+
+# Third-party source clones used as reference only
+docs/code-references/

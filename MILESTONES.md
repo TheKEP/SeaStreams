@@ -24,6 +24,12 @@
 
 ---
 
+## Run audit after every milestone
+**Prompt for Claude Code:**
+> Perform a strict codebase audit. Check for: (1) any file exceeding 350 lines that should be split, (2) duplicated logic, (3) any network/disk calls on the Main thread, (4) memory leaks in ExoPlayer or Ktor server lifecycles, and (5) unused dependencies or dead code. Output a prioritized list of fixes, then execute them and verify ./gradlew testDebugUnitTest passes.
+
+---
+
 ## Milestone 2: Embedded LAN Web Portal & Onboarding / Profile Gate
 **Prompt for Claude Code:**
 > Read `CLAUDE.md`, `PRD.md`, and `ARCHITECTURE.md`. Execute **Milestone 2**:
@@ -42,9 +48,9 @@
 
 ---
 
-## Run audits after every 2 milestones
+## Run audit after every milestone
 **Prompt for Claude Code:**
-> Perform a strict codebase audit. Check for: (1) any file exceeding 300 lines that should be split, (2) duplicated logic, (3) any network/disk calls on the Main thread, (4) memory leaks in ExoPlayer or Ktor server lifecycles, and (5) unused dependencies or dead code. Output a prioritized list of fixes, then execute them and verify ./gradlew testDebugUnitTest passes.
+> Perform a strict codebase audit. Check for: (1) any file exceeding 350 lines that should be split, (2) duplicated logic, (3) any network/disk calls on the Main thread, (4) memory leaks in ExoPlayer or Ktor server lifecycles, and (5) unused dependencies or dead code. Output a prioritized list of fixes, then execute them and verify ./gradlew testDebugUnitTest passes.
 
 ---
 
@@ -74,6 +80,12 @@
 
 ---
 
+## Run audit after every milestone
+**Prompt for Claude Code:**
+> Perform a strict codebase audit. Check for: (1) any file exceeding 350 lines that should be split, (2) duplicated logic, (3) any network/disk calls on the Main thread, (4) memory leaks in ExoPlayer or Ktor server lifecycles, and (5) unused dependencies or dead code. Output a prioritized list of fixes, then execute them and verify ./gradlew testDebugUnitTest passes.
+
+---
+
 ## Milestone 4: Movies, TV Shows, View More, Search & Library Screens
 **Prompt for Claude Code:**
 > Read `CLAUDE.md`, `PRD.md`, and `ARCHITECTURE.md`, and inspect `docs/ui-references/view-more.jpg`, `search-screen.jpg`, and `search-results.jpg`. Execute **Milestone 4**:
@@ -93,9 +105,9 @@
 
 ---
 
-## Run audits after every 2 milestones
+## Run audit after every milestone
 **Prompt for Claude Code:**
-> Perform a strict codebase audit. Check for: (1) any file exceeding 300 lines that should be split, (2) duplicated logic, (3) any network/disk calls on the Main thread, (4) memory leaks in ExoPlayer or Ktor server lifecycles, and (5) unused dependencies or dead code. Output a prioritized list of fixes, then execute them and verify ./gradlew testDebugUnitTest passes.
+> Perform a strict codebase audit. Check for: (1) any file exceeding 350 lines that should be split, (2) duplicated logic, (3) any network/disk calls on the Main thread, (4) memory leaks in ExoPlayer or Ktor server lifecycles, and (5) unused dependencies or dead code. Output a prioritized list of fixes, then execute them and verify ./gradlew testDebugUnitTest passes.
 
 ---
 
@@ -134,6 +146,12 @@
 ## Automated UI & D-Pad Navigation Tests
 **Prompt for Claude Code:**
 > Write Compose UI Tests (createComposeRule()) that simulate D-pad key presses (Key.DirectionDown, Key.DirectionRight, Key.DirectionCenter, Key.Back) across the Home screen, Profile switcher, and Player HUD to guarantee no screen ever traps or loses D-pad focus.
+
+---
+
+## Run audit after every milestone
+**Prompt for Claude Code:**
+> Perform a strict codebase audit. Check for: (1) any file exceeding 350 lines that should be split, (2) duplicated logic, (3) any network/disk calls on the Main thread, (4) memory leaks in ExoPlayer or Ktor server lifecycles, and (5) unused dependencies or dead code. Output a prioritized list of fixes, then execute them and verify ./gradlew testDebugUnitTest passes.
 
 ---
 
@@ -185,9 +203,9 @@
 
 ---
 
-## Run audits after every 2 milestones
+## Run audit after every milestone
 **Prompt for Claude Code:**
-> Perform a strict codebase audit. Check for: (1) any file exceeding 300 lines that should be split, (2) duplicated logic, (3) any network/disk calls on the Main thread, (4) memory leaks in ExoPlayer or Ktor server lifecycles, and (5) unused dependencies or dead code. Output a prioritized list of fixes, then execute them and verify ./gradlew testDebugUnitTest passes.
+> Perform a strict codebase audit. Check for: (1) any file exceeding 350 lines that should be split, (2) duplicated logic, (3) any network/disk calls on the Main thread, (4) memory leaks in ExoPlayer or Ktor server lifecycles, and (5) unused dependencies or dead code. Output a prioritized list of fixes, then execute them and verify ./gradlew testDebugUnitTest passes.
 
 ---
 
@@ -284,6 +302,12 @@
 
 ---
 
+## Run audit after every milestone
+**Prompt for Claude Code:**
+> Perform a strict codebase audit. Check for: (1) any file exceeding 350 lines that should be split, (2) duplicated logic, (3) any network/disk calls on the Main thread, (4) memory leaks in ExoPlayer or Ktor server lifecycles, and (5) unused dependencies or dead code. Output a prioritized list of fixes, then execute them and verify ./gradlew testDebugUnitTest passes.
+
+---
+
 ## Milestone 8: NNTP Engine Core — Connections, Pipelining, yEnc, NZB, Read-Ahead & Bounded Segment Cache
 **Prompt for Claude Code:**
 > Read `CLAUDE.md`, `PRD.md` §12 and `ARCHITECTURE.md` §3 and §10. Use `C:\Users\Ken\Downloads\Nabrio\pov-rajput-android-tv` (`dev/pov/tv/usenet/`) and `C:\Users\Ken\Downloads\AIOStreams\AIOStreams` (`packages/core/src/usenet/`) as references. Execute **Milestone 8** (pure JVM engine, no player wiring):
@@ -314,9 +338,9 @@
 
 ---
 
-## Run audits after every 2 milestones
+## Run audit after every milestone
 **Prompt for Claude Code:**
-> Perform a strict codebase audit. Check for: (1) any file exceeding 300 lines that should be split, (2) duplicated logic, (3) any network/disk calls on the Main thread, (4) memory leaks in ExoPlayer, NNTP sockets/worker threads or Ktor server lifecycles, and (5) unused dependencies or dead code. Output a prioritized list of fixes, then execute them and verify ./gradlew testDebugUnitTest passes.
+> Perform a strict codebase audit. Check for: (1) any file exceeding 350 lines that should be split, (2) duplicated logic, (3) any network/disk calls on the Main thread, (4) memory leaks in ExoPlayer or Ktor server lifecycles, and (5) unused dependencies or dead code. Output a prioritized list of fixes, then execute them and verify ./gradlew testDebugUnitTest passes.
 
 ---
 
@@ -361,6 +385,12 @@
 
 ---
 
+## Run audit after every milestone
+**Prompt for Claude Code:**
+> Perform a strict codebase audit. Check for: (1) any file exceeding 350 lines that should be split, (2) duplicated logic, (3) any network/disk calls on the Main thread, (4) memory leaks in ExoPlayer or Ktor server lifecycles, and (5) unused dependencies or dead code. Output a prioritized list of fixes, then execute them and verify ./gradlew testDebugUnitTest passes.
+
+---
+
 ## Milestone 10: Stream Filtering, Sorting & Formatter (AIOStreams-style, per profile)
 **Prompt for Claude Code:**
 > Read `CLAUDE.md`, `PRD.md` §13 and `ARCHITECTURE.md` §11, and inspect `docs/ui-references/aio-filters.png`, `aio-sorting.png` and `aio-formatter.png`. Use AIOStreams `packages/core/src/{parser,streams,formatters}` as the reference. Execute **Milestone 10**:
@@ -390,9 +420,9 @@
 
 ---
 
-## Run audits after every 2 milestones
+## Run audit after every milestone
 **Prompt for Claude Code:**
-> Perform a strict codebase audit. Check for: (1) any file exceeding 300 lines that should be split, (2) duplicated logic, (3) any network/disk calls on the Main thread, (4) memory leaks in ExoPlayer, NNTP sockets/worker threads or Ktor server lifecycles, and (5) unused dependencies or dead code. Output a prioritized list of fixes, then execute them and verify ./gradlew testDebugUnitTest passes.
+> Perform a strict codebase audit. Check for: (1) any file exceeding 350 lines that should be split, (2) duplicated logic, (3) any network/disk calls on the Main thread, (4) memory leaks in ExoPlayer or Ktor server lifecycles, and (5) unused dependencies or dead code. Output a prioritized list of fixes, then execute them and verify ./gradlew testDebugUnitTest passes.
 
 ---
 
