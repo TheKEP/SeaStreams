@@ -239,16 +239,36 @@ class SettingsDataStoreTest {
     }
 
     @Test
-    fun `swatches are the seven picker colours in order, ending with espresso`() {
-        val expected = listOf(0xFF000000, 0xFF171535, 0xFF351529, 0xFF351515, 0xFF153535, 0xFF090B34, 0xFF472A11)
+    fun `swatches are the eight picker colours in order, ending with steel blue`() {
+        val expected = listOf(0xFF000000, 0xFF171535, 0xFF351529, 0xFF351515, 0xFF153535, 0xFF826098, 0xFF0E1621, 0xFF17212B)
         assertEquals(expected.map { it.toInt() }, BackgroundSwatches.ALL)
     }
 
     @Test
-    fun `the deep navy and espresso swatches persist across store instances`() = runTest {
-        listOf(0xFF090B34.toInt(), 0xFF472A11.toInt()).forEach { swatch ->
+    fun `the muted purple, midnight slate and steel blue swatches persist across store instances`() = runTest {
+        listOf(0xFF826098.toInt(), 0xFF0E1621.toInt(), 0xFF17212B.toInt()).forEach { swatch ->
             settings.setBackgroundColor(swatch)
             assertEquals(swatch, SettingsDataStore(rawStore).settings.first().appearance.backgroundArgb)
+        }
+    }
+
+    @Test
+    fun `the retired deep navy and espresso swatches are no longer selectable`() = runTest {
+        settings.setBackgroundColor(0xFF826098.toInt())
+        listOf(0xFF090B34.toInt(), 0xFF472A11.toInt()).forEach { old ->
+            assertFalse(old in BackgroundSwatches.ALL)
+            settings.setBackgroundColor(old)
+            // Ignored: the saved swatch is untouched.
+            assertEquals(0xFF826098.toInt(), settings.settings.first().appearance.backgroundArgb)
+        }
+    }
+
+    @Test
+    fun `a profile that had deep navy or espresso saved falls back to black`() = runTest {
+        listOf(0xFF090B34.toInt(), 0xFF472A11.toInt()).forEach { old ->
+            rawStore.edit { it[intPreferencesKey("${SCOPE}ui_background_color")] = old }
+            assertEquals(BackgroundSwatches.DEFAULT, settings.settings.first().appearance.backgroundArgb)
+            assertEquals(BackgroundSwatches.DEFAULT, SettingsDataStore(rawStore).settings.first().appearance.backgroundArgb)
         }
     }
 
@@ -264,12 +284,12 @@ class SettingsDataStoreTest {
     @Test
     fun `a leftover scroll speed value is ignored and purged`() = runTest {
         rawStore.edit { it[stringPreferencesKey("${SCOPE}ui_catalog_row_scroll_speed")] = "FAST" }
-        settings.setBackgroundColor(0xFF472A11.toInt())
+        settings.setBackgroundColor(0xFF17212B.toInt())
 
         settings.purgeRetiredSettings()
 
         assertNull(rawStore.data.first()[stringPreferencesKey("${SCOPE}ui_catalog_row_scroll_speed")])
-        assertEquals(0xFF472A11.toInt(), settings.settings.first().appearance.backgroundArgb)
+        assertEquals(0xFF17212B.toInt(), settings.settings.first().appearance.backgroundArgb)
     }
 
     private companion object {

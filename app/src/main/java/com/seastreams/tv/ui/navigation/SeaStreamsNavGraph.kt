@@ -1,13 +1,13 @@
 package com.seastreams.tv.ui.navigation
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -17,13 +17,8 @@ import com.seastreams.tv.ui.screens.home.HomeRevealGate
 import com.seastreams.tv.ui.screens.home.HomeViewModel
 import com.seastreams.tv.ui.screens.profiles.ProfileCreateScreen
 import com.seastreams.tv.ui.screens.profiles.ProfileEditorMode
-import com.seastreams.tv.ui.screens.profiles.ProfileSelectScreen
 import com.seastreams.tv.ui.screens.profiles.ProfileSelectViewModel
 import com.seastreams.tv.ui.screens.splash.SeaStreamsSplashScreen
-
-/** Editor overlay state: closed, creating a new profile, or editing the profile with that id. */
-private const val EDITOR_CLOSED = -1L
-private const val EDITOR_NEW = 0L
 
 @Composable
 fun SeaStreamsNavGraph(backLongPress: BackLongPressRouter) {
@@ -56,37 +51,33 @@ fun SeaStreamsNavGraph(backLongPress: BackLongPressRouter) {
     }
 }
 
-/** Profile switcher, and once a profile is chosen, that profile's tabs (starting on Home). */
+/**
+ * Profile switcher, and once a profile is chosen, that profile's tabs (starting on Home). The shell
+ * is keyed on ([homeProfileId], `shellSession`): a pick from the `Settings → Profiles` cover bumps the
+ * session, so even re-picking the current profile starts a fresh shell on Home with Settings closed.
+ */
 @Composable
 private fun ProfileGate(backLongPress: BackLongPressRouter) {
     var homeProfileId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var shellSession by rememberSaveable { mutableIntStateOf(0) }
     val openProfileId = homeProfileId
     if (openProfileId != null) {
         val homeViewModel: HomeViewModel = activityViewModel()
-        HomeRevealGate(profileId = openProfileId, viewModel = homeViewModel, onBack = { homeProfileId = null }) {
-            ProfileShell(
-                profileId = openProfileId,
-                homeViewModel = homeViewModel,
-                backLongPress = backLongPress,
-                onSwitchProfile = { homeProfileId = null },
-            )
+        key(openProfileId, shellSession) {
+            HomeRevealGate(profileId = openProfileId, viewModel = homeViewModel, onBack = { homeProfileId = null }) {
+                ProfileShell(
+                    profileId = openProfileId,
+                    homeViewModel = homeViewModel,
+                    backLongPress = backLongPress,
+                    onSwitchProfile = { homeProfileId = null },
+                    onEnterProfile = { id ->
+                        homeProfileId = id
+                        shellSession++
+                    },
+                )
+            }
         }
         return
     }
-    var editor by rememberSaveable { mutableLongStateOf(EDITOR_CLOSED) }
-    if (editor == EDITOR_CLOSED) {
-        ProfileSelectScreen(
-            viewModel = activityViewModel(),
-            onProfileSelected = { homeProfileId = it },
-            onEditProfile = { editor = it },
-            onAddProfile = { editor = EDITOR_NEW },
-        )
-    } else {
-        BackHandler { editor = EDITOR_CLOSED }
-        ProfileCreateScreen(
-            mode = if (editor == EDITOR_NEW) ProfileEditorMode.Create else ProfileEditorMode.Edit(editor),
-            viewModel = activityViewModel(key = "profile-editor"),
-            onFinished = { editor = EDITOR_CLOSED },
-        )
-    }
+    ProfileSwitcher(onProfileSelected = { homeProfileId = it })
 }

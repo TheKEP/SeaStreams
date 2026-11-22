@@ -18,9 +18,16 @@ class SettingsChoicesTest {
     }
 
     @Test
-    fun `the deep navy and espresso swatches have their own names`() {
-        assertEquals("Deep navy", backgroundName(0xFF090B34.toInt()))
-        assertEquals("Espresso", backgroundName(0xFF472A11.toInt()))
+    fun `the new swatches have their own names`() {
+        assertEquals("Muted purple", backgroundName(0xFF826098.toInt()))
+        assertEquals("Midnight slate", backgroundName(0xFF0E1621.toInt()))
+        assertEquals("Steel blue", backgroundName(0xFF17212B.toInt()))
+    }
+
+    @Test
+    fun `the retired deep navy and espresso swatches read as black`() {
+        assertEquals("Black", backgroundName(0xFF090B34.toInt()))
+        assertEquals("Black", backgroundName(0xFF472A11.toInt()))
     }
 
     @Test
