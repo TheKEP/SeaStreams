@@ -2,6 +2,7 @@ package com.seastreams.tv.core.network
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import java.time.Instant
 
 @Serializable
 data class TmdbPage<T>(
@@ -233,20 +234,37 @@ data class TmdbVideo(
     val site: String = "",
     val type: String = "",
     val official: Boolean = false,
+    /** ISO-8601 instant, e.g. `2026-02-19T17:00:14.000Z`. */
+    @SerialName("published_at") val publishedAt: String = "",
 )
 
 @Serializable
 data class TmdbVideos(val results: List<TmdbVideo> = emptyList()) {
-    /** Best YouTube trailer key: official trailers first, then any trailer, then a teaser. */
-    fun youtubeTrailerKey(): String? {
+    /**
+     * Ranked YouTube trailer keys to try in turn (PRD §9 Trailer Candidates): official trailers, then
+     * other trailers, then teasers; newest first within each tier (undated last); at most [limit].
+     * Several candidates matter because YouTube's made-for-kids uploads can't be extracted.
+     */
+    fun youtubeTrailerKeys(limit: Int = MAX_TRAILER_CANDIDATES): List<String> {
         val youtube = results.filter { it.site.equals("YouTube", ignoreCase = true) && it.key.isNotBlank() }
-        return (
-            youtube.firstOrNull { it.type == "Trailer" && it.official }
-                ?: youtube.firstOrNull { it.type == "Trailer" }
-                ?: youtube.firstOrNull { it.type == "Teaser" }
-            )?.key
+        val newestFirst = compareByDescending<TmdbVideo> { publishedEpochMillis(it.publishedAt) ?: Long.MIN_VALUE }
+        val tiers = listOf(
+            youtube.filter { it.type == TRAILER && it.official },
+            youtube.filter { it.type == TRAILER && !it.official },
+            youtube.filter { it.type == TEASER },
+        )
+        return tiers.flatMap { it.sortedWith(newestFirst) }.map { it.key }.distinct().take(limit)
     }
 }
+
+/** How many TMDB trailer candidates are tried before giving up. */
+const val MAX_TRAILER_CANDIDATES = 3
+
+private const val TRAILER = "Trailer"
+private const val TEASER = "Teaser"
+
+private fun publishedEpochMillis(value: String): Long? =
+    value.takeIf { it.isNotBlank() }?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
 
 private const val US = "US"
 

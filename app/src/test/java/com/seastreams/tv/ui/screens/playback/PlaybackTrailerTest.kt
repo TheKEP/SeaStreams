@@ -12,6 +12,7 @@ import com.seastreams.tv.domain.usecase.ResolveTrailerStreamUseCase
 import com.seastreams.tv.testutil.FakeLastUsedStreamDao
 import com.seastreams.tv.testutil.FakeWatchProgressDao
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -71,10 +72,10 @@ class PlaybackTrailerTest {
 
     @Test
     fun `a resolved trailer opens the built-in player with a Trailer request`() = runTest {
-        coEvery { resolveTrailer("key1", any()) } returns stream
+        coEvery { resolveTrailer(listOf("key1", "key1b"), any()) } returns stream
         val vm = viewModel()
 
-        vm.playTrailer("Dune", "key1")
+        vm.playTrailer("Dune", listOf("key1", "key1b"))
 
         val request = vm.state.value.player
         assertTrue(request is PlaybackRequest.Trailer)
@@ -86,11 +87,11 @@ class PlaybackTrailerTest {
     }
 
     @Test
-    fun `an extraction error falls back to the YouTube app and opens no player`() = runTest {
-        coEvery { resolveTrailer("key2", any()) } throws IOException("YouTube changed")
+    fun `every candidate failing falls back to the YouTube app with the top-ranked key`() = runTest {
+        coEvery { resolveTrailer(listOf("key2", "key3", "key4"), any()) } throws IOException("YouTube changed")
         val vm = viewModel()
 
-        vm.playTrailer("Dune", "key2")
+        vm.playTrailer("Dune", listOf("key2", "key3", "key4"))
 
         assertNull(vm.state.value.player)
         val event = withTimeout(1_000) { vm.events.first() }
@@ -98,10 +99,19 @@ class PlaybackTrailerTest {
     }
 
     @Test
+    fun `an empty candidate list does nothing`() = runTest {
+        val vm = viewModel()
+        vm.playTrailer("Dune", emptyList())
+        assertNull(vm.state.value.player)
+        assertNull(vm.state.value.busyLabel)
+        coVerify(exactly = 0) { resolveTrailer(any(), any()) }
+    }
+
+    @Test
     fun `closing the player clears the request`() = runTest {
         coEvery { resolveTrailer(any(), any()) } returns stream
         val vm = viewModel()
-        vm.playTrailer("Dune", "key1")
+        vm.playTrailer("Dune", listOf("key1"))
         vm.closePlayer()
         assertNull(vm.state.value.player)
     }

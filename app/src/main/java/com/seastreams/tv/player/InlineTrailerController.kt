@@ -58,8 +58,9 @@ interface InlineTrailerPlayback {
 class InlineTrailerController(
     private val scope: CoroutineScope,
     private val settings: () -> InlineTrailerSettings,
-    private val trailerKey: suspend (MediaRef) -> String?,
-    private val resolveStream: suspend (String) -> TrailerStream,
+    /** Ranked TMDB trailer candidates; empty when the title has none. */
+    private val trailerKeys: suspend (MediaRef) -> List<String>,
+    private val resolveStream: suspend (List<String>) -> TrailerStream,
     private val playback: InlineTrailerPlayback,
 ) {
     private val _state = MutableStateFlow<InlineTrailerState>(InlineTrailerState.Idle)
@@ -79,9 +80,9 @@ class InlineTrailerController(
         currentSlot = slot
         job = scope.launch {
             delay(current.delayMs)
-            val key = orNullUnlessCancelled { trailerKey(item.ref) }
-            if (key == null) return@launch fail(slot)
-            val stream = orNullUnlessCancelled { resolveStream(key) } ?: return@launch fail(slot)
+            val keys = orNullUnlessCancelled { trailerKeys(item.ref) }.orEmpty()
+            if (keys.isEmpty()) return@launch fail(slot)
+            val stream = orNullUnlessCancelled { resolveStream(keys) } ?: return@launch fail(slot)
             playback.start(
                 stream = stream,
                 muted = current.muted,

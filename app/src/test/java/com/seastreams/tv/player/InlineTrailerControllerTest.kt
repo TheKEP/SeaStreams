@@ -30,6 +30,8 @@ class InlineTrailerControllerTest {
     private val keyLookups = mutableListOf<MediaRef>()
     private var settings = InlineTrailerSettings(enabled = true, muted = true, delayMs = 2_000)
     private var extractionFails = false
+    private var noTrailerKeys = false
+    private val resolvedKeys = mutableListOf<List<String>>()
 
     /** Records starts/stops; reports READY or an error on demand. */
     private inner class FakePlayback : InlineTrailerPlayback {
@@ -54,8 +56,14 @@ class InlineTrailerControllerTest {
     private fun TestScope.controller() = InlineTrailerController(
         scope = backgroundScope,
         settings = { settings },
-        trailerKey = { ref -> keyLookups += ref; "yt-${ref.tmdbId}" },
-        resolveStream = { if (extractionFails) throw IOException("blocked") else stream },
+        trailerKeys = { ref ->
+            keyLookups += ref
+            if (noTrailerKeys) emptyList() else listOf("yt-${ref.tmdbId}-a", "yt-${ref.tmdbId}-b")
+        },
+        resolveStream = { keys ->
+            resolvedKeys += keys
+            if (extractionFails) throw IOException("blocked") else stream
+        },
         playback = playback,
     )
 
@@ -164,6 +172,27 @@ class InlineTrailerControllerTest {
         advanceTimeBy(5_000)
         runCurrent()
         assertEquals(1, keyLookups.size, "a failed title isn't looked up again")
+    }
+
+    @Test
+    fun `every ranked candidate is handed to the resolver in order`() = runTest {
+        controller().onCardFocused(duneRowA, dune)
+        advanceTimeBy(2_001)
+        runCurrent()
+        assertEquals(listOf(listOf("yt-${dune.ref.tmdbId}-a", "yt-${dune.ref.tmdbId}-b")), resolvedKeys)
+    }
+
+    @Test
+    fun `a title with no trailer keys silently keeps its artwork without extracting`() = runTest {
+        noTrailerKeys = true
+        val trailers = controller()
+        trailers.onCardFocused(duneRowA, dune)
+        advanceTimeBy(2_001)
+        runCurrent()
+
+        assertTrue(resolvedKeys.isEmpty(), "nothing to extract")
+        assertTrue(playback.started.isEmpty())
+        assertEquals(InlineTrailerState.Idle, trailers.state.value)
     }
 
     @Test

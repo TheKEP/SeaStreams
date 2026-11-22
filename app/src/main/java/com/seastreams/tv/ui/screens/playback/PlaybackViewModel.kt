@@ -201,15 +201,19 @@ class PlaybackViewModel @Inject constructor(
         _state.update { it.copy(picker = null) }
     }
 
-    /** Details `Trailer`: plays full-screen in the built-in player, or opens YouTube if extraction fails. */
-    fun playTrailer(title: String, youtubeKey: String) {
+    /**
+     * Details `Trailer`: plays the first of the ranked [youtubeKeys] that extracts full-screen in the
+     * built-in player, or opens the top-ranked one in YouTube if every candidate fails (PRD §9).
+     */
+    fun playTrailer(title: String, youtubeKeys: List<String>) {
+        val topKey = youtubeKeys.firstOrNull() ?: return
         lookup?.cancel()
         lookup = viewModelScope.launch {
             _state.update { it.copy(busyLabel = "Loading trailer…") }
-            val stream = orNullUnlessCancelled { resolveTrailer(youtubeKey) }
+            val stream = orNullUnlessCancelled { resolveTrailer(youtubeKeys) }
             _state.update { it.copy(busyLabel = null) }
             if (stream == null) {
-                _events.send(PlaybackEvent.OpenYouTube(youtubeKey))
+                _events.send(PlaybackEvent.OpenYouTube(topKey))
             } else {
                 _state.update { it.copy(player = PlaybackRequest.Trailer(nextSessionId++, title, stream)) }
             }

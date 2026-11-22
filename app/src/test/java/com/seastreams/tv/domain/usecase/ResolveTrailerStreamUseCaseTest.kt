@@ -92,16 +92,75 @@ class ResolveTrailerStreamUseCaseTest {
             ExtractedTrailer(listOf(video(1080)), listOf(audio(128_000)))
         }
         val useCase = ResolveTrailerStreamUseCase(extractor, everything, StandardTestDispatcher(testScheduler))
-        assertEquals(1080, useCase("abc123").height)
+        assertEquals(1080, useCase(listOf("abc123")).height)
     }
 
     @Test
     fun `extraction errors and empty results throw so callers can fall back`() = runTest {
         val failing = ResolveTrailerStreamUseCase({ throw IOException("blocked") }, everything, StandardTestDispatcher(testScheduler))
-        assertThrows<IOException> { failing("x") }
+        assertThrows<IOException> { failing(listOf("x")) }
 
         val empty = ResolveTrailerStreamUseCase({ ExtractedTrailer(emptyList(), emptyList()) }, everything, StandardTestDispatcher(testScheduler))
-        assertThrows<NoTrailerStreamException> { empty("x") }
+        assertThrows<NoTrailerStreamException> { empty(listOf("x")) }
+    }
+
+    @Test
+    fun `all-HDR adaptive streams fall back to the tallest SDR muxed stream without separate audio`() {
+        val extracted = ExtractedTrailer(
+            videos = listOf(
+                video(2160, codec = "vp09.02.51.10.01.09.16.09.00", container = TrailerContainer.WEBM),
+                video(1440, codec = "av01.0.12M.10.0.110.09.16.09.0"),
+                video(360, videoOnly = false),
+                video(720, videoOnly = false),
+            ),
+            audios = listOf(audio(128_000)),
+        )
+        val stream = TrailerStreamSelector.select(extracted, everything)
+        assertEquals("https://v/720-30-avc1.640028-MP4-false", stream?.video?.url)
+        assertNull(stream?.audio, "muxed streams carry their own audio: a single MediaSource")
+    }
+
+    @Test
+    fun `no adaptive streams at all falls back to muxed`() {
+        val extracted = ExtractedTrailer(listOf(video(480, videoOnly = false), video(720, videoOnly = false)), listOf(audio(128_000)))
+        val stream = TrailerStreamSelector.select(extracted, everything)
+        assertEquals(720, stream?.height)
+        assertNull(stream?.audio)
+    }
+
+    @Test
+    fun `an adaptive SDR video without M4A audio falls back to muxed`() {
+        val extracted = ExtractedTrailer(
+            videos = listOf(video(1080), video(360, videoOnly = false)),
+            audios = listOf(audio(160_000, TrailerContainer.WEBMA)),
+        )
+        val stream = TrailerStreamSelector.select(extracted, everything)
+        assertEquals(360, stream?.height)
+        assertNull(stream?.audio)
+    }
+
+    @Test
+    fun `HDR, undecodable and over-cap muxed streams are skipped`() {
+        val noAv1 = VideoCodecSupport { codec, _, _ -> videoCodecFamily(codec) != "av1" }
+        val extracted = ExtractedTrailer(
+            videos = listOf(
+                video(1080, codec = "vp09.02.51.10", container = TrailerContainer.WEBM, videoOnly = false),
+                video(1080, codec = "av01.0.08M.08", videoOnly = false),
+                video(2160, videoOnly = false),
+                video(480, videoOnly = false),
+            ),
+            audios = emptyList(),
+        )
+        assertEquals(480, TrailerStreamSelector.select(extracted, noAv1, maxHeight = 1080)?.height)
+    }
+
+    @Test
+    fun `only HDR streams everywhere gives null`() {
+        val extracted = ExtractedTrailer(
+            videos = listOf(video(2160, codec = "dvh1.08.06"), video(1080, codec = "vp09.02.51.10", videoOnly = false)),
+            audios = listOf(audio(128_000)),
+        )
+        assertNull(TrailerStreamSelector.select(extracted, everything))
     }
 
     @Test

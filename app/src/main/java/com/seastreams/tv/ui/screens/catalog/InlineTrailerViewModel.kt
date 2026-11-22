@@ -40,8 +40,8 @@ class InlineTrailerViewModel @Inject constructor(
     private val controller = InlineTrailerController(
         scope = viewModelScope,
         settings = { settings.value },
-        trailerKey = { ref -> titles.trailerKey(ref) },
-        resolveStream = { key -> resolveTrailer(key, PREVIEW_MAX_HEIGHT) },
+        trailerKeys = { ref -> titles.trailerKeys(ref) },
+        resolveStream = { keys -> resolveTrailer(keys, PREVIEW_MAX_HEIGHT) },
         playback = manager,
     )
 

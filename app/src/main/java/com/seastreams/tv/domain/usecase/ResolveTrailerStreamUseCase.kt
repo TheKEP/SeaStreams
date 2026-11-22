@@ -1,5 +1,6 @@
 package com.seastreams.tv.domain.usecase
 
+import com.seastreams.tv.core.network.MAX_TRAILER_CANDIDATES
 import com.seastreams.tv.domain.model.TrailerSource
 import com.seastreams.tv.domain.model.TrailerStream
 import kotlinx.coroutines.CoroutineDispatcher
@@ -49,9 +50,11 @@ fun interface VideoCodecSupport {
 class NoTrailerStreamException(key: String) : IOException("No playable trailer stream for $key")
 
 /**
- * PRD §9 trailer streams: the highest-quality adaptive video stream at or below 2160p that the device
- * can decode (taller first, then higher frame rate, then MP4 over WebM, then bitrate), paired with the
- * best M4A audio stream. When YouTube offers no adaptive pair, the best muxed stream is used instead.
+ * PRD §9 trailer streams, SDR only (§10): the highest-quality adaptive video-only stream at or below
+ * [maxHeight] that the device can decode (taller first, then higher frame rate, then MP4 over WebM,
+ * then bitrate), paired with the best M4A audio stream (`MergingMediaSource`). Without such a pair (no
+ * adaptive streams, all HDR or undecodable, or no M4A audio) the best SDR progressive/muxed stream is
+ * played alone (`audio = null`). `null` when neither exists, so the caller tries its next candidate.
  */
 object TrailerStreamSelector {
     const val MAX_HEIGHT = 2160
@@ -132,9 +135,11 @@ private const val SDR_BIT_DEPTH = 8
 private const val VP9_PROFILE_2 = 2
 
 /**
- * Resolves the YouTube trailer key TMDB lists for a title into playable streams, off the main thread.
- * Throws when extraction fails or nothing playable is found; callers decide the fallback (Details
- * opens YouTube, catalog rows silently keep their artwork).
+ * Resolves a title's ranked TMDB YouTube trailer keys into playable streams, off the main thread (PRD §9
+ * Trailer Candidates). Up to [MAX_TRAILER_CANDIDATES] keys are tried in order: a key fails when
+ * extraction throws (e.g. a made-for-kids upload YouTube won't serve) or nothing playable is found.
+ * Throws once every candidate failed; callers decide the fallback (Details opens YouTube, catalog rows
+ * silently keep their artwork). Cancellation is never caught, so a cancelled hover stops at once.
  */
 class ResolveTrailerStreamUseCase(
     private val extractor: TrailerExtractor,
@@ -145,9 +150,25 @@ class ResolveTrailerStreamUseCase(
     constructor(extractor: TrailerExtractor, codecs: VideoCodecSupport) : this(extractor, codecs, Dispatchers.IO)
 
     /** [maxHeight]: 2160p for full-screen trailers; inline 16:9 card previews ask for less. */
-    suspend operator fun invoke(youtubeKey: String, maxHeight: Int = TrailerStreamSelector.MAX_HEIGHT): TrailerStream =
+    suspend operator fun invoke(youtubeKeys: List<String>, maxHeight: Int = TrailerStreamSelector.MAX_HEIGHT): TrailerStream =
         withContext(dispatcher) {
-            val extracted = extractor.extract(youtubeKey)
-            TrailerStreamSelector.select(extracted, codecs, maxHeight) ?: throw NoTrailerStreamException(youtubeKey)
+            val failures = mutableListOf<IOException>()
+            for (key in youtubeKeys.take(MAX_TRAILER_CANDIDATES)) {
+                try {
+                    return@withContext resolve(key, maxHeight)
+                } catch (e: IOException) {
+                    failures += e
+                }
+            }
+            val last = failures.lastOrNull() ?: throw NoTrailerStreamException(NO_KEYS)
+            failures.dropLast(1).forEach(last::addSuppressed)
+            throw last
         }
+
+    private suspend fun resolve(key: String, maxHeight: Int): TrailerStream =
+        TrailerStreamSelector.select(extractor.extract(key), codecs, maxHeight) ?: throw NoTrailerStreamException(key)
+
+    private companion object {
+        const val NO_KEYS = "(no TMDB trailer keys)"
+    }
 }
