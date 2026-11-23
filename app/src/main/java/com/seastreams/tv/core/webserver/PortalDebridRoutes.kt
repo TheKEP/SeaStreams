@@ -1,16 +1,11 @@
 package com.seastreams.tv.core.webserver
 
-import android.util.Log
-import com.seastreams.tv.data.UserFacingException
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
-import io.ktor.server.application.ApplicationCall
 import io.ktor.server.response.header
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
-import kotlinx.coroutines.CancellationException
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.serializer
 
 /**
@@ -45,21 +40,6 @@ internal fun Route.debridRoutes(controller: PortalDebridController) {
         call.respondJson(HttpStatusCode.OK, session, serializer())
     }
     post("/sources/toggles") { call.mutate<SourceTogglesRequest>(controller::setToggles) }
-}
-
-/** Like [guarded], but a success answers [action]'s value instead of an [ApiMessage]. */
-private suspend fun <T> ApplicationCall.guardedJson(serializer: KSerializer<T>, action: suspend () -> T) {
-    if (!acceptsJsonPost()) return
-    try {
-        respondJson(HttpStatusCode.OK, action(), serializer)
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: UserFacingException) {
-        respondJson(HttpStatusCode.BadRequest, ApiMessage(false, e.message.orEmpty()), serializer())
-    } catch (e: Exception) {
-        Log.e("LocalPortal", "Portal request ${request.local.uri} failed", e)
-        respondJson(HttpStatusCode.InternalServerError, ApiMessage(false, "Something went wrong on the TV. Please try again."), serializer())
-    }
 }
 
 private val SESSION_ID = Regex("[0-9a-f]{32}")

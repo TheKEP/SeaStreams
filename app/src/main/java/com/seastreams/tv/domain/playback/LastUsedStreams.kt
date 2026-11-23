@@ -2,17 +2,24 @@ package com.seastreams.tv.domain.playback
 
 import com.seastreams.tv.core.database.dao.LastUsedStreamDao
 import com.seastreams.tv.core.database.entity.LastUsedStreamEntity
+import com.seastreams.tv.core.util.sha256Hex
 import com.seastreams.tv.domain.model.StreamSource
 import java.time.Clock
 import javax.inject.Inject
 
-/** The identity of the stream that last started for one movie or episode (PRD §6 `LAST USED`). */
-data class LastUsedStream(val addonUrl: String, val url: String, val label: String, val description: String)
+/**
+ * The identity of the stream that last started for one movie or episode (PRD §6 `LAST USED`). [urlFingerprint] is
+ * [streamUrlFingerprint] of its URL (`""` when unknown): the URL itself is never stored, since it may carry keys.
+ */
+data class LastUsedStream(val addonUrl: String, val urlFingerprint: String, val label: String, val description: String)
+
+/** What `last_used_streams` keeps of a stream URL: its SHA-256, so API keys and signed tokens never reach the database. */
+fun streamUrlFingerprint(url: String): String = sha256Hex(url)
 
 /**
  * Where [saved] sits in a freshly fetched [streams] list, or `null` when it isn't there. Addon
  * streams carry no stable id, so the match is tiered, strictest first, within the same addon:
- * 1. the exact URL;
+ * 1. the exact URL (by fingerprint);
  * 2. the same label and description (debrid/proxy addons sign a new URL on every fetch);
  * 3. the same label and description once every number is ignored (torrent addons put live seeder
  *    / peer counts in the description) — only when exactly one stream qualifies;
@@ -22,7 +29,9 @@ data class LastUsedStream(val addonUrl: String, val url: String, val label: Stri
  */
 fun lastUsedIndex(streams: List<StreamSource>, saved: LastUsedStream?): Int? {
     if (saved == null) return null
-    streams.indexOfFirst { it.url == saved.url }.takeIf { it >= 0 }?.let { return it }
+    if (saved.urlFingerprint.isNotEmpty()) {
+        streams.indexOfFirst { streamUrlFingerprint(it.url) == saved.urlFingerprint }.takeIf { it >= 0 }?.let { return it }
+    }
     val sameAddon = streams.withIndex().filter { (_, s) -> s.addonUrl == saved.addonUrl && s.label == saved.label }
     sameAddon.firstOrNull { (_, s) -> s.description == saved.description }?.let { return it.index }
     val digitless = digitless(saved.description)
@@ -59,7 +68,7 @@ class LastUsedStreamRecorder @Inject constructor(
                 seasonNumber = target.episode?.season ?: 0,
                 episodeNumber = target.episode?.episode ?: 0,
                 addonUrl = stream.addonUrl,
-                streamUrl = stream.url,
+                streamUrlFingerprint = streamUrlFingerprint(stream.url),
                 label = stream.label,
                 description = stream.description,
                 updatedAtMillis = clock.millis(),
@@ -71,7 +80,7 @@ class LastUsedStreamRecorder @Inject constructor(
         val media = target.details.media
         val row = dao.get(target.profileId, media.tmdbId, media.mediaType, target.episode?.season ?: 0, target.episode?.episode ?: 0)
             ?: return null
-        return LastUsedStream(row.addonUrl, row.streamUrl, row.label, row.description)
+        return LastUsedStream(row.addonUrl, row.streamUrlFingerprint, row.label, row.description)
     }
 
     /** The index of [target]'s `LAST USED` stream in [streams], or `null` when there is none. */

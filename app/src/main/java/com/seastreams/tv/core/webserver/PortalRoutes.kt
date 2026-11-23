@@ -9,6 +9,7 @@ import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.contentType
 import io.ktor.server.request.host
+import io.ktor.server.request.path
 import io.ktor.server.request.receiveText
 import io.ktor.server.response.header
 import io.ktor.server.response.respondText
@@ -133,19 +134,25 @@ internal suspend fun ApplicationCall.acceptsJsonPost(): Boolean {
 }
 
 /** Shared checks + error mapping for every mutation. */
-internal suspend fun ApplicationCall.guarded(action: suspend () -> String) {
+internal suspend fun ApplicationCall.guarded(action: suspend () -> String) =
+    guardedJson(serializer<ApiMessage>()) { ApiMessage(true, action()) }
+
+/**
+ * Like [guarded], but a success answers [action]'s value instead of an [ApiMessage]. Failures log only the request
+ * path: a query string never reaches the log.
+ */
+internal suspend fun <T> ApplicationCall.guardedJson(serializer: KSerializer<T>, action: suspend () -> T) {
     if (!acceptsJsonPost()) return
-    val (status, message) = try {
-        HttpStatusCode.OK to ApiMessage(true, action())
+    try {
+        respondJson(HttpStatusCode.OK, action(), serializer)
     } catch (e: CancellationException) {
         throw e
     } catch (e: UserFacingException) {
-        HttpStatusCode.BadRequest to ApiMessage(false, e.message.orEmpty())
+        respondJson(HttpStatusCode.BadRequest, ApiMessage(false, e.message.orEmpty()), serializer())
     } catch (e: Exception) {
-        logError("Portal request ${request.local.uri} failed", e)
-        HttpStatusCode.InternalServerError to ApiMessage(false, "Something went wrong on the TV. Please try again.")
+        logError("Portal request ${request.path()} failed", e)
+        respondJson(HttpStatusCode.InternalServerError, ApiMessage(false, "Something went wrong on the TV. Please try again."), serializer())
     }
-    respondJson(status, message, serializer())
 }
 
 internal suspend fun <T> ApplicationCall.respondJson(status: HttpStatusCode, body: T, serializer: KSerializer<T>) =

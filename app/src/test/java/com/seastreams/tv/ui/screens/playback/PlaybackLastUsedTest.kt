@@ -15,6 +15,7 @@ import com.seastreams.tv.domain.playback.PlaybackProgressRecorder
 import com.seastreams.tv.domain.playback.PlaybackStreamResolver
 import com.seastreams.tv.domain.playback.PlaybackTarget
 import com.seastreams.tv.domain.playback.ResolvedPlayback
+import com.seastreams.tv.domain.playback.streamUrlFingerprint
 import com.seastreams.tv.domain.usecase.StreamResolution
 import com.seastreams.tv.testutil.FakeLastUsedStreamDao
 import com.seastreams.tv.testutil.FakeWatchProgressDao
@@ -129,7 +130,7 @@ class PlaybackLastUsedTest {
         vm.choose(streams[1])
         withTimeout(TIMEOUT_MS) { vm.events.first() }
 
-        assertEquals("https://s/b", lastUsed.lastUsed(target)?.url)
+        assertEquals(streamUrlFingerprint("https://s/b"), lastUsed.lastUsed(target)?.urlFingerprint)
     }
 
     @Test

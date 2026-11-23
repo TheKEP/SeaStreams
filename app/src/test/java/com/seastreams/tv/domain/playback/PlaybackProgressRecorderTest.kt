@@ -33,7 +33,7 @@ class PlaybackProgressRecorderTest {
         lastUsedDao.upsert(
             LastUsedStreamEntity(
                 profileId = 1, tmdbId = 7, mediaType = MediaType.MOVIE, addonUrl = "https://addon",
-                streamUrl = "https://stream", label = "1080p", description = "desc", updatedAtMillis = 1,
+                streamUrlFingerprint = "fp", label = "1080p", description = "desc", updatedAtMillis = 1,
             ),
         )
 
@@ -42,7 +42,7 @@ class PlaybackProgressRecorderTest {
         assertEquals(emptyList<WatchProgressEntity>(), progressDao.rows.value)
         val target = PlaybackTarget(1, movie, "tt0000007", episode = null)
         assertEquals(0, recorder.resumePositionMs(target))
-        assertEquals("https://stream", lastUsed.lastUsed(target)?.url)
+        assertEquals("fp", lastUsed.lastUsed(target)?.urlFingerprint)
     }
 
     @Test

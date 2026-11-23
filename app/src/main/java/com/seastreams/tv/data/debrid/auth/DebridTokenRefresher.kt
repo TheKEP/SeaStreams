@@ -1,6 +1,7 @@
 package com.seastreams.tv.data.debrid.auth
 
 import com.seastreams.tv.data.debrid.DebridCredentials
+import com.seastreams.tv.data.debrid.DebridServiceKind
 import com.seastreams.tv.data.debrid.DebridSourcesRepository
 import com.seastreams.tv.data.debrid.api.DebridAuthException
 import kotlinx.coroutines.sync.Mutex
@@ -23,7 +24,8 @@ class DebridTokenRefresher @Inject constructor(
     private val refreshers: TokenRefreshers,
     private val clock: Clock,
 ) {
-    private val locks = ConcurrentHashMap<Long, Mutex>()
+    /** One refresh lock per service (one account each), so the map stays bounded however often accounts are re-added. */
+    private val locks = ConcurrentHashMap<DebridServiceKind, Mutex>()
 
     suspend fun <T> withCredentials(providerId: Long, call: suspend (DebridCredentials) -> T): T {
         var credentials = try {
@@ -60,18 +62,21 @@ class DebridTokenRefresher @Inject constructor(
     }
 
     private suspend fun refresh(providerId: Long, stale: DebridCredentials): DebridCredentials =
-        locks.getOrPut(providerId) { Mutex() }.withLock {
+        locks.getOrPut(stale.kind) { Mutex() }.withLock {
             val latest = repository.credentials(providerId)
             // Someone else refreshed while this caller waited: use their token.
             if (latest.accessToken != stale.accessToken) return@withLock latest
             val refresher = refreshers.of(latest.kind) ?: throw DebridAuthException("Sign-in needed")
+            // Taken before the network call: a key pasted (or the account removed) meanwhile makes it stale.
+            val generation = repository.generation(latest.kind)
             val tokens = try {
                 refresher.refresh(latest)
             } catch (e: DebridAuthException) {
                 repository.markSignInNeeded(providerId, true)
                 throw DebridAuthException("Sign-in needed")
             }
-            repository.updateTokens(providerId, tokens, clock.millis())
+            // A stale refresh is dropped; the newer credential stored meanwhile is the one to use.
+            repository.updateTokens(providerId, tokens, generation, clock.millis())
             repository.credentials(providerId)
         }
 
