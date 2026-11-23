@@ -96,6 +96,21 @@ class DebridTokenRefresherTest {
     }
 
     @Test
+    fun `a refresh that lands after a key was pasted keeps the pasted key`() = runTest {
+        val id = signIn(expiresInSeconds = 60)
+        refresh.gate = CompletableDeferred()
+        val call = async { refresher.withCredentials(id) { it.accessToken } }
+        testScheduler.runCurrent()
+        repository.saveKey(id, DebridServiceKind.REAL_DEBRID, "rd-pasted-key-0123456789", null)
+        checkNotNull(refresh.gate).complete(Unit)
+
+        assertEquals("rd-pasted-key-0123456789", call.await())
+        val stored = repository.credentials(id)
+        assertEquals("rd-pasted-key-0123456789" to null, stored.accessToken to stored.refreshToken)
+        assertEquals(DebridCredentialState.API_KEY, repository.providers.first().single().credentialState)
+    }
+
+    @Test
     fun `a refused refresh marks the provider Sign-in needed`() = runTest {
         val id = signIn(expiresInSeconds = 60)
         refresh.fail = true

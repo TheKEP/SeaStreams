@@ -112,12 +112,19 @@ class DebridSourcesRepository @Inject constructor(
             if (existing == null) dao.insert(row) else row.id.also { dao.update(row) }
         }
 
-    /** A refreshed device sign-in: new access (and refresh) token, the credential usable again. */
-    suspend fun updateTokens(id: Long, tokens: DeviceTokens, nowMillis: Long) = lock.withLock {
+    /**
+     * A refreshed device sign-in: new access (and refresh) token, the credential usable again. Returns `false` and
+     * stores nothing when [generation] is stale: the account was replaced (say, by a pasted key), removed or cleared
+     * while the refresh was in flight, so the refreshed token must not overwrite the newer credential.
+     */
+    suspend fun updateTokens(id: Long, tokens: DeviceTokens, generation: Long, nowMillis: Long): Boolean = lock.withLock {
         val row = dao.get(id) ?: throw UserFacingException("Provider not found")
+        val kind = DebridServiceKind.fromName(row.providerType) ?: return@withLock false
+        if (generation(kind) != generation) return@withLock false
         val access = withContext(io) { cipher.encrypt(tokens.accessToken) }
         val refresh = tokens.refreshToken?.let { withContext(io) { cipher.encrypt(it) } } ?: row.refreshTokenCipher
         dao.updateTokens(id, access, refresh, tokens.expiresInSeconds?.let { nowMillis + it * MILLIS_PER_SECOND })
+        true
     }
 
     /** Flags (or clears) *Sign-in needed* after the service refused (or accepted) the stored credential. */

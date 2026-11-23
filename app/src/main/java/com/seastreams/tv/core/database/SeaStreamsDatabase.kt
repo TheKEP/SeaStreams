@@ -37,7 +37,8 @@ import com.seastreams.tv.core.database.entity.WatchProgressEntity
     // v6 adds last_used_streams: manual LastUsedStreamMigration (registered in DatabaseModule).
     // v7 adds the app-wide usenet_providers + newznab_indexers: manual UsenetSourcesMigration.
     // v8 adds the app-wide debrid_providers: manual DebridSourcesMigration.
-    version = 8,
+    // v9 stores last_used_streams.streamUrl as a SHA-256 fingerprint: manual LastUsedStreamUrlMigration.
+    version = 9,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2, spec = SeaStreamsDatabase.DropCustomCatalogs::class),

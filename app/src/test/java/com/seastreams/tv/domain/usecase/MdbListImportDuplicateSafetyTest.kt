@@ -180,7 +180,7 @@ class MdbListImportDuplicateSafetyTest {
         tmdbId = tmdbId,
         mediaType = MediaType.MOVIE,
         addonUrl = "https://addon",
-        streamUrl = "https://stream/$tmdbId",
+        streamUrlFingerprint = "fp-$tmdbId",
         label = "Addon · 4k",
         description = "",
         updatedAtMillis = 3_000,

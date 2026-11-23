@@ -25,7 +25,13 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): SeaStreamsDatabase =
         Room.databaseBuilder(context, SeaStreamsDatabase::class.java, SeaStreamsDatabase.NAME)
-            .addMigrations(ProfileAddonsMigration, LastUsedStreamMigration, UsenetSourcesMigration, DebridSourcesMigration)
+            .addMigrations(
+                ProfileAddonsMigration,
+                LastUsedStreamMigration,
+                UsenetSourcesMigration,
+                DebridSourcesMigration,
+                LastUsedStreamUrlMigration,
+            )
             .build()
 
     @Provides

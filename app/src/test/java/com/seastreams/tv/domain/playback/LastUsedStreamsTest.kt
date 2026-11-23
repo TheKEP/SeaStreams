@@ -95,7 +95,24 @@ class LastUsedStreamsTest {
         assertNull(lastUsedIndex(emptyList(), saved("a", url = "u1", desc = "")))
     }
 
+    @Test
+    fun `a row from before fingerprints (blank) never matches on URL`() {
+        val streams = listOf(stream("a", url = "", desc = "x"), stream("b", url = "u2", desc = "y"))
+        val legacy = LastUsedStream("https://addon", "", "b", "y")
+        assertEquals(1, lastUsedIndex(streams, legacy))
+    }
+
     // --- persistence ---
+
+    @Test
+    fun `the stored row keeps only a fingerprint of a token-bearing URL`() = runBlocking {
+        val url = "https://addon.example/resolve/realdebrid/SECRET-API-KEY/tt7/file.mkv?token=abc"
+        recorder.record(movie, stream("a", url = url, desc = "x"))
+        val stored = dao.rows.value.single().streamUrlFingerprint
+        assertEquals(64, stored.length)
+        assertEquals(false, stored.contains("SECRET") || stored.contains("token"))
+        assertEquals(0, recorder.indexIn(movie, listOf(stream("a", url = url, desc = "changed"))))
+    }
 
     @Test
     fun `a recorded movie stream is found in a re-fetched list`() = runBlocking {
@@ -113,13 +130,13 @@ class LastUsedStreamsTest {
         recorder.record(movie, stream("a", url = "u1", desc = ""))
         recorder.record(movie, stream("b", url = "u2", desc = ""))
         assertEquals(1, dao.rows.value.size)
-        assertEquals("u2", recorder.lastUsed(movie)?.url)
+        assertEquals(streamUrlFingerprint("u2"), recorder.lastUsed(movie)?.urlFingerprint)
     }
 
     @Test
     fun `each episode keeps its own stream`() = runBlocking {
         recorder.record(s1e1, stream("a", url = "e1", desc = ""))
-        assertEquals("e1", recorder.lastUsed(s1e1)?.url)
+        assertEquals(streamUrlFingerprint("e1"), recorder.lastUsed(s1e1)?.urlFingerprint)
         assertNull(recorder.lastUsed(s1e2))
     }
 
@@ -131,8 +148,8 @@ class LastUsedStreamsTest {
         assertNull(recorder.indexIn(otherProfile, listOf(stream("a", url = "u1", desc = ""))))
 
         recorder.record(otherProfile, stream("b", url = "u2", desc = ""))
-        assertEquals("u1", recorder.lastUsed(movie)?.url)
-        assertEquals("u2", recorder.lastUsed(otherProfile)?.url)
+        assertEquals(streamUrlFingerprint("u1"), recorder.lastUsed(movie)?.urlFingerprint)
+        assertEquals(streamUrlFingerprint("u2"), recorder.lastUsed(otherProfile)?.urlFingerprint)
     }
 
     @Test
@@ -141,8 +158,8 @@ class LastUsedStreamsTest {
         val s2e4 = PlaybackTarget(1L, show, "tt9", EpisodeRef(2, 4))
         recorder.record(showAsMovieId, stream("a", url = "movie", desc = ""))
         recorder.record(s2e4, stream("a", url = "episode", desc = ""))
-        assertEquals("movie", recorder.lastUsed(showAsMovieId)?.url)
-        assertEquals("episode", recorder.lastUsed(s2e4)?.url)
+        assertEquals(streamUrlFingerprint("movie"), recorder.lastUsed(showAsMovieId)?.urlFingerprint)
+        assertEquals(streamUrlFingerprint("episode"), recorder.lastUsed(s2e4)?.urlFingerprint)
         assertEquals(2, dao.rows.value.single { it.mediaType == MediaType.TV }.seasonNumber)
     }
 
@@ -170,5 +187,5 @@ class LastUsedStreamsTest {
     private fun stream(label: String, url: String, desc: String, addon: String = "https://addon") =
         StreamSource(addon, "Addon", url, label, desc, emptyMap())
 
-    private fun saved(label: String, url: String, desc: String) = LastUsedStream("https://addon", url, label, desc)
+    private fun saved(label: String, url: String, desc: String) = LastUsedStream("https://addon", streamUrlFingerprint(url), label, desc)
 }

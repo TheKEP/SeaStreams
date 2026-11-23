@@ -16,6 +16,7 @@ import com.seastreams.tv.domain.model.StreamAddon
 import com.seastreams.tv.domain.model.StreamSource
 import com.seastreams.tv.domain.playback.LastUsedStream
 import com.seastreams.tv.domain.playback.lastUsedIndex
+import com.seastreams.tv.domain.playback.streamUrlFingerprint
 import com.seastreams.tv.testutil.FakeAddonDao
 import com.seastreams.tv.usenet.session.AddonServers
 import com.seastreams.tv.usenet.session.UsenetGrab
@@ -158,7 +159,7 @@ class ResolveStreamsUsenetTest {
     @Test
     fun `LAST USED finds a Usenet release again by its stable URL in a new search`() {
         val first = usenetStream("Matrix.1999.2160p")
-        val saved = LastUsedStream(first.addonUrl, first.url, first.label, first.description)
+        val saved = LastUsedStream(first.addonUrl, streamUrlFingerprint(first.url), first.label, first.description)
         // A later search registers the same release again (fresh registry entry, same identity).
         val again = listOf(usenetStream("Matrix.1999.720p"), usenetStream("Matrix.1999.2160p"))
         assertEquals(first.url, again[1].url)

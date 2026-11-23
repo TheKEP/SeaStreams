@@ -17,3 +17,6 @@ fun ByteArray.toHex(): String {
 
 /** SHA-1 of [text] (UTF-8) as lower-case hex: cache keys and fingerprints that must not reveal their input. */
 fun sha1Hex(text: String): String = MessageDigest.getInstance("SHA-1").digest(text.toByteArray(Charsets.UTF_8)).toHex()
+
+/** SHA-256 of [text] (UTF-8) as lower-case hex: fingerprints of values that may carry secrets (signed stream URLs). */
+fun sha256Hex(text: String): String = MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8)).toHex()

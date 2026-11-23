@@ -2,6 +2,7 @@ package com.seastreams.tv.domain.streams
 
 import com.seastreams.tv.domain.playback.LastUsedStream
 import com.seastreams.tv.domain.playback.lastUsedIndex
+import com.seastreams.tv.domain.playback.streamUrlFingerprint
 import com.seastreams.tv.domain.usecase.topStream
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
@@ -39,7 +40,7 @@ class StreamPipelineTest {
         val out = StreamPipeline.process(streams, settings, context, 0)
         assertEquals("B · 1080p", topStream(out, preferredAddonUrl = null)?.label)
         assertEquals("A · 720p", topStream(out, preferredAddonUrl = "https://a/manifest.json")?.label)
-        val saved = streams[1].let { LastUsedStream(it.addonUrl, it.url, it.label, it.description) }
+        val saved = streams[1].let { LastUsedStream(it.addonUrl, streamUrlFingerprint(it.url), it.label, it.description) }
         assertEquals(2, lastUsedIndex(out, saved))
         out.forEach { processed ->
             val original = streams.single { it.url == processed.url }
@@ -54,7 +55,7 @@ class StreamPipelineTest {
         val formatted = settings.copy(formatter = StreamFormatterChoice(FormatterId.PRISM))
         val out = StreamPipeline.process(streams, formatted, context, 0)
         assertEquals("🚀 FHD", out.first().display?.name)
-        val saved = streams[3].let { LastUsedStream(it.addonUrl, "https://signed/new-url", it.label, it.description) }
+        val saved = streams[3].let { LastUsedStream(it.addonUrl, streamUrlFingerprint("https://signed/new-url"), it.label, it.description) }
         assertEquals(1, lastUsedIndex(out, saved))
     }
 
