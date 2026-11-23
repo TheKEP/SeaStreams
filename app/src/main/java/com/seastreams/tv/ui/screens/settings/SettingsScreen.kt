@@ -228,6 +228,7 @@ fun SettingsScreen(
                     onMove = { row, offset -> sources.moveIndexer(row.id, offset) },
                     onRemove = { sources.removeIndexer(it.id) },
                     onAdd = { panel = SettingsPanel.Portal },
+                    onTest = { sources.testIndexer(it.id) },
                 )
                 SettingsPanel.UsenetPerformance -> UsenetPerformancePanel(
                     performanceItems(sourcesState.performance, sources::setProfile, sources::editPerformance),

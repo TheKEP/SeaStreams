@@ -125,7 +125,7 @@ class StreamPartsTest {
         window.close()
         assertTrue(source.fetches.getValue("s52@t").last().cancelled)
         assertEquals(4, ReadAheadWindow.windowFor(4, 750_000, 1L shl 40))
-        assertEquals(2, ReadAheadWindow.windowFor(64, 1_000_000, 12_000_000), "heap clamp: a sixth of 12 MB")
+        assertEquals(2, ReadAheadWindow.windowFor(64, 1_000_000, 20_000_000), "heap clamp: a tenth of 20 MB")
         assertEquals(93, ReadAheadWindow.tailFrom(100, 750_000))
     }
 
@@ -169,10 +169,10 @@ class StreamPartsTest {
         assertTrue(arena.sizeBytes() <= 2_500)
         arena.clear()
         assertTrue(segments[0].released && segments[3].released)
-        assertEquals(64L * 1024 * 1024, SegmentArena.sizeFor(10, 1L shl 40))
-        assertEquals(96L * 1024 * 1024, SegmentArena.sizeFor(64, 1L shl 40))
-        assertEquals(160L * 1024 * 1024, SegmentArena.sizeFor(256, 1L shl 40))
-        assertEquals(50L * 1024 * 1024, SegmentArena.sizeFor(256, 300L * 1024 * 1024), "≤ a sixth of the heap")
+        assertEquals(32L * 1024 * 1024, SegmentArena.sizeFor(10, 1L shl 40))
+        assertEquals(36L * 1024 * 1024, SegmentArena.sizeFor(24, 1L shl 40))
+        assertEquals(64L * 1024 * 1024, SegmentArena.sizeFor(256, 1L shl 40))
+        assertEquals(512L * 1024 * 1024 / 10, SegmentArena.sizeFor(256, 512L * 1024 * 1024), "≤ a tenth of a 512 MB TV heap")
     }
 
     @Test

@@ -5,6 +5,7 @@ import coil3.SingletonImageLoader
 import com.seastreams.tv.core.image.IMAGE_CACHE_DIR
 import com.seastreams.tv.core.network.NetworkModule
 import com.seastreams.tv.core.util.IoDispatcher
+import com.seastreams.tv.data.usenet.newznab.NewznabCapsCache
 import com.seastreams.tv.usenet.cache.NzbFileCache
 import com.seastreams.tv.usenet.cache.SegmentDiskCache
 import dagger.Binds
@@ -105,7 +106,7 @@ class CacheManager @Inject constructor(
 
     companion object {
         val MANAGED_DIRS: Set<String> =
-            setOf(NetworkModule.HTTP_CACHE_DIR, IMAGE_CACHE_DIR, SegmentDiskCache.DIR, NzbFileCache.DIR)
+            setOf(NetworkModule.HTTP_CACHE_DIR, IMAGE_CACHE_DIR, SegmentDiskCache.DIR, NzbFileCache.DIR, NewznabCapsCache.DIR)
         const val ORPHAN_MIN_AGE_MILLIS: Long = 60L * 60 * 1000
     }
 }

@@ -337,7 +337,7 @@
     3. `Search request headers`: choice list of header presets (`Prowlarr` [default], `NZBHydra2`, `Sonarr`, `Radarr`, `SABnzbd`, `NZBGet`, `SeaStreams`). The value shows the preset and its version, e.g. `Prowlarr 2.7.0.5723`.
     4. `Download request headers`: the same list (`SABnzbd` [default]).
     5. `Update header versions`: fetches the latest Prowlarr, Sonarr, Radarr, SABnzbd, NZBGet and NZBHydra2 release versions now. The value reads `Checked today` / `Last checked 3 Nov` / `Updating…` / `Never checked`.
-    6. `Usenet performance`: value = the profile (`Balanced`, …). Opens the performance sub-panel (§12 *Performance profiles*).
+    6. `Usenet performance`: value = the profile (`Conservative`, …). Opens the performance sub-panel (§12 *Performance profiles*).
     7. `Web portal`: the Web Portal QR panel (shared with `Home`).
   - **`Other`:**
     1. `Clear library`: clears the profile's library with a 5-second Undo snackbar/toast before permanent deletion (the row reads `Undo clear library` while it can be undone).
@@ -374,15 +374,16 @@ SeaStreams streams Usenet releases natively: Newznab indexer search → NZB → 
   - A failed check keeps the last good version. The built-in fallbacks are Prowlarr `2.7.0.5723`, Sonarr `4.0.20.3014`, Radarr `7.0.3.10918`, SABnzbd `5.1.3`, NZBGet `26.3` and NZBHydra2 `9.3.1`.
   - `Update header versions` checks immediately.
 - **Performance profiles:**
-  - One profile governs every value of the `Usenet performance` sub-panel. Picking `Conservative`, `Balanced` (default) or `High` overwrites all of them. Editing any single value switches the profile to `Custom` and keeps the edited values.
+  - One profile governs every value of the `Usenet performance` sub-panel. Picking `Conservative` (default), `Balanced` or `High` overwrites all of them. Editing any single value switches the profile to `Custom` and keeps the edited values. Fresh installs and unreadable stored values get `Conservative`.
+  - **Android TV memory:** the Google TV Streamer 4K gives the app a 512 MB heap. The old `High` (64 segments, unbounded downloads, census 12) caused GC lag and `OutOfMemoryError` there, so every template bounds its concurrent downloads (none uses `0` = auto) and keeps read-ahead ≤ 32 and census ≤ 6. Whatever the values, the in-memory segment cache is capped at a tenth of the heap (≤ 64 MB) and only the volume being played reads ahead.
   - The sub-panel is one list grouped under the screenshot sections (`aio-usenet-settings1–6.png`): **Performance**, **Connections & timeouts**, **Reliability**, **Archive handling**, **Verification**, **Import**.
   - Numbers and choices are `‹ value ›` steppers (`Left`/`Right` step, `OK` steps forward and wraps). Switches are toggles.
   - The list follows the §11 one-way bottom-to-top wrap. `Up` on the first row (`Performance profile`) is consumed, and `Back` returns to the `Usenet performance` row.
 
-  | Setting | Conservative | **Balanced** | High | Custom range |
+  | Setting | **Conservative** | Balanced | High | Custom range |
   |---|---|---|---|---|
-  | Read-ahead (segments) | 16 | 32 | 64 | 1–256 |
-  | Max concurrent downloads (`0` = auto: Σ connections × depth) | 30 | 0 | 0 | 0–400 |
+  | Read-ahead (segments) | 16 | 24 | 32 | 1–256 |
+  | Max concurrent downloads (`0` = auto: Σ connections × depth) | 30 | 36 | 48 | 0–400 |
   | Segment disk cache | 512 MB | 1 GB | 2 GB | Off–4 GB |
   | Warm connections | 0 | 2 | 4 | 0 / 2 / 4 |
   | Streaming priority share | 0.90 | 0.80 | 0.80 | 0.50–1.00 |
@@ -401,7 +402,7 @@ SeaStreams streams Usenet releases natively: Newznab indexer search → NZB → 
   | Verify article checksums | On | On | On | toggle |
   | Damage policy | Strict | Strict | Strict | Strict / Tolerant |
   | Matroska hole repair | On | On | On | toggle |
-  | Census background concurrency | 4 | 8 | 12 | 1–32 |
+  | Census background concurrency | 4 | 6 | 6 | 1–32 |
   | Census max lifetime | 30m | 30m | 30m | 5m–2h |
   | Max NZB size | 150 MB | 150 MB | 150 MB | 25–500 MB |
   | Max concurrent imports (`0` = unlimited) | 2 | 4 | 4 | 0–8 |
@@ -410,7 +411,13 @@ SeaStreams streams Usenet releases natively: Newznab indexer search → NZB → 
 - **Playback (Milestone 9):**
   - Usenet releases appear under a built-in `Usenet` card in the stream panel's Addons column, after the Stremio addons, only while at least one provider and one indexer are enabled.
   - Addon streams carrying an `nzbUrl` play through the same engine.
-  - Plain files, stored (uncompressed) RAR4/RAR5 sets, including obfuscated names, and raw `.001` splits are streamable. Compressed or password-protected RARs without the NZB password, and all 7z archives, are *not streamable*: they are dropped, and failover moves on.
+  - Plain files, stored (uncompressed) RAR4/RAR5 sets, including obfuscated names, and raw `.001` splits are streamable. Compressed or password-protected RARs (even with an NZB password: decryption is not implemented), and all 7z archives, are *not streamable*: they are dropped, and failover moves on.
+  - **Search never grabs NZBs.** Stream search reads only the Newznab search XML (and drops passworded releases and releases already known bad). It never downloads an NZB (`t=get`), so indexer grab quotas are spent only when a release is played. Some indexers (e.g. NinjaCentral) list 7z or password-protected uploads under clean scene titles, so these can only be identified once their NZB is grabbed.
+  - **Pre-playback resolution (silent skip).** Before any player is given a `seastreams-nntp://` stream, SeaStreams opens its release: it grabs the NZB, which is then cached, parses it, assembles the media and runs the *Verify budget* census. This happens for the built-in ExoPlayer, at the start of auto-play or a pick, at every fallback advance, and for Streams-overlay switches. It happens the same way for external players.
+    - A release that is refused (7z, compressed or encrypted RAR, articles missing beyond the damage policy, not an NZB) is recorded as unplayable for 6 h. ExoPlayer is never prepared with it, so there is no playback error, player re-init or audio-focus change.
+    - With *Automatic stream failover* on, the next stream is tried at once. The loading screen or the player's status pill reads `Stream N didn't start. Trying stream N+1 of T…`, and `None of the streams would play` when none is left.
+    - With failover off, playback stops on that stream and the Streams overlay opens (§9).
+    - A release already known bad is skipped without being opened again.
   - External players reach Usenet streams at `http://127.0.0.1:8765/nntp/<token>/<name>`. The route answers loopback clients only; other clients get `403`. A foreground notification keeps it alive while the external player runs.
 - **Out of scope:** the SABnzbd-compatible download API, *Hold SABnzbd hand-off for the census*, *Library recheck* (SeaStreams keeps no saved NZB library), and 7z archives.
 

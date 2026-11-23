@@ -7,6 +7,7 @@ import com.seastreams.tv.core.database.entity.UsenetProviderEntity
 import com.seastreams.tv.core.security.SecretCipher
 import com.seastreams.tv.core.util.IoDispatcher
 import com.seastreams.tv.data.UserFacingException
+import com.seastreams.tv.data.usenet.newznab.NewznabEndpoint
 import com.seastreams.tv.usenet.nntp.NntpEndpoint
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
@@ -145,6 +146,44 @@ class UsenetSourcesRepository @Inject constructor(
             ?.let { withContext(io) { storedPassword(it) } }
         return endpointOf(id ?: 0, valid, password)
     }
+
+    /** Enabled indexers in sort order with decrypted API keys, for searches. Undecryptable keys are skipped. */
+    suspend fun enabledIndexers(): List<NewznabEndpoint> = withContext(io) {
+        indexerDao.getAll().filter { it.enabled }.mapNotNull { row ->
+            val key = row.apiKeyCipher?.let(cipher::decrypt)
+            if (row.apiKeyCipher != null && key == null) null else indexerOf(row.id, row.toDraft(), key)
+        }
+    }
+
+    /** One saved indexer for its `Test` button; an undecryptable key is reported as *API key needed*. */
+    suspend fun indexerEndpoint(id: Long): NewznabEndpoint {
+        val row = indexerDao.get(id) ?: throw UserFacingException("Indexer not found")
+        return withContext(io) { indexerOf(row.id, row.toDraft(), storedApiKey(row)) }
+    }
+
+    /** A portal indexer form tested before saving; a blank key on a saved indexer ([id]) uses the stored one. */
+    suspend fun indexerEndpointForDraft(id: Long?, draft: IndexerDraft): NewznabEndpoint {
+        val valid = UsenetSourceValidation.indexer(draft)
+        val typed = valid.apiKey?.takeIf { it.isNotEmpty() }
+        val key = typed ?: id?.let { indexerDao.get(it) ?: throw UserFacingException("Indexer not found") }
+            ?.let { withContext(io) { storedApiKey(it) } }
+        return indexerOf(id ?: 0, valid, key)
+    }
+
+    private fun storedApiKey(row: NewznabIndexerEntity): String? = row.apiKeyCipher?.let {
+        cipher.decrypt(it) ?: throw UserFacingException("API key needed: enter it again in the Web Portal")
+    }
+
+    private fun NewznabIndexerEntity.toDraft() = IndexerDraft(name, baseUrl, apiPath, null, priority, backupOnly, enabled)
+
+    private fun indexerOf(id: Long, draft: IndexerDraft, apiKey: String?) = NewznabEndpoint(
+        id = id,
+        name = draft.name,
+        apiUrl = draft.baseUrl.trimEnd('/') + draft.apiPath,
+        apiKey = apiKey.orEmpty(),
+        priority = draft.priority,
+        backupOnly = draft.backupOnly,
+    )
 
     private fun storedPassword(row: UsenetProviderEntity): String? = row.passwordCipher?.let {
         cipher.decrypt(it) ?: throw UserFacingException("Password needed: enter it again in the Web Portal")

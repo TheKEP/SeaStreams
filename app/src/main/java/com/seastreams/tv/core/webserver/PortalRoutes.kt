@@ -37,13 +37,15 @@ private const val TAG = "LocalPortal"
  * - `GET /api/state` – [PortalState]
  * - `POST /api/…` – JSON mutations, each answering [ApiMessage]
  * - `/api/usenet…` – app-wide Usenet Sources ([usenetRoutes])
+ * - `GET/HEAD /nntp/{token}/{name}` – the loopback-only Usenet proxy for external players ([nntpProxyRoutes])
  *
  * Mutations require `Content-Type: application/json`, which browsers cannot send cross-origin
  * without a CORS preflight this server never approves (CSRF protection). Requests whose `Host` is
  * not an IP literal or `localhost` are refused, which defeats DNS-rebinding attacks.
  */
-fun Application.portalModule(controller: PortalController, usenet: PortalUsenetController) {
+fun Application.portalModule(controller: PortalController, usenet: PortalUsenetController, proxy: NntpProxy? = null) {
     routing {
+        proxy?.let { nntpProxyRoutes(it) }
         get("/") {
             if (!call.hasTrustedHost()) return@get call.respondForbiddenHost()
             call.response.header(HttpHeaders.CacheControl, "no-store")

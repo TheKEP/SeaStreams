@@ -3,7 +3,6 @@ package com.seastreams.tv.core.webserver
 import com.seastreams.tv.core.datastore.UsenetSettingsStore
 import com.seastreams.tv.core.util.enumByNameOrNull
 import com.seastreams.tv.data.UserFacingException
-import com.seastreams.tv.data.usenet.IndexerDraft
 import com.seastreams.tv.data.usenet.ProviderDraft
 import com.seastreams.tv.data.usenet.UsenetSourcesRepository
 import com.seastreams.tv.data.usenet.headers.HeaderPreset
@@ -12,6 +11,9 @@ import com.seastreams.tv.data.usenet.headers.HeaderVersionUpdater
 import com.seastreams.tv.data.usenet.presets.IndexerPresets
 import com.seastreams.tv.data.usenet.presets.UsenetProviderPresets
 import com.seastreams.tv.domain.usenet.UsenetProfile
+import com.seastreams.tv.data.usenet.IndexerDraft
+import com.seastreams.tv.data.usenet.newznab.IndexerTestResult
+import com.seastreams.tv.data.usenet.newznab.NewznabClient
 import com.seastreams.tv.usenet.nntp.NntpConnectionTester
 import com.seastreams.tv.usenet.nntp.ProviderTestResult
 import kotlinx.coroutines.flow.first
@@ -25,6 +27,7 @@ class PortalUsenetController @Inject constructor(
     private val store: UsenetSettingsStore,
     private val updater: HeaderVersionUpdater,
     private val tester: NntpConnectionTester,
+    private val newznab: NewznabClient,
 ) {
 
     suspend fun state(): UsenetPortalState {
@@ -63,6 +66,17 @@ class PortalUsenetController @Inject constructor(
         val dialTimeoutMs = store.performance.first().dialTimeoutSeconds * 1_000
         val result = tester.test(endpoint, dialTimeoutMs)
         if (result !is ProviderTestResult.Success) throw UserFacingException(result.message)
+        return result.message
+    }
+
+    /** The portal's indexer `Test`: a fresh `t=caps` with the form as typed (a blank key on a saved indexer uses the stored one). */
+    suspend fun testIndexer(request: IndexerRequest): String {
+        val endpoint = sources.indexerEndpointForDraft(
+            request.id,
+            IndexerDraft(request.name, request.baseUrl, request.apiPath, request.apiKey, request.priority, request.backupOnly, request.enabled),
+        )
+        val result = newznab.test(endpoint)
+        if (result !is IndexerTestResult.Success) throw UserFacingException(result.message)
         return result.message
     }
 

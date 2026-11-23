@@ -39,7 +39,7 @@ data class SourceRow(val id: Long, val title: String, val subtitle: String, val 
 
 /**
  * The `Usenet providers` / `Indexers` sub-panel (PRD §11 `Sources`). It follows the *Manage addons*
- * rules: each row = toggle pill + (providers only, when [onTest] is set) `Test connection` + `Move up` /
+ * rules: each row = toggle pill + (when [onTest] is set) `Test connection` + `Move up` /
  * `Move down` / `Remove`, closed by an `Add …` row that
  * opens the Web Portal (credentials are typed on a phone). Two-way §1 edge-stop-then-wrap between
  * every control of the first row and the `Add …` row; `Remove` moves focus to the next row's `Remove`

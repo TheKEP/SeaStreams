@@ -148,7 +148,7 @@ class CacheManagerTest {
         assertEquals("http_cache", NetworkModule.HTTP_CACHE_DIR)
         assertEquals(150L * 1024 * 1024, IMAGE_DISK_CACHE_BYTES)
         assertEquals("image_cache", IMAGE_CACHE_DIR)
-        assertEquals(setOf("http_cache", "image_cache", "nntp_segments", "nntp_nzb"), CacheManager.MANAGED_DIRS)
+        assertEquals(setOf("http_cache", "image_cache", "nntp_segments", "nntp_nzb", "newznab_caps"), CacheManager.MANAGED_DIRS)
     }
 
     @Test

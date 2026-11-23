@@ -63,12 +63,16 @@ class SegmentArena(val capacityBytes: Long) {
 
     companion object {
         private const val MB = 1024L * 1024
-        const val MIN_BYTES = 64 * MB
-        const val MAX_BYTES = 160 * MB
+        const val MIN_BYTES = 32 * MB
+        const val MAX_BYTES = 64 * MB
         const val PER_SEGMENT_BYTES = 3 * MB / 2
+        const val HEAP_SHARE = 10
 
-        /** `clamp(64 MB, n × 1.5 MB, 160 MB)`, and never over a sixth of the heap. */
+        /**
+         * `clamp(32 MB, n × 1.5 MB, 64 MB)`, and never over a tenth of the heap: a 512 MB Google TV Streamer gets
+         * ≤ 51 MB, leaving room for ExoPlayer's buffer, the in-flight decodes and the UI.
+         */
         fun sizeFor(windowSegments: Int, maxMemory: Long = Runtime.getRuntime().maxMemory()): Long =
-            (windowSegments * PER_SEGMENT_BYTES).coerceIn(MIN_BYTES, MAX_BYTES).coerceAtMost(maxMemory / 6)
+            (windowSegments * PER_SEGMENT_BYTES).coerceIn(MIN_BYTES, MAX_BYTES).coerceAtMost(maxMemory / HEAP_SHARE)
     }
 }

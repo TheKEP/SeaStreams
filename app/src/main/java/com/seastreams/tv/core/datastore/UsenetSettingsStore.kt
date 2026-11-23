@@ -42,7 +42,7 @@ class UsenetSettingsStore @Inject constructor(private val dataStore: DataStore<P
         if (error is IOException) emit(emptyPreferences()) else throw error
     }
 
-    /** Clamped performance values; the Balanced defaults when none are stored or the JSON is unreadable. */
+    /** Clamped performance values; the Conservative defaults when none are stored or the JSON is unreadable. */
     val performance: Flow<UsenetPerformance> = preferences
         .map { decodePerformance(it[Keys.PERFORMANCE]) }
         .distinctUntilChanged()

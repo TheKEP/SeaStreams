@@ -84,9 +84,37 @@ class NntpEngine internal constructor(
     override fun fetch(messageId: String, part: Int, priority: FetchPriority): SegmentFetch =
         gated(messageId, priority, DecodedSegment::release) { pool -> pool.body(messageId, part, priority) }
 
-    /** STAT through the same failover (census, Milestone 9): `true` = some provider has it. */
-    fun stat(messageId: String, priority: FetchPriority = FetchPriority.LOW): NntpFuture<Boolean> =
-        gated(messageId, priority, discard = {}) { pool -> pool.stat(messageId, priority) }
+    /**
+     * STAT through the same failover as BODY (census, Milestone 9): `true` = some provider has it. A provider's 430
+     * moves on to the next one (backups included) and is remembered in the negative cache; `false` only when every
+     * provider asked lacks it. Other failures (timeouts, no providers) fail the future: the article is unknown.
+     */
+    fun stat(messageId: String, priority: FetchPriority = FetchPriority.LOW): NntpFuture<Boolean> {
+        val failover = gated(messageId, priority, discard = {}) { pool ->
+            val inner = pool.stat(messageId, priority)
+            NntpFuture<Boolean>().also { answer ->
+                inner.onDone { done ->
+                    when (done.result) {
+                        true -> answer.complete(true)
+                        false -> answer.fail(ProviderMissingException(messageId, pool.endpoint.name, ARTICLE_MISSING))
+                        null -> answer.fail(done.failure ?: NntpException(NntpErrorKind.PROTOCOL, "STAT gave no answer"))
+                    }
+                }
+                answer.onDone { if (it.cancelled) inner.cancel() }
+            }
+        }
+        val out = NntpFuture<Boolean>()
+        failover.onDone { done ->
+            val failure = done.failure
+            when {
+                done.result != null -> out.complete(done.result == true)
+                failure is ArticleNotFoundException -> out.complete(false)
+                else -> out.fail(failure ?: NntpException(NntpErrorKind.PROTOCOL, "STAT gave no answer"))
+            }
+        }
+        out.onDone { if (it.cancelled) failover.cancel() }
+        return out
+    }
 
     private fun <T> gated(
         messageId: String,
@@ -106,6 +134,10 @@ class NntpEngine internal constructor(
         }
         outer.onDone { if (it.cancelled) ticket.cancel() }
         return outer
+    }
+
+    private companion object {
+        const val ARTICLE_MISSING = 430
     }
 
     override fun close() {

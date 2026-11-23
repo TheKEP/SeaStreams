@@ -17,13 +17,13 @@ import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DecoderReuseEvaluation
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.audio.AudioSink
-import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.seastreams.tv.core.network.withoutDiskCache
 import com.seastreams.tv.domain.model.StreamSource
 import com.seastreams.tv.domain.model.TrailerStream
 import com.seastreams.tv.player.audio.AudioDspConfig
 import com.seastreams.tv.player.audio.AudioRendererReset
 import com.seastreams.tv.player.subtitle.sync.AutoSyncSource
+import com.seastreams.tv.player.usenet.PlaybackDataSources
 import com.seastreams.tv.player.subtitle.sync.ReferenceCueCollector
 import com.seastreams.tv.player.subtitle.sync.ReferenceSnapshot
 import com.seastreams.tv.player.subtitle.sync.SpeechEnergyLog
@@ -64,6 +64,8 @@ class SeaStreamsPlayerManager(
     context: Context,
     okHttpClient: OkHttpClient,
     val config: PlayerEngineConfig,
+    /** `seastreams-nntp://` streams read through the Usenet engine, everything else over HTTP. */
+    private val dataSources: PlaybackDataSources,
 ) : AutoSyncSource {
     /** Shared client without the 100 MB disk cache: video bytes must never be cached there. */
     private val client: OkHttpClient = okHttpClient.withoutDiskCache()
@@ -212,12 +214,13 @@ class SeaStreamsPlayerManager(
     fun playStream(stream: StreamSource, startPositionMs: Long) {
         meter.reset()
         val readAhead = config.bufferProfile.rangeReadAhead(config.parallelConnections)
-        val dataSource = ParallelRangeDataSource.Factory(client, config.parallelConnections, readAhead, meter)
-            .setDefaultRequestProperties(stream.headers)
+        val http = {
+            ParallelRangeDataSource.Factory(client, config.parallelConnections, readAhead, meter).setDefaultRequestProperties(stream.headers)
+        }
         val item = MediaItem.Builder().setUri(stream.url).apply {
             if (stream.url.contains(".m3u8", ignoreCase = true)) setMimeType(MimeTypes.APPLICATION_M3U8)
         }.build()
-        val source = DefaultMediaSourceFactory(dataSource).createMediaSource(item)
+        val source = dataSources.mediaSourceFactory(stream, http, MeterTransferListener(meter)).createMediaSource(item)
         _embeddedCues.value = emptyList()
         updateDynamicRange(track = null, decoderInput = null)
         player.setMediaSource(source, startPositionMs.coerceAtLeast(0))

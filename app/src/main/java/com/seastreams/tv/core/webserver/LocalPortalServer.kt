@@ -22,21 +22,63 @@ sealed interface PortalStatus {
     data class Failed(val reason: String) : PortalStatus
 }
 
+/** Keeps the portal server (and its loopback `/nntp` proxy) running while held; [close] gives it back. */
+class PortalLease internal constructor(private val server: LocalPortalServer) : java.io.Closeable {
+    private val released = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    override fun close() {
+        if (released.compareAndSet(false, true)) server.releaseLease()
+    }
+}
+
 /**
- * Embedded Ktor CIO server exposing the Web Portal on the LAN (all interfaces, port [DEFAULT_PORT]).
+ * Embedded Ktor CIO server exposing the Web Portal on the LAN (all interfaces, port [DEFAULT_PORT]), plus the
+ * loopback-only `/nntp` proxy external players read Usenet streams from ([NntpProxy]).
  *
  * [start]/[stop] are idempotent and blocking (binding a socket), so call them off the main thread.
- * The [PortalController] / [PortalUsenetController] graphs (repositories, HTTP client, disk cache) are resolved lazily on that
- * same off-main path, so injecting this server into an Activity stays cheap.
+ * The [PortalController] / [PortalUsenetController] / [NntpProxy] graphs (repositories, HTTP client, disk cache) are resolved
+ * lazily on that same off-main path, so injecting this server into an Activity stays cheap.
+ *
+ * **Lease (PRD §12):** the UI asks for the server while the app is in the foreground ([requestStart] / [requestStop]);
+ * an external player streaming Usenet holds a [PortalLease]. The server stops only when neither wants it, so
+ * `MainActivity.onStop` (the external player taking the screen) never cuts off the stream it is playing.
  */
 @Singleton
 class LocalPortalServer @Inject constructor(
     private val controller: Lazy<PortalController>,
     private val usenet: Lazy<PortalUsenetController>,
+    private val proxy: Lazy<NntpProxy>,
 ) {
 
     /** Test/composition convenience for already-built controllers. */
-    constructor(controller: PortalController, usenet: PortalUsenetController) : this(Lazy { controller }, Lazy { usenet })
+    constructor(controller: PortalController, usenet: PortalUsenetController, proxy: NntpProxy? = null) :
+        this(Lazy { controller }, Lazy { usenet }, Lazy { proxy ?: error("No Usenet proxy") }) {
+        proxyAvailable = proxy != null
+    }
+
+    private var proxyAvailable = true
+    private val leaseLock = Any()
+    private var leases = 0
+    private var uiWanted = false
+
+    /** Whether an external player's stream currently holds the server. */
+    val leased: Boolean get() = synchronized(leaseLock) { leases > 0 }
+
+    /** Holds the server running (starting it if needed) until the lease is closed. */
+    fun acquireLease(): PortalLease {
+        synchronized(leaseLock) { leases++ }
+        requests.launch { start() }
+        return PortalLease(this)
+    }
+
+    internal fun releaseLease() {
+        synchronized(leaseLock) { leases = (leases - 1).coerceAtLeast(0) }
+        requests.launch { stopIfUnwanted() }
+    }
+
+    private fun stopIfUnwanted() {
+        if (synchronized(leaseLock) { leases == 0 && !uiWanted }) stop()
+    }
 
     private val lock = Any()
     private var server: EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration>? = null
@@ -48,18 +90,25 @@ class LocalPortalServer @Inject constructor(
 
     /** Non-blocking [start] for UI callers (e.g. `Activity.onStart`). */
     fun requestStart() {
+        synchronized(leaseLock) { uiWanted = true }
         requests.launch { start() }
     }
 
-    /** Non-blocking [stop] for UI callers (e.g. `Activity.onStop`). */
+    /** Non-blocking stop for UI callers (e.g. `Activity.onStop`); deferred while a [PortalLease] is held. */
     fun requestStop() {
-        requests.launch { stop() }
+        synchronized(leaseLock) { uiWanted = false }
+        requests.launch { stopIfUnwanted() }
+    }
+
+    /** The UI no longer needs the server, but a lease does: it stops when the last [PortalLease] closes. */
+    fun releaseUiClaim() {
+        synchronized(leaseLock) { uiWanted = false }
     }
 
     /** Starts the server if needed and returns the bound port, or `null` if binding failed. */
     fun start(port: Int = DEFAULT_PORT, host: String = ALL_INTERFACES): Int? = synchronized(lock) {
         (_status.value as? PortalStatus.Running)?.let { return it.port }
-        val candidate = embeddedServer(CIO, port = port, host = host) { portalModule(controller.get(), usenet.get()) }
+        val candidate = embeddedServer(CIO, port = port, host = host) { portalModule(controller.get(), usenet.get(), if (proxyAvailable) proxy.get() else null) }
         return try {
             candidate.start(wait = false)
             val bound = runBlocking { candidate.engine.resolvedConnectors().first().port }

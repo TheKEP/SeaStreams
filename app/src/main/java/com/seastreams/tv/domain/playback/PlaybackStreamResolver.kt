@@ -36,7 +36,9 @@ class PlaybackStreamResolver @Inject constructor(
 ) {
     suspend fun resolve(target: PlaybackTarget, preferredAddonUrl: String?): ResolvedPlayback {
         val withInfo = withEpisodeInfo(target)
-        val resolution = resolveStreams(StreamQuery(withInfo.profileId, withInfo.details.ref, withInfo.imdbId, withInfo.episode))
+        val resolution = resolveStreams(
+            StreamQuery(withInfo.profileId, withInfo.details.ref, withInfo.imdbId, withInfo.episode, withInfo.details.media.title, withInfo.details.media.year),
+        )
         val top = topStream(resolution.streams, preferredAddonUrl)
         return ResolvedPlayback(withInfo, resolution, top?.let(resolution.streams::indexOf) ?: -1)
     }

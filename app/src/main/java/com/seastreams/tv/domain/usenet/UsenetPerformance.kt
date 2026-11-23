@@ -25,22 +25,23 @@ enum class DamagePolicy(val label: String) {
 
 /**
  * Every value of the `Usenet performance` sub-panel (PRD §12, `aio-usenet-settings1–6.png`). App-wide.
- * Defaults are the [UsenetProfile.BALANCED] template. A profile overwrites all values ([withProfile]);
+ * Defaults are the [UsenetProfile.CONSERVATIVE] template (smooth on a 512 MB Android TV heap; Balanced and High are
+ * capped so switching up never exhausts one). A profile overwrites all values ([withProfile]);
  * editing any value switches to [UsenetProfile.CUSTOM] ([edited]). Values are clamped on read and write.
  */
 @Serializable
 data class UsenetPerformance(
-    val profile: UsenetProfile = UsenetProfile.BALANCED,
+    val profile: UsenetProfile = UsenetProfile.CONSERVATIVE,
     // Performance
-    val readAheadSegments: Int = 32,
+    val readAheadSegments: Int = 16,
     /** `0` = auto: the sum of every enabled provider's connections × pipeline depth. */
-    val maxConcurrentDownloads: Int = 0,
+    val maxConcurrentDownloads: Int = 30,
     /** `0` disables the segment disk cache. */
-    val segmentDiskCacheMb: Int = 1_024,
-    val warmConnections: Int = 2,
+    val segmentDiskCacheMb: Int = 512,
+    val warmConnections: Int = 0,
     // Connections & timeouts
     /** Share of contended download slots given to playback over background checks, 50–100 %. */
-    val streamingPriorityPercent: Int = 80,
+    val streamingPriorityPercent: Int = 90,
     /** `0` = never give up on a piece that is still downloading. */
     val segmentTimeoutSeconds: Int = 30,
     val segmentStallTimeoutSeconds: Int = 30,
@@ -61,12 +62,12 @@ data class UsenetPerformance(
     val verifyArticleChecksums: Boolean = true,
     val damagePolicy: DamagePolicy = DamagePolicy.STRICT,
     val matroskaHoleRepair: Boolean = true,
-    val censusConcurrency: Int = 8,
+    val censusConcurrency: Int = 4,
     val censusMaxLifetimeMinutes: Int = 30,
     // Import
     val maxNzbSizeMb: Int = 150,
     /** `0` = unlimited. */
-    val maxConcurrentImports: Int = 4,
+    val maxConcurrentImports: Int = 2,
 ) {
 
     /** The [profile] template's values, or these values marked [UsenetProfile.CUSTOM]. */
@@ -117,27 +118,34 @@ data class UsenetPerformance(
         val MAX_NZB_MB_RANGE = 25..500
         val MAX_IMPORTS_RANGE = 0..8
 
-        /** The PRD §12 template of [profile]; [UsenetProfile.CUSTOM] has none and yields the default (Balanced) values. */
+        /**
+         * The PRD §12 template of [profile]; [UsenetProfile.CUSTOM] has none and yields the default (Conservative)
+         * values. Balanced and High bound their concurrent downloads (never `0` = auto, which can mean hundreds of
+         * ~0.7 MB decodes in flight) and read-ahead, so neither can exhaust a 512 MB Android TV heap.
+         */
         fun template(profile: UsenetProfile): UsenetPerformance = when (profile) {
-            UsenetProfile.CONSERVATIVE -> UsenetPerformance(
+            UsenetProfile.CONSERVATIVE, UsenetProfile.CUSTOM -> UsenetPerformance(profile = profile)
+            UsenetProfile.BALANCED -> UsenetPerformance(
                 profile = profile,
-                readAheadSegments = 16,
-                maxConcurrentDownloads = 30,
-                segmentDiskCacheMb = 512,
-                warmConnections = 0,
-                streamingPriorityPercent = 90,
-                censusConcurrency = 4,
-                maxConcurrentImports = 2,
+                readAheadSegments = 24,
+                maxConcurrentDownloads = 36,
+                segmentDiskCacheMb = 1_024,
+                warmConnections = 2,
+                streamingPriorityPercent = 80,
+                censusConcurrency = 6,
+                maxConcurrentImports = 4,
             )
-            UsenetProfile.BALANCED, UsenetProfile.CUSTOM -> UsenetPerformance(profile = profile)
             UsenetProfile.HIGH -> UsenetPerformance(
                 profile = profile,
-                readAheadSegments = 64,
+                readAheadSegments = 32,
+                maxConcurrentDownloads = 48,
                 segmentDiskCacheMb = 2_048,
                 warmConnections = 4,
+                streamingPriorityPercent = 80,
                 segmentTimeoutSeconds = 15,
                 segmentStallTimeoutSeconds = 10,
-                censusConcurrency = 12,
+                censusConcurrency = 6,
+                maxConcurrentImports = 4,
             )
         }
     }

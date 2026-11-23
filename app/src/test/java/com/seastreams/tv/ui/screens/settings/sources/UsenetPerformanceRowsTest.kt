@@ -30,13 +30,13 @@ class UsenetPerformanceRowsTest {
     }
 
     @Test
-    fun `balanced values are labelled like the PRD table`() {
+    fun `the default Conservative values are labelled like the PRD table`() {
         val values = items().filterIsInstance<PerformanceItem.Row>().associate { it.key to it.value }
-        assertEquals("Balanced", values[PROFILE_KEY])
-        assertEquals("32", values["read-ahead"])
-        assertEquals("Auto", values["max-downloads"])
-        assertEquals("1 GB", values["disk-cache"])
-        assertEquals("0.80", values["priority"])
+        assertEquals("Conservative", values[PROFILE_KEY])
+        assertEquals("16", values["read-ahead"])
+        assertEquals("30", values["max-downloads"])
+        assertEquals("512 MB", values["disk-cache"])
+        assertEquals("0.90", values["priority"])
         assertEquals("1m", values["idle-ttl"])
         assertEquals("1h", values["stream-idle"])
         assertEquals("30m", values["census-lifetime"])
@@ -47,11 +47,11 @@ class UsenetPerformanceRowsTest {
     @Test
     fun `stepping the profile applies templates and stepping a value switches to Custom`() {
         (row(PROFILE_KEY).trailing as RowTrailing.Stepper).onIncrease()
-        assertEquals(listOf(UsenetProfile.HIGH), profiles)
-        assertEquals(64, state.readAheadSegments)
+        assertEquals(listOf(UsenetProfile.BALANCED), profiles)
+        assertEquals(24, state.readAheadSegments)
 
         (row("read-ahead").trailing as RowTrailing.Stepper).onIncrease()
-        assertEquals(96, state.readAheadSegments)
+        assertEquals(32, state.readAheadSegments)
         assertEquals(UsenetProfile.CUSTOM, state.profile)
         assertEquals("Custom", row(PROFILE_KEY).value)
     }
