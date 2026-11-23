@@ -40,11 +40,12 @@ class ExternalStreamUrls @Inject constructor(
         try {
             val port = runInterruptible(io) { portal.start() } ?: throw IOException("SeaStreams couldn't start its local stream server")
             val name = runInterruptible(io) { warmUp(token) }
+            // Started before the lease is recorded: if the service can't start, the catch closes a lease nobody holds.
+            NntpProxyService.start(context, title)
             synchronized(this) {
                 handoff?.close()
                 handoff = lease
             }
-            NntpProxyService.start(context, title)
             return stream.copy(url = proxyUrl(port, token, name), headers = emptyMap())
         } catch (e: Throwable) {
             lease.close()

@@ -46,6 +46,9 @@ data class NewznabItem(
 
     /** `newznab:attr name="password"`: `1`/`2` = passworded or contains a password-protected archive. */
     val passworded: Boolean get() = attributes["password"]?.trim().let { it == "1" || it == "2" }
+
+    /** Leaves [nzbUrl] (and its API key) out. */
+    override fun toString(): String = "NewznabItem($title, guid=$guid, size=$sizeBytes)"
 }
 
 /**
