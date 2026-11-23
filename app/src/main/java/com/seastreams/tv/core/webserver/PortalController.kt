@@ -128,6 +128,7 @@ class PortalController @Inject constructor(
             resources = manifest?.resources?.map { it.name }?.distinct().orEmpty(),
             enabled = entity.enabled,
             builtIn = BuiltInAddons.isProtected(entity.manifestUrl),
+            canDisable = BuiltInAddons.canDisable(entity.manifestUrl),
         )
     }
 

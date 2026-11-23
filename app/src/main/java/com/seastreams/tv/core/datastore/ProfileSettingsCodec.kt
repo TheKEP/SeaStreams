@@ -79,6 +79,11 @@ internal object ProfileSettingsKeys {
     val SUBTITLE_BACKGROUND_OPACITY = ScopedKey("subs_background_opacity", ::floatPreferencesKey)
     val AUTO_SYNC_SUBTITLES = ScopedKey("subs_auto_sync", ::booleanPreferencesKey)
 
+    /** Stream processing (PRD §13), JSON; read and written by `StreamProcessingStore`. */
+    val STREAM_FILTERS = ScopedKey("stream_filters", ::stringPreferencesKey)
+    val STREAM_SORT = ScopedKey("stream_sort", ::stringPreferencesKey)
+    val STREAM_FORMATTER = ScopedKey("stream_formatter", ::stringPreferencesKey)
+
     val ALL: List<ScopedKey<*>> = listOf(
         EXTERNAL_PLAYER, AUTO_PLAY_TOP_STREAM, PREFERRED_AUTOPLAY_ADDON, AUTO_STREAM_FAILOVER, FALLBACK_TIMEOUT_SECONDS,
         AUTO_PLAY_FROM_CONTINUE_WATCHING, BLUR_UNWATCHED_THUMBNAILS, HDR_WHITE_DIMMING, AUTO_PLAY_NEXT_EPISODE,
@@ -87,7 +92,7 @@ internal object ProfileSettingsKeys {
         PASSTHROUGH_ENABLED, DIALOGUE_BOOST, NIGHT_MODE, AUDIO_DELAY_MS, PREFERRED_AUDIO_LANGUAGE,
         SUBTITLE_MODE, SUBTITLE_LANGUAGE, HIDE_NON_PREFERRED_SUBTITLES, CLEAN_SDH, SUBTITLE_FONT_SCALE,
         SUBTITLE_BOLD, SUBTITLE_ITALIC, SUBTITLE_TEXT_COLOR, SUBTITLE_EDGE_TYPE, SUBTITLE_BACKGROUND_OPACITY,
-        AUTO_SYNC_SUBTITLES,
+        AUTO_SYNC_SUBTITLES, STREAM_FILTERS, STREAM_SORT, STREAM_FORMATTER,
     )
 }
 

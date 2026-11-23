@@ -9,6 +9,7 @@ import com.seastreams.tv.core.network.StremioAddonUrl
 import com.seastreams.tv.data.UserFacingException
 import io.ktor.client.plugins.ResponseException
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.IOException
@@ -29,10 +30,22 @@ class AddonRepository @Inject constructor(
     private val profileDao: ProfileDao,
     private val addonClient: StremioAddonClient,
     private val clock: Clock,
+    private val usenet: UsenetAddonState,
 ) {
     private val orderLock = Mutex()
 
-    fun observeAddons(profileId: Long): Flow<List<AddonEntity>> = addonDao.observeAll(profileId)
+    /** [profileId]'s list as Manage addons and the portal show it: the Usenet entry only while Usenet is configured. */
+    fun observeAddons(profileId: Long): Flow<List<AddonEntity>> =
+        combine(addonDao.observeAll(profileId), usenet.configured) { addons, configured ->
+            addons.filter { BuiltInAddons.isListed(it.manifestUrl, configured) }
+        }
+
+    /** Adds the built-in Usenet entry (at the bottom, enabled) to every profile that doesn't have one yet. */
+    suspend fun ensureUsenet() = orderLock.withLock {
+        addonDao.profileIdsMissing(BuiltInAddons.USENET_URL).forEach { profileId ->
+            addonDao.insertIfAbsent(listOf(BuiltInAddons.usenet(profileId, addonDao.nextSortOrder(profileId), clock.millis())))
+        }
+    }
 
     /** Seeds [BuiltInAddons] for [profileId]. Already-present URLs are left untouched. */
     suspend fun seedDefaults(profileId: Long) = orderLock.withLock {
@@ -98,7 +111,7 @@ class AddonRepository @Inject constructor(
 
     suspend fun setEnabled(profileId: Long, manifestUrl: String, enabled: Boolean) {
         requireExisting(profileId, manifestUrl)
-        if (!enabled && BuiltInAddons.isProtected(manifestUrl)) {
+        if (!enabled && !BuiltInAddons.canDisable(manifestUrl)) {
             throw UserFacingException("Built-in addons can't be disabled")
         }
         addonDao.setEnabled(profileId, manifestUrl, enabled)

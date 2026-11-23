@@ -19,8 +19,8 @@ android {
         applicationId = "com.seastreams.tv"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
 
         // Developer TMDB key from local.properties (never committed); "" when absent.
         val tmdbApiKey = rootProject.file("local.properties")

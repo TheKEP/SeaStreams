@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.seastreams.tv.core.cache.CacheManager
 import com.seastreams.tv.core.database.dao.AddonDao
+import com.seastreams.tv.data.addon.UsenetAddonState
+import com.seastreams.tv.data.addon.BuiltInAddons
 import com.seastreams.tv.core.database.entity.AddonEntity
 import com.seastreams.tv.core.datastore.AppSettings
 import com.seastreams.tv.core.datastore.AudioSettings
@@ -60,6 +62,7 @@ class SettingsViewModel @Inject constructor(
     private val library: LibraryRepository,
     portalLinks: PortalLinkProvider,
     private val cacheManager: CacheManager,
+    usenetAddon: UsenetAddonState,
 ) : ViewModel() {
 
     private val _cacheBytes = MutableStateFlow<Long?>(null)
@@ -76,7 +79,16 @@ class SettingsViewModel @Inject constructor(
     val state: StateFlow<SettingsUiState> = combine(
         settingsStore.settings,
         // Only the active profile's addons (Manage Addons + Preferred Auto-Play Addon).
-        settingsStore.activeProfileId.flatMapLatest { id -> if (id == null) flowOf(emptyList()) else addonDao.observeAll(id) },
+        // The built-in Usenet entry is listed only while Usenet streaming is configured (PRD §12).
+        settingsStore.activeProfileId.flatMapLatest { id ->
+            if (id == null) {
+                flowOf(emptyList())
+            } else {
+                combine(addonDao.observeAll(id), usenetAddon.configured) { addons, configured ->
+                    addons.filter { BuiltInAddons.isListed(it.manifestUrl, configured) }
+                }
+            }
+        },
         players,
         library.pendingClear,
         portalVisible.flatMapLatest { visible -> if (visible) portalLinks.observe() else flowOf(null) },

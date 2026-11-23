@@ -24,10 +24,17 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** The `Sources` rows (PRD §11), in the exact documented order. */
-internal fun sourcesItems(state: SourcesUiState, cb: SettingsCallbacks, nowMillis: Long, zone: ZoneId): List<SettingsItem> {
+/** The `Sources` rows (PRD §11) under their `USENET` subheading, in the exact documented order. */
+internal fun sourcesItems(
+    state: SourcesUiState,
+    cb: SettingsCallbacks,
+    nowMillis: Long,
+    zone: ZoneId,
+): List<SettingsItem> {
     val versions = state.headers.versions
     return listOf(
+        // Room for a future `DEBRID LIBRARY` section below.
+        SettingsItem.Section(USENET_SECTION_KEY, "Usenet"),
         entry(PROVIDERS_ROW_KEY, Icons.Filled.Lock, "Usenet providers", providersLabel(state.providers), RowTrailing.Chevron) {
             cb.open(SettingsPanel.UsenetProviders)
         },
@@ -48,7 +55,7 @@ internal fun sourcesItems(state: SourcesUiState, cb: SettingsCallbacks, nowMilli
         entry(PERFORMANCE_ROW_KEY, Icons.Filled.Settings, "Usenet performance", state.performance.profile.label, RowTrailing.Chevron) {
             cb.open(SettingsPanel.UsenetPerformance)
         },
-        entry(PORTAL_ROW_KEY, SeaIcons.QrCode, "Web portal", "Add providers and indexers from your phone", RowTrailing.Chevron) {
+        entry(PORTAL_ROW_KEY, SeaIcons.QrCode, "Web portal", "Add providers, indexers, regexes and templates from your phone", RowTrailing.Chevron) {
             cb.open(SettingsPanel.Portal)
         },
     )
@@ -105,6 +112,7 @@ internal fun indexerSubtitle(indexer: NewznabIndexer): String = buildList {
     if (!indexer.enabled) add("Disabled")
 }.joinToString(" · ")
 
+const val USENET_SECTION_KEY = "section-usenet"
 const val PROVIDERS_ROW_KEY = "usenet-providers"
 const val INDEXERS_ROW_KEY = "usenet-indexers"
 const val HEADERS_SEARCH_ROW_KEY = "headers-search"

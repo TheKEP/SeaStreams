@@ -89,6 +89,7 @@ class TitleDetailsRepository @Inject constructor(
         backdropPath = backdropPath,
         seasons = emptyList(),
         lastAired = null,
+        originalLanguage = originalLanguage,
     )
 
     private fun TmdbTvDetails.toTitleDetails() = TitleDetails(
@@ -100,6 +101,7 @@ class TitleDetailsRepository @Inject constructor(
         seasons = regularSeasons(seasons.map { SeasonInfo(it.seasonNumber, it.name, it.episodeCount) }),
         lastAired = lastEpisodeToAir?.takeIf { it.seasonNumber > 0 && it.episodeNumber > 0 }
             ?.let { EpisodeRef(it.seasonNumber, it.episodeNumber) },
+        originalLanguage = originalLanguage,
     )
 
     private fun TmdbEpisode.toEpisode(seasonNumber: Int) = Episode(

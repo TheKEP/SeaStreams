@@ -48,15 +48,22 @@ class LocalPortalServer @Inject constructor(
     private val controller: Lazy<PortalController>,
     private val usenet: Lazy<PortalUsenetController>,
     private val proxy: Lazy<NntpProxy>,
+    private val streams: Lazy<PortalStreamController>,
 ) {
 
     /** Test/composition convenience for already-built controllers. */
-    constructor(controller: PortalController, usenet: PortalUsenetController, proxy: NntpProxy? = null) :
-        this(Lazy { controller }, Lazy { usenet }, Lazy { proxy ?: error("No Usenet proxy") }) {
+    constructor(
+        controller: PortalController,
+        usenet: PortalUsenetController,
+        proxy: NntpProxy? = null,
+        streams: PortalStreamController? = null,
+    ) : this(Lazy { controller }, Lazy { usenet }, Lazy { proxy ?: error("No Usenet proxy") }, Lazy { streams ?: error("No stream controller") }) {
         proxyAvailable = proxy != null
+        streamsAvailable = streams != null
     }
 
     private var proxyAvailable = true
+    private var streamsAvailable = true
     private val leaseLock = Any()
     private var leases = 0
     private var uiWanted = false
@@ -108,7 +115,9 @@ class LocalPortalServer @Inject constructor(
     /** Starts the server if needed and returns the bound port, or `null` if binding failed. */
     fun start(port: Int = DEFAULT_PORT, host: String = ALL_INTERFACES): Int? = synchronized(lock) {
         (_status.value as? PortalStatus.Running)?.let { return it.port }
-        val candidate = embeddedServer(CIO, port = port, host = host) { portalModule(controller.get(), usenet.get(), if (proxyAvailable) proxy.get() else null) }
+        val candidate = embeddedServer(CIO, port = port, host = host) {
+            portalModule(controller.get(), usenet.get(), if (proxyAvailable) proxy.get() else null, if (streamsAvailable) streams.get() else null)
+        }
         return try {
             candidate.start(wait = false)
             val bound = runBlocking { candidate.engine.resolvedConnectors().first().port }

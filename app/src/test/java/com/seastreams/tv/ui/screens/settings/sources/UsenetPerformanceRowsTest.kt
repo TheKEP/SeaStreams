@@ -1,5 +1,6 @@
 package com.seastreams.tv.ui.screens.settings.sources
 
+import com.seastreams.tv.ui.screens.settings.PanelItem
 import com.seastreams.tv.domain.usenet.DamagePolicy
 import com.seastreams.tv.domain.usenet.UsenetPerformance
 import com.seastreams.tv.domain.usenet.UsenetProfile
@@ -15,23 +16,23 @@ class UsenetPerformanceRowsTest {
 
     private fun items() = performanceItems(state, setProfile = { profiles += it; state = state.withProfile(it) }, edit = { state = state.edited(it) })
 
-    private fun row(key: String) = items().filterIsInstance<PerformanceItem.Row>().single { it.key == key }
+    private fun row(key: String) = items().filterIsInstance<PanelItem.Row>().single { it.key == key }
 
     @Test
     fun `sections follow the AIOStreams screenshots and the profile row comes first`() {
         val all = items()
         assertEquals(
             listOf("Performance", "Connections & timeouts", "Reliability", "Archive handling", "Verification", "Import"),
-            all.filterIsInstance<PerformanceItem.Section>().map { it.title },
+            all.filterIsInstance<PanelItem.Section>().map { it.title },
         )
-        assertEquals(PROFILE_KEY, all.filterIsInstance<PerformanceItem.Row>().first().key)
-        assertEquals(25, all.filterIsInstance<PerformanceItem.Row>().size)
+        assertEquals(PROFILE_KEY, all.filterIsInstance<PanelItem.Row>().first().key)
+        assertEquals(25, all.filterIsInstance<PanelItem.Row>().size)
         assertEquals(all.size, all.map { it.key }.toSet().size)
     }
 
     @Test
     fun `the default Conservative values are labelled like the PRD table`() {
-        val values = items().filterIsInstance<PerformanceItem.Row>().associate { it.key to it.value }
+        val values = items().filterIsInstance<PanelItem.Row>().associate { it.key to it.value }
         assertEquals("Conservative", values[PROFILE_KEY])
         assertEquals("16", values["read-ahead"])
         assertEquals("30", values["max-downloads"])
@@ -91,6 +92,6 @@ class UsenetPerformanceRowsTest {
         assertEquals("512 MB", megabytesLabel(512))
         assertEquals("1.5 GB", megabytesLabel(1_536))
         assertEquals("1.00", shareLabel(100))
-        assertTrue(items().filterIsInstance<PerformanceItem.Row>().none { it.value.isBlank() })
+        assertTrue(items().filterIsInstance<PanelItem.Row>().none { it.value.isBlank() })
     }
 }

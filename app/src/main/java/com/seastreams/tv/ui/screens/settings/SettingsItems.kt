@@ -3,14 +3,23 @@ package com.seastreams.tv.ui.screens.settings
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.seastreams.tv.core.datastore.PlayerSettings
 import com.seastreams.tv.core.datastore.SettingsDataStore
 import com.seastreams.tv.data.usenet.headers.HeaderUse
+import com.seastreams.tv.domain.streams.FilterAttribute
+import com.seastreams.tv.domain.streams.FilterList
+import com.seastreams.tv.domain.streams.StreamProcessingSettings
 import com.seastreams.tv.ui.components.SeaIcons
 import com.seastreams.tv.ui.screens.settings.sources.SourcesUiState
 import com.seastreams.tv.ui.screens.settings.sources.sourcesItems
+import com.seastreams.tv.ui.screens.settings.streams.STREAM_FILTERS_ROW_KEY
+import com.seastreams.tv.ui.screens.settings.streams.STREAM_FORMATTER_ROW_KEY
+import com.seastreams.tv.ui.screens.settings.streams.STREAM_SORT_ROW_KEY
+import com.seastreams.tv.ui.screens.settings.streams.filtersSummary
+import com.seastreams.tv.ui.screens.settings.streams.sortSummary
 import java.time.ZoneId
 
 /** One entry of a Settings category list. */
@@ -35,6 +44,12 @@ sealed interface SettingsItem {
     data object Swatches : SettingsItem {
         override val key = "background-swatches"
     }
+
+    /**
+     * A non-focusable uppercase subheading (`USENET` in `Sources`); the rows after it, up to the next section, sit in
+     * their own card. Focus and the bottom-to-top wrap skip it.
+     */
+    data class Section(override val key: String, val title: String) : SettingsItem
 }
 
 /** Sub-views that replace the category list below the tab bar. */
@@ -57,6 +72,32 @@ sealed interface SettingsPanel {
 
     /** Search / Download request header picker (PRD §12). */
     data class Headers(val use: HeaderUse) : SettingsPanel
+
+    /** `UI` → stream filtering, sorting and formatter panels (PRD §13). */
+    sealed interface Stream : SettingsPanel {
+        /** Every filter group, result limits and the deduplicator. */
+        data object Filters : Stream
+
+        /** One attribute's Required / Excluded / Included / Preferred lists. */
+        data class FilterGroup(val attribute: FilterAttribute) : Stream
+
+        /** One of those lists, as a [MultiChoicePanel][com.seastreams.tv.ui.screens.settings.streams.MultiChoicePanel]. */
+        data class FilterValues(val attribute: FilterAttribute, val list: FilterList) : Stream
+
+        data object Sort : Stream
+
+        data object Formatter : Stream
+    }
+}
+
+/**
+ * Where `Back` goes from [this]: a stream filter list returns to its group, a group to `Stream filters`, and every other
+ * panel to the category list it was opened from (`UI` for the stream panels), focused on its row.
+ */
+fun SettingsPanel.parent(): SettingsPanel = when (this) {
+    is SettingsPanel.Stream.FilterValues -> SettingsPanel.Stream.FilterGroup(attribute)
+    is SettingsPanel.Stream.FilterGroup -> SettingsPanel.Stream.Filters
+    else -> SettingsPanel.Main
 }
 
 enum class ChoiceKind {
@@ -97,11 +138,12 @@ fun settingsItems(
     cacheBytes: Long?,
     cb: SettingsCallbacks,
     sources: SourcesUiState = SourcesUiState(),
+    streams: StreamProcessingSettings = StreamProcessingSettings(),
     nowMillis: Long = System.currentTimeMillis(),
     zone: ZoneId = ZoneId.systemDefault(),
 ): List<SettingsItem> = when (category) {
     SettingsCategory.HOME -> homeItems(state, cb)
-    SettingsCategory.UI -> uiItems(state, swatchesOpen, cb)
+    SettingsCategory.UI -> uiItems(state, swatchesOpen, cb) + streamProcessingItems(streams, cb)
     SettingsCategory.PLAYBACK -> playbackItems(state, cb)
     SettingsCategory.AUDIO -> audioItems(state, cb)
     SettingsCategory.SUBTITLES -> subtitleItems(state, cb)
@@ -146,6 +188,22 @@ private fun uiItems(state: SettingsUiState, swatchesOpen: Boolean, cb: SettingsC
         }
     }
 }
+
+/**
+ * The bottom of `UI` (PRD §13), below the trailer rows: the active profile's stream filters, sorting and formatter.
+ * Their panels' `Back` returns to these rows ([SettingsPanel.parent]).
+ */
+internal fun streamProcessingItems(streams: StreamProcessingSettings, cb: SettingsCallbacks): List<SettingsItem> = listOf(
+    entry(STREAM_FILTERS_ROW_KEY, SeaIcons.FilterList, "Stream filters", filtersSummary(streams.filters), RowTrailing.Chevron) {
+        cb.open(SettingsPanel.Stream.Filters)
+    },
+    entry(STREAM_SORT_ROW_KEY, SeaIcons.Sort, "Stream sorting", sortSummary(streams.sort), RowTrailing.Chevron) {
+        cb.open(SettingsPanel.Stream.Sort)
+    },
+    entry(STREAM_FORMATTER_ROW_KEY, Icons.Filled.Edit, "Stream formatter", streams.formatter.id.label, RowTrailing.Chevron) {
+        cb.open(SettingsPanel.Stream.Formatter)
+    },
+)
 
 private fun otherItems(clearSecondsLeft: Int?, cacheBytes: Long?, cb: SettingsCallbacks): List<SettingsItem> = listOf(
     if (clearSecondsLeft != null) {

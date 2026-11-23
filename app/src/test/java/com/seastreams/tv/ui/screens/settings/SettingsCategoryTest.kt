@@ -1,5 +1,7 @@
 package com.seastreams.tv.ui.screens.settings
 
+import com.seastreams.tv.ui.components.SeaIcons
+import com.seastreams.tv.ui.screens.settings.streams.STREAM_FORMATTER_ROW_KEY
 import androidx.compose.ui.input.key.Key
 import com.seastreams.tv.core.datastore.AppSettings
 import com.seastreams.tv.core.datastore.PlayerSettings
@@ -86,9 +88,30 @@ class SettingsCategoryTest {
             val lastOrdinal = ordinals.max()
             return items[ordinals.indexOfFirst { settingsRowEdges(it, lastOrdinal)[Key.DirectionDown] != null }].key
         }
-        assertEquals(TRAILERS_DELAY_ROW_KEY, lastOrdinalKey(SettingsCategory.UI, PlayerSettings()))
-        assertEquals(TRAILERS_ROW_KEY, lastOrdinalKey(SettingsCategory.UI, PlayerSettings(autoPlayTrailers = false)))
+        // UI ends with the stream rows whatever the trailer sub-settings do.
+        assertEquals(STREAM_FORMATTER_ROW_KEY, lastOrdinalKey(SettingsCategory.UI, PlayerSettings()))
+        assertEquals(STREAM_FORMATTER_ROW_KEY, lastOrdinalKey(SettingsCategory.UI, PlayerSettings(autoPlayTrailers = false)))
         assertEquals(HDR_DIM_ROW_KEY, lastOrdinalKey(SettingsCategory.PLAYBACK, PlayerSettings(autoStreamFailover = false)))
+    }
+
+    @Test
+    fun `section subheadings are skipped by focus and split the list into cards`() {
+        val items = listOf(
+            SettingsItem.Section("s1", "Usenet"),
+            entry("a", SeaIcons.Addons, "A", null, RowTrailing.None) {},
+            entry("b", SeaIcons.Addons, "B", null, RowTrailing.None) {},
+            SettingsItem.Section("s2", "Debrid library"),
+            entry("c", SeaIcons.Addons, "C", null, RowTrailing.None) {},
+        )
+        assertEquals(listOf(-1, 0, 1, -1, 2), settingsEntryOrdinals(items).toList())
+        assertEquals("a", firstEntryKey(items))
+        assertEquals("c", lastEntryKey(items))
+        assertEquals(SectionSegment(first = true, last = false), sectionSegment(items, 1))
+        assertEquals(SectionSegment(first = false, last = true), sectionSegment(items, 2))
+        assertEquals(SectionSegment(first = true, last = true), sectionSegment(items, 4))
+        // One-way wrap across the whole tab: Down on `c` goes back to `a`, Up on `a` to the tab bar.
+        assertEquals(mapOf(Key.DirectionUp to SettingsRowEdge.TO_TAB_BAR), settingsRowEdges(0, 2))
+        assertEquals(mapOf(Key.DirectionDown to SettingsRowEdge.WRAP_TO_FIRST), settingsRowEdges(2, 2))
     }
 
     @Test
