@@ -1,5 +1,6 @@
 package com.seastreams.tv.ui.screens.playback
 
+import com.seastreams.tv.ui.screens.player.StatusPill
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
@@ -105,6 +106,7 @@ fun PlaybackHost(viewModel: PlaybackViewModel, messages: TransientMessages, orig
     }
     if (loading != null && player == null) {
         StreamLookupLoading(loading, onCancel = viewModel::cancelLoading)
+        state.loadingStatus?.let { Box(Modifier.fillMaxSize()) { StatusPill(it, Modifier.align(Alignment.TopCenter).padding(top = 28.dp)) } }
     }
     if (picker != null) {
         StreamPickerModal(state = picker, onChoose = viewModel::choose, onDismiss = viewModel::dismissPicker)

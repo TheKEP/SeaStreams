@@ -15,7 +15,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -39,8 +41,9 @@ class UsenetSettingsStoreTest {
     fun tearDown() = scope.cancel()
 
     @Test
-    fun `nothing stored reads as Balanced with Prowlarr and SABnzbd headers`() = runTest {
+    fun `nothing stored reads as Conservative with Prowlarr and SABnzbd headers`() = runTest {
         assertEquals(UsenetPerformance(), store.performance.first())
+        assertEquals(UsenetProfile.CONSERVATIVE, store.performance.first().profile)
         val headers = store.headers.first()
         assertEquals(HeaderPreset.PROWLARR, headers.search)
         assertEquals(HeaderPreset.SABNZBD, headers.download)
@@ -67,6 +70,7 @@ class UsenetSettingsStoreTest {
         assertEquals(UsenetPerformance(), store.performance.first())
         dataStore.edit { it[stringPreferencesKey("usenet/performance")] = """{"profile":"NOPE"}""" }
         assertEquals(UsenetPerformance(), store.performance.first())
+        assertEquals(UsenetProfile.CONSERVATIVE, store.performance.first().profile, "unreadable JSON falls back to Conservative")
     }
 
     @Test

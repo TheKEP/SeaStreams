@@ -1,5 +1,7 @@
 package com.seastreams.tv.ui.screens.playback
 
+import com.seastreams.tv.testutil.noUsenetPreflight
+import com.seastreams.tv.testutil.passThroughExternalUrls
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.seastreams.tv.core.datastore.SettingsDataStore
 import com.seastreams.tv.domain.model.PlaybackRequest
@@ -76,6 +78,8 @@ class PlaybackPickerDismissTest {
         lastUsed = LastUsedStreamRecorder(FakeLastUsedStreamDao(), Clock.systemUTC()),
         resolveTrailer = mockk<ResolveTrailerStreamUseCase>(),
         resolveContinueWatching = mockk(),
+        externalUrls = passThroughExternalUrls(),
+        preflight = noUsenetPreflight(),
         clock = Clock.systemUTC(),
     )
 

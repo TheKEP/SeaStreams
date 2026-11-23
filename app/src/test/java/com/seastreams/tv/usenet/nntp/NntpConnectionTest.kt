@@ -109,7 +109,7 @@ class NntpConnectionTest {
     }
 
     @Test
-    fun `the provider Test reports success, bad login, connection limit and unreachable`() = runBlocking {
+    fun `the provider Test reports success, bad login, connection limit and unreachable`() = runBlocking<Unit> {
         val tester = NntpConnectionTester(Dispatchers.IO)
         assertTrue(tester.test(server.endpoint(), 2_000) is ProviderTestResult.Success)
         assertTrue(tester.test(server.endpoint(pass = "nope"), 2_000) is ProviderTestResult.BadLogin)
@@ -123,7 +123,7 @@ class NntpConnectionTest {
     }
 
     @Test
-    fun `the provider Test tells a 502 bad login from a 502 connection limit and quotes the server`() = runBlocking {
+    fun `the provider Test tells a 502 bad login from a 502 connection limit and quotes the server`() = runBlocking<Unit> {
         val tester = NntpConnectionTester(Dispatchers.IO)
         server.passAnswer = "502 Authentication Failed"
         val login = tester.test(server.endpoint(name = "Newshosting"), 2_000)
@@ -143,7 +143,7 @@ class NntpConnectionTest {
     }
 
     @Test
-    fun `a session that still refuses DATE after sign-in is a bad login, not a success`() = runBlocking {
+    fun `a session that still refuses DATE after sign-in is a bad login, not a success`() = runBlocking<Unit> {
         val tester = NntpConnectionTester(Dispatchers.IO)
         server.dateAnswer = "480 Authentication required"
         assertEquals(ProviderTestResult.BadLogin("Fake", "480 Authentication required"), tester.test(server.endpoint(user = "", pass = ""), 2_000))

@@ -1,6 +1,7 @@
 package com.seastreams.tv.usenet.cache
 
 import com.seastreams.tv.core.cache.ManagedCache
+import com.seastreams.tv.data.usenet.newznab.NewznabCapsCache
 import com.seastreams.tv.core.util.daemonExecutor
 import com.seastreams.tv.usenet.nntp.FetchPriority
 import com.seastreams.tv.usenet.nntp.SegmentFetch
@@ -71,4 +72,8 @@ abstract class UsenetCacheModule {
     @Binds
     @IntoSet
     abstract fun nzbCache(cache: NzbFileCache): ManagedCache
+
+    @Binds
+    @IntoSet
+    abstract fun capsCache(cache: NewznabCapsCache): ManagedCache
 }

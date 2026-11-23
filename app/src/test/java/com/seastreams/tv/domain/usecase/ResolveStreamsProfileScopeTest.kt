@@ -1,5 +1,7 @@
 package com.seastreams.tv.domain.usecase
 
+import com.seastreams.tv.testutil.unconfiguredUsenet
+import com.seastreams.tv.usenet.session.UsenetStreamRegistry
 import com.seastreams.tv.core.database.entity.AddonEntity
 import com.seastreams.tv.core.network.StremioAddonClient
 import com.seastreams.tv.core.network.StremioStream
@@ -42,7 +44,7 @@ class ResolveStreamsProfileScopeTest {
             listOf(StremioStream("https://cdn/${firstArg<String>().length}.mkv", "S", "", emptyMap()))
         }
         coEvery { client.fetchSubtitles(any(), any(), any()) } returns listOf(StremioSubtitle("1", "https://s/1.srt", "eng"))
-        val useCase = ResolveStreamsUseCase(dao, Lazy { client })
+        val useCase = ResolveStreamsUseCase(dao, Lazy { client }, unconfiguredUsenet(), UsenetStreamRegistry())
 
         val result = useCase(StreamQuery(1, MediaRef(603, MediaType.MOVIE), imdbId = "tt0133093", episode = null))
 

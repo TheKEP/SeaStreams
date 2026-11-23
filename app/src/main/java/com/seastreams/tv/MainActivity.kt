@@ -116,7 +116,9 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
-        portalServer.requestStop()
+        // An external player streaming Usenet from the loopback proxy holds a lease (NntpProxyService): the server must
+        // outlive this stop, so only the UI's claim is dropped and the lease's release stops it later.
+        if (portalServer.leased) portalServer.releaseUiClaim() else portalServer.requestStop()
         super.onStop()
     }
 }

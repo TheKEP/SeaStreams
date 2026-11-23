@@ -31,7 +31,11 @@ class SourcesItemsTest {
         id, "I$id", "https://i$id.example", "/api", hasApiKey = true, apiKeyNeeded = false, priority = 0, backupOnly = false, enabled = enabled,
     )
 
-    private fun items(state: SourcesUiState, open: (SettingsPanel) -> Unit = {}, update: () -> Unit = {}): List<SettingsItem.Entry> =
+    private fun items(
+        state: SourcesUiState,
+        open: (SettingsPanel) -> Unit = {},
+        update: () -> Unit = {},
+    ): List<SettingsItem.Entry> =
         sourcesItems(
             state,
             SettingsCallbacks({ open(it) }, {}, {}, mockk(relaxed = true), {}, {}, {}, {}, updateHeaders = update),

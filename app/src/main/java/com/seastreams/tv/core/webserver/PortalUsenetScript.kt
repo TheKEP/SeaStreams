@@ -60,7 +60,8 @@ function sourceRow(item, kind, sub) {
       h('button', { type: 'button', class: 'icon', onclick: (e) => uApi(path + '/enabled', { id: item.id, enabled: !item.enabled }, e.currentTarget) }, item.enabled ? 'Disable' : 'Enable'),
       h('button', { type: 'button', class: 'icon', onclick: (e) => uApi(path + '/move', { id: item.id, offset: -1 }, e.currentTarget) }, '↑'),
       h('button', { type: 'button', class: 'icon', onclick: (e) => uApi(path + '/move', { id: item.id, offset: 1 }, e.currentTarget) }, '↓'),
-      kind === 'providers' ? h('button', { type: 'button', class: 'icon', onclick: (e) => api('/usenet/providers/test', Object.assign({}, item, { password: null }), e.currentTarget) }, 'Test') : null,
+      kind === 'providers' ? h('button', { type: 'button', class: 'icon', onclick: (e) => api('/usenet/providers/test', Object.assign({}, item, { password: null }), e.currentTarget) }, 'Test')
+        : h('button', { type: 'button', class: 'icon', onclick: (e) => api('/usenet/indexers/test', Object.assign({}, item, { apiKey: null }), e.currentTarget) }, 'Test'),
       h('button', { type: 'button', class: 'icon', onclick: () => openForm(kind, item) }, 'Edit'),
       h('button', { type: 'button', class: 'icon danger', onclick: (e) => removeSource(kind, item, e.currentTarget) }, 'Remove')));
 }
@@ -120,7 +121,9 @@ function setupUsenet() {
       field('API key', h('input', { type: 'password', id: 'ui-key', autocomplete: 'off' })),
       field('Priority (0 = first)', numberInput('ui-prio', 0, 99)),
       check('Backup only (searched when the others find nothing)', checkbox('ui-backup')),
-      h('div', { class: 'row' }, h('button', { class: 'primary', type: 'submit', id: 'ui-save' }, 'Add indexer'), h('button', { type: 'button', onclick: () => editIndexer(null) }, 'Cancel'))),
+      h('div', { class: 'row' }, h('button', { class: 'primary', type: 'submit', id: 'ui-save' }, 'Add indexer'),
+        h('button', { type: 'button', onclick: (e) => api('/usenet/indexers/test', indexerBody(), e.currentTarget) }, 'Test'),
+        h('button', { type: 'button', onclick: () => editIndexer(null) }, 'Cancel'))),
     h('h3', null, 'Request headers'),
     h('div', { class: 'row' }, field('Search', h('select', { id: 'uh-search' })), field('Download', h('select', { id: 'uh-download' }))),
     h('p', { class: 'sub', id: 'uh-checked' }),
@@ -164,6 +167,14 @@ function setupUsenet() {
   });
   editProvider(null);
   editIndexer(null);
+}
+
+function indexerBody() {
+  return {
+    id: U.indexer ? U.indexer.id : null, name: byId('ui-name').value, baseUrl: byId('ui-url').value,
+    apiPath: byId('ui-path').value || '/api', apiKey: byId('ui-key').value || null, priority: Number(byId('ui-prio').value) || 0,
+    backupOnly: byId('ui-backup').checked, enabled: U.indexer ? U.indexer.enabled : true,
+  };
 }
 
 function providerBody() {

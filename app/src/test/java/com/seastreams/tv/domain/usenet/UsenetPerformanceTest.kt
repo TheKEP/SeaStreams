@@ -1,14 +1,25 @@
 package com.seastreams.tv.domain.usenet
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class UsenetPerformanceTest {
 
     @Test
-    fun `defaults are the Balanced template`() {
-        assertEquals(UsenetPerformance.template(UsenetProfile.BALANCED), UsenetPerformance())
-        assertEquals(UsenetProfile.BALANCED, UsenetPerformance().profile)
+    fun `defaults are the Conservative template`() {
+        assertEquals(UsenetPerformance.template(UsenetProfile.CONSERVATIVE), UsenetPerformance())
+        assertEquals(UsenetProfile.CONSERVATIVE, UsenetPerformance().profile)
+    }
+
+    @Test
+    fun `no template can exhaust a 512 MB Android TV heap`() {
+        UsenetProfile.entries.forEach { profile ->
+            val t = UsenetPerformance.template(profile)
+            assertTrue(t.maxConcurrentDownloads in 1..48, "${profile.label}: bounded downloads, never 0 = auto")
+            assertTrue(t.readAheadSegments <= 32, "${profile.label}: read-ahead")
+            assertTrue(t.censusConcurrency <= 6, "${profile.label}: census")
+        }
     }
 
     @Test
@@ -16,8 +27,8 @@ class UsenetPerformanceTest {
         // readAhead, maxDownloads, diskMb, warm, priority%, segmentTimeout, stall, censusConcurrency, imports
         val expected = mapOf(
             UsenetProfile.CONSERVATIVE to listOf(16, 30, 512, 0, 90, 30, 30, 4, 2),
-            UsenetProfile.BALANCED to listOf(32, 0, 1_024, 2, 80, 30, 30, 8, 4),
-            UsenetProfile.HIGH to listOf(64, 0, 2_048, 4, 80, 15, 10, 12, 4),
+            UsenetProfile.BALANCED to listOf(24, 36, 1_024, 2, 80, 30, 30, 6, 4),
+            UsenetProfile.HIGH to listOf(32, 48, 2_048, 4, 80, 15, 10, 6, 4),
         )
         expected.forEach { (profile, values) ->
             val t = UsenetPerformance.template(profile)
@@ -59,7 +70,7 @@ class UsenetPerformanceTest {
         val edited = high.edited { it.copy(matroskaHoleRepair = false) }
         assertEquals(UsenetProfile.CUSTOM, edited.profile)
         assertEquals(false, edited.matroskaHoleRepair)
-        assertEquals(64, edited.readAheadSegments)
+        assertEquals(32, edited.readAheadSegments)
     }
 
     @Test

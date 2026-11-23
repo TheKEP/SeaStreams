@@ -266,7 +266,7 @@ private fun CenterIndicator(state: PlayerUiState, isTrailer: Boolean, visual: Lo
 }
 
 @Composable
-private fun StatusPill(text: String, modifier: Modifier) {
+internal fun StatusPill(text: String, modifier: Modifier) {
     Text(
         text,
         style = MaterialTheme.typography.titleSmall,

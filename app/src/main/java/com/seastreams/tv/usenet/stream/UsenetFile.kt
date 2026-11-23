@@ -50,6 +50,38 @@ class UsenetFile(
 
     val opened: Boolean get() = size >= 0
 
+    /**
+     * Whether opening also prefetches the file's last 5 MB (container indexes live there). Only the last part of a
+     * multi-file set needs it, so a release turns it off for its other files ([prefetchTail] turns it on later).
+     */
+    @Volatile
+    var tailPrefetch = true
+
+    /**
+     * Whether reads move a full [ReadAheadWindow] along. A multi-volume release turns it on only for the volume
+     * being played ([ReadAheadFocus]), so fifty RAR volumes never hold fifty windows of downloads at once;
+     * header probes of the others read just the articles they touch.
+     */
+    @Volatile
+    var readAhead = true
+        private set
+
+    fun resumeReadAhead() {
+        readAhead = true
+    }
+
+    /** Stops read-ahead and cancels this file's queued window (its pinned head/tail stay). */
+    fun suspendReadAhead() {
+        readAhead = false
+        window?.idle()
+    }
+
+    /** Starts the tail prefetch now (an already opened last volume chosen after its probe). */
+    fun prefetchTail() {
+        tailPrefetch = true
+        window?.prefetchTail()
+    }
+
     init {
         require(segments.isNotEmpty()) { "The NZB file lists no articles" }
     }
@@ -99,7 +131,7 @@ class UsenetFile(
                 else -> {
                     val count = minOf(length.toLong(), segment.end - position).toInt()
                     if (segment.copyTo((position - segment.begin).toInt(), target, offset, count)) {
-                        window?.advance(index)
+                        if (readAhead) window?.advance(index)
                         return count
                     }
                     window?.invalidate(index) // released under us: fetch it again
@@ -127,7 +159,7 @@ class UsenetFile(
             headPins = ReadAheadWindow.HEAD_PINS,
             tailFrom = tail,
             start = ::start,
-        ).also { it.prefetchTail() }
+        ).also { if (tailPrefetch) it.prefetchTail() }
         return created
     }
 

@@ -20,8 +20,10 @@ import com.seastreams.tv.player.SeaStreamsPlayerManager
 import com.seastreams.tv.player.StreamFallbackController
 import com.seastreams.tv.player.knownOrZero
 import com.seastreams.tv.player.subtitle.ExternalSubtitleLoader
+import com.seastreams.tv.player.usenet.PlaybackDataSources
 import com.seastreams.tv.player.subtitle.sync.AutoSyncStatus
 import com.seastreams.tv.player.subtitle.sync.SyncRate
+import com.seastreams.tv.usenet.session.UsenetStreamRegistry
 import dagger.Lazy
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -50,9 +52,11 @@ import javax.inject.Inject
 class PlayerViewModel @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val okHttp: Lazy<OkHttpClient>,
+    private val dataSources: Lazy<PlaybackDataSources>,
     private val settingsStore: SettingsDataStore,
     internal val progressTracker: PlayerProgressTracker,
     internal val switching: PlayerSwitching,
+    internal val streamGate: PlayerStreamGate,
 ) : ViewModel() {
 
     internal val _state = MutableStateFlow(PlayerUiState())
@@ -114,12 +118,12 @@ class PlayerViewModel @Inject constructor(
         exiting = false
         sessionJob = viewModelScope.launch {
             settings = settingsStore.settings.first()
-            val client = withContext(Dispatchers.IO) { okHttp.get() }
+            val (client, sources) = withContext(Dispatchers.IO) { okHttp.get() to dataSources.get() }
             // Cancelled during the initial load: never build (or show) a player for a session already left.
             if (exiting) return@launch
             val audio = SessionAudio.from(settings.audio)
             val config = PlayerEngineConfig.from(settings, audio.toDsp(), DisplayHdrSupport.supportsDolbyVision(context))
-            val manager = SeaStreamsPlayerManager(context, client, config)
+            val manager = SeaStreamsPlayerManager(context, client, config, sources)
             _manager.value = manager
             _state.value = PlayerUiState(
                 audio = audio,
@@ -192,8 +196,8 @@ class PlayerViewModel @Inject constructor(
         restartAutoSyncForNewStream()
         // Every new source (first start, fallback advance, stream/episode switch) shows the backdrop until its first frame.
         _state.update { it.onNewStream(index) }
-        manager.playStream(stream, positionMs)
-        fallback.onStreamStarted(index, streams.size)
+        streamGate.cancel()
+        if (UsenetStreamRegistry.isUsenet(stream.url)) openThroughGate(manager, index, positionMs) else handOff(manager, index, positionMs)
     }
 
     private fun onFallbackAdvance(from: Int, to: Int, reason: FallbackReason) {
@@ -300,6 +304,7 @@ class PlayerViewModel @Inject constructor(
         if (exiting) return
         exiting = true
         fallback.cancel()
+        streamGate.cancel()
         _state.update { it.copy(videoDetached = true) }
         _manager.value?.stop()
         _exits.trySend(Unit)
@@ -317,6 +322,7 @@ class PlayerViewModel @Inject constructor(
         sessionJob?.cancel()
         sessionJob = null
         switching.cancel()
+        streamGate.cancel()
         fallback.cancel()
         autoSync.clear()
         subtitles.clear()

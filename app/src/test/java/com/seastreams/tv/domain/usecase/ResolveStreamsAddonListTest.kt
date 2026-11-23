@@ -1,5 +1,7 @@
 package com.seastreams.tv.domain.usecase
 
+import com.seastreams.tv.testutil.unconfiguredUsenet
+import com.seastreams.tv.usenet.session.UsenetStreamRegistry
 import com.seastreams.tv.core.database.entity.AddonEntity
 import com.seastreams.tv.core.network.StremioAddonClient
 import com.seastreams.tv.core.network.StremioStream
@@ -68,7 +70,7 @@ class ResolveStreamsAddonListTest {
         }
         coEvery { client.fetchSubtitles(any(), any(), any()) } returns emptyList()
 
-        val result = ResolveStreamsUseCase(dao, Lazy { client })(movie)
+        val result = ResolveStreamsUseCase(dao, Lazy { client }, unconfiguredUsenet(), UsenetStreamRegistry())(movie)
 
         assertEquals(
             listOf(
@@ -99,7 +101,7 @@ class ResolveStreamsAddonListTest {
         }
         coEvery { client.fetchSubtitles(any(), any(), any()) } returns emptyList()
 
-        val result = ResolveStreamsUseCase(dao, Lazy { client })(movie)
+        val result = ResolveStreamsUseCase(dao, Lazy { client }, unconfiguredUsenet(), UsenetStreamRegistry())(movie)
 
         // PlayerSettings.preferredAutoPlayAddonUrl defaults to null = "First enabled addon".
         assertEquals("https://first/manifest.json", topStream(result.streams, null)?.addonUrl)
@@ -110,7 +112,7 @@ class ResolveStreamsAddonListTest {
         val dao = FakeAddonDao(listOf(addon("subs", sortOrder = 0, resources = """["subtitles"]""")))
         coEvery { client.fetchSubtitles(any(), any(), any()) } returns emptyList()
 
-        val result = ResolveStreamsUseCase(dao, Lazy { client })(movie)
+        val result = ResolveStreamsUseCase(dao, Lazy { client }, unconfiguredUsenet(), UsenetStreamRegistry())(movie)
 
         assertEquals(emptyList<StreamAddon>(), result.streamAddons)
     }

@@ -8,11 +8,12 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 
 /**
- * One playable entry from an addon's `/stream/{type}/{id}.json`. Only direct `url` streams are kept:
- * torrent (`infoHash`), YouTube (`ytId`) and browser (`externalUrl`) entries can't be handed to a
- * video player as-is.
+ * One playable entry from an addon's `/stream/{type}/{id}.json`. Direct `url` streams and Usenet `nzbUrl` streams
+ * (PRD §12, optionally with their own NNTP `servers`) are kept: torrent (`infoHash`), YouTube (`ytId`) and browser
+ * (`externalUrl`) entries can't be handed to a video player as-is.
  */
 data class StremioStream(
+    /** The video URL, or for a Usenet stream its [nzbUrl]. */
     val url: String,
     /** Short source label, often multi-line (e.g. `"Torrentio\n4k"`). */
     val name: String,
@@ -20,6 +21,10 @@ data class StremioStream(
     val description: String,
     /** Request headers the addon says the stream needs (`behaviorHints.proxyHeaders.request`). */
     val headers: Map<String, String>,
+    /** An NZB link to stream through the Usenet engine instead of [url] playing directly. */
+    val nzbUrl: String? = null,
+    /** `nntp(s)://user:pass@host:port/connections` servers the addon supplies for [nzbUrl] (empty = the user's providers). */
+    val servers: List<String> = emptyList(),
 )
 
 /** One subtitle file from an addon's `/subtitles/{type}/{id}.json`. */
@@ -35,12 +40,15 @@ object StremioResourceParser {
 
     fun parseStreams(raw: String): List<StremioStream> = array(raw, "streams").mapNotNull { element ->
         val obj = element as? JsonObject ?: return@mapNotNull null
-        val url = obj.httpUrl() ?: return@mapNotNull null
+        val direct = obj.httpUrl()
+        val nzb = if (direct == null) obj.string("nzbUrl")?.takeIf(::isHttp) else null
         StremioStream(
-            url = url,
+            url = direct ?: nzb ?: return@mapNotNull null,
             name = obj.string("name").orEmpty(),
             description = (obj.string("description") ?: obj.string("title")).orEmpty(),
             headers = requestHeaders(obj),
+            nzbUrl = nzb,
+            servers = if (nzb == null) emptyList() else servers(obj),
         )
     }
 
@@ -72,7 +80,14 @@ object StremioResourceParser {
     }
 
     /** The entry's `url` when it is a plain http(s) link a video player can open. */
-    private fun JsonObject.httpUrl(): String? = string("url")?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+    private fun JsonObject.httpUrl(): String? = string("url")?.takeIf(::isHttp)
+
+    private fun isHttp(url: String) = url.startsWith("http://") || url.startsWith("https://")
+
+    /** `servers`: NNTP server URLs (strings) for an `nzbUrl` stream; anything else is skipped. */
+    private fun servers(stream: JsonObject): List<String> = (stream["servers"] as? JsonArray).orEmpty().mapNotNull { entry ->
+        (entry as? JsonPrimitive)?.takeIf { it.isString }?.content?.trim()?.takeIf { it.isNotEmpty() }
+    }
 
     private fun JsonObject.string(key: String): String? =
         (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.content?.trim()?.takeIf { it.isNotEmpty() }

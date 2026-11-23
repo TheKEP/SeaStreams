@@ -14,6 +14,7 @@ import com.seastreams.tv.data.usenet.headers.RequestHeaderSettings
 import com.seastreams.tv.domain.usenet.UsenetPerformance
 import com.seastreams.tv.domain.usenet.UsenetProfile
 import com.seastreams.tv.ui.navigation.WhileUiSubscribed
+import com.seastreams.tv.data.usenet.newznab.NewznabClient
 import com.seastreams.tv.usenet.nntp.NntpConnectionTester
 import kotlinx.coroutines.Job
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -44,6 +45,7 @@ class SourcesViewModel @Inject constructor(
     private val store: UsenetSettingsStore,
     private val updater: HeaderVersionUpdater,
     private val tester: NntpConnectionTester,
+    private val newznab: NewznabClient,
 ) : ViewModel() {
 
     private var testJob: Job? = null
@@ -83,6 +85,21 @@ class SourcesViewModel @Inject constructor(
                 e.message ?: "That didn't work"
             } catch (e: IOException) {
                 "Couldn't read the Usenet settings"
+            }
+            _messages.send(message)
+        }
+    }
+
+    /** The indexer `Test` button: a fresh `t=caps` with the saved key, reported as a toast. */
+    fun testIndexer(id: Long) {
+        if (testJob?.isActive == true) return
+        testJob = viewModelScope.launch {
+            val message = try {
+                val endpoint = repository.indexerEndpoint(id)
+                _messages.send("Testing ${endpoint.name}…")
+                newznab.test(endpoint).message
+            } catch (e: UserFacingException) {
+                e.message ?: "That didn't work"
             }
             _messages.send(message)
         }

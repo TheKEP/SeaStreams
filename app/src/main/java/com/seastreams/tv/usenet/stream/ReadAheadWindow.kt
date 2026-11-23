@@ -53,6 +53,26 @@ class ReadAheadWindow(
         stale.forEach(SegmentFetch::cancel)
     }
 
+    /**
+     * The reader moved to another volume of the release: drop every unpinned slot (cancelling queued downloads)
+     * so only the volume being read keeps a full window. The next [advance] rebuilds it from scratch.
+     */
+    fun idle() {
+        val stale = ArrayList<SegmentFetch>()
+        synchronized(this) {
+            if (closed) return
+            position = -1
+            val iterator = slots.entries.iterator()
+            while (iterator.hasNext()) {
+                val (slot, fetch) = iterator.next()
+                if (pinned(slot)) continue
+                iterator.remove()
+                if (!fetch.isDone) stale += fetch
+            }
+        }
+        stale.forEach(SegmentFetch::cancel)
+    }
+
     /** Starts the pinned tail downloading without waiting (called once the part size is known). */
     @Synchronized
     fun prefetchTail() {
@@ -78,10 +98,11 @@ class ReadAheadWindow(
     companion object {
         const val TAIL_BYTES = 5L * 1024 * 1024
         const val HEAD_PINS = 2
+        const val HEAP_SHARE = 10
 
-        /** The profile's read-ahead, clamped so the window holds at most a sixth of the heap. */
+        /** The profile's read-ahead, clamped so the window holds at most a tenth of the heap (the arena's share). */
         fun windowFor(readAheadSegments: Int, partSize: Long, maxMemory: Long = Runtime.getRuntime().maxMemory()): Int {
-            val byHeap = if (partSize > 0) (maxMemory / 6 / partSize).toInt() else readAheadSegments
+            val byHeap = if (partSize > 0) (maxMemory / HEAP_SHARE / partSize).toInt() else readAheadSegments
             return minOf(readAheadSegments, byHeap).coerceAtLeast(1)
         }
 

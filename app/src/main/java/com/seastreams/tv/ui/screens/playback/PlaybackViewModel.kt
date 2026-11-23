@@ -7,7 +7,6 @@ import com.seastreams.tv.core.datastore.PlayerChoice
 import com.seastreams.tv.core.datastore.SettingsDataStore
 import com.seastreams.tv.core.util.orNullUnlessCancelled
 import com.seastreams.tv.domain.model.ContinueWatchingItem
-import com.seastreams.tv.domain.model.EpisodeRef
 import com.seastreams.tv.domain.model.PlaybackArtwork
 import com.seastreams.tv.domain.model.PlaybackRequest
 import com.seastreams.tv.domain.model.playbackArtwork
@@ -31,7 +30,10 @@ import com.seastreams.tv.domain.usecase.ContinueWatchingTarget
 import com.seastreams.tv.domain.usecase.ResolveContinueWatchingTargetUseCase
 import com.seastreams.tv.domain.usecase.ResolveTrailerStreamUseCase
 import com.seastreams.tv.player.external.ExternalLaunchSpec
-import com.seastreams.tv.ui.components.MetadataFormat
+import com.seastreams.tv.player.external.ExternalStreamUrls
+import com.seastreams.tv.player.usenet.UsenetPreflight
+import com.seastreams.tv.usenet.session.UsenetStreamRegistry
+import dagger.Lazy
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -43,6 +45,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.IOException
 import java.time.Clock
 import javax.inject.Inject
 
@@ -72,6 +75,8 @@ data class PlaybackUiState(
      * Player Loading & Buffering UI); `null` otherwise. Cleared in the same update that opens the player.
      */
     val loading: PlaybackArtwork? = null,
+    /** Shown over [loading] while refused Usenet releases are passed over, e.g. `Stream 1 didn't start. Trying stream 2 of 5…`. */
+    val loadingStatus: String? = null,
 )
 
 sealed interface PlaybackEvent {
@@ -100,6 +105,8 @@ class PlaybackViewModel @Inject constructor(
     private val lastUsed: LastUsedStreamRecorder,
     private val resolveTrailer: ResolveTrailerStreamUseCase,
     private val resolveContinueWatching: ResolveContinueWatchingTargetUseCase,
+    private val externalUrls: Lazy<ExternalStreamUrls>,
+    private val preflight: UsenetPreflight,
     private val clock: Clock,
 ) : ViewModel() {
 
@@ -192,7 +199,7 @@ class PlaybackViewModel @Inject constructor(
     /** `Back` on the stream-lookup loading screen: stop looking and close it (focus returns to the opener). */
     fun cancelLoading() {
         lookup?.cancel()
-        _state.update { it.copy(busyLabel = null, loading = null) }
+        _state.update { it.copy(busyLabel = null, loading = null, loadingStatus = null) }
     }
 
     fun dismissPicker() {
@@ -225,6 +232,7 @@ class PlaybackViewModel @Inject constructor(
 
     /** The external player returned; [extras] are its result extras (empty when it sent none). */
     fun onExternalResult(extras: Map<String, Any?>) {
+        externalUrls.get().finish()
         val playback = active ?: return
         active = null
         viewModelScope.launch {
@@ -239,24 +247,45 @@ class PlaybackViewModel @Inject constructor(
 
     /** The chosen player couldn't be started (e.g. it was uninstalled). */
     fun onLaunchFailed() {
+        externalUrls.get().finish()
         active = null
         viewModelScope.launch { message("That video player isn't installed. Pick another in Settings.") }
     }
 
-    private suspend fun start(resolved: ResolvedPlayback, index: Int, current: AppSettings) {
+    private suspend fun start(resolved: ResolvedPlayback, requested: Int, current: AppSettings) {
         val target = resolved.target
         val resolution = resolved.resolution
-        val stream = resolution.streams.getOrNull(index) ?: return _state.update { it.copy(loading = null) }
+        if (resolution.streams.getOrNull(requested) == null) return _state.update { it.copy(loading = null, loadingStatus = null) }
+        // Usenet releases are opened before any player exists; refused ones are skipped silently (PRD §12 Playback).
+        if (UsenetStreamRegistry.isUsenet(resolution.streams[requested].url)) {
+            _state.update { it.copy(picker = null, loading = it.loading ?: target.details.media.playbackArtwork()) }
+        }
+        val failover = current.player.autoStreamFailover
+        val index = when (val pick = firstPlayable(resolution.streams, requested, failover, preflight, ::showSkip)) {
+            is StartPick.Play -> pick.index
+            is StartPick.NonePlayable -> return stopLoading(pick.message)
+        }
+        val stream = resolution.streams[index]
         val startPosition = recorder.resumePositionMs(target)
         val choice = current.player.playerChoice
         if (choice == PlayerChoice.BuiltIn) {
             val request = PlaybackRequest.Media(
                 nextSessionId++, target, resolution.streams, index, resolution.subtitles, startPosition, resolution.streamAddons,
             )
-            _state.update { it.copy(picker = null, player = request, loading = null) }
+            _state.update { it.copy(picker = null, player = request, loading = null, loadingStatus = null) }
             return
         }
-        _state.update { it.copy(picker = null, loading = null) }
+        // Usenet: open the release and rewrite it to the loopback proxy; one that can't stream fails over here.
+        val launchStream = try {
+            externalUrls.get().prepare(stream, target.title())
+        } catch (e: IOException) {
+            if (failover && index + 1 < resolution.streams.size) {
+                showSkip(index, index + 1, resolution.streams.size)
+                return start(resolved, index + 1, current)
+            }
+            return stopLoading(e.message ?: "That stream couldn't be opened")
+        }
+        _state.update { it.copy(picker = null, loading = null, loadingStatus = null) }
         val prefs = current.subtitles
         val options = resolution.subtitles.map { SubtitleOption(it.url, it.addonName, it.language, SubtitleSource.EXTERNAL) }
         val ordered = TrackOrdering.subtitles(options, prefs.preferredLanguage, prefs.hideNonPreferredLanguages).take(MAX_SUBTITLES)
@@ -266,7 +295,7 @@ class PlaybackViewModel @Inject constructor(
         lastUsed.record(target, stream)
         active = ActivePlayback(target, ExternalPlaybackLaunch(startPosition, target.knownDurationMs, clock.millis()))
         _events.send(
-            PlaybackEvent.Launch(ExternalLaunchSpec(choice, stream, target.title(), startPosition, ordered.mapNotNull { byUrl[it.id] }, enabled)),
+            PlaybackEvent.Launch(ExternalLaunchSpec(choice, launchStream, target.title(), startPosition, ordered.mapNotNull { byUrl[it.id] }, enabled)),
         )
     }
 
@@ -289,8 +318,10 @@ class PlaybackViewModel @Inject constructor(
     }
 
     /** Auto-play found nothing to play: close the loading screen and say why. */
+    private fun showSkip(from: Int, to: Int, total: Int) = _state.update { it.copy(loadingStatus = skipStatus(from, to, total)) }
+
     private suspend fun stopLoading(text: String) {
-        _state.update { it.copy(loading = null) }
+        _state.update { it.copy(loading = null, loadingStatus = null) }
         message(text)
     }
 
@@ -302,23 +333,4 @@ class PlaybackViewModel @Inject constructor(
         const val RESTRICTED_TITLE = "This title isn't available on this profile."
         const val UNAVAILABLE_TITLE = "Couldn't load this title. Check the connection and try again."
     }
-}
-
-private fun PlaybackTarget.title(): String = details.media.title
-
-/**
- * A Continue Watching card's artwork before its details load. Stored progress rows carry no logo, so
- * without one only the backdrop shows (blank title) until the details' logo arrives — never title
- * text that then swaps to a logo.
- */
-internal fun cardArtwork(item: ContinueWatchingItem): PlaybackArtwork {
-    val artwork = item.media.playbackArtwork()
-    return if (artwork.logoUrl != null) artwork else artwork.copy(title = "")
-}
-
-/** `S1:E2 · Pilot` for episodes, `null` for movies. */
-private fun PlaybackTarget.subtitle(): String? {
-    val ref: EpisodeRef = episode ?: return null
-    val badge = MetadataFormat.episodeBadge(ref.season, ref.episode) ?: return null
-    return listOfNotNull(badge, episodeTitle).joinToString(" · ")
 }

@@ -6,11 +6,18 @@ import com.seastreams.tv.core.network.InvalidManifestException
 import com.seastreams.tv.core.network.StremioAddonClient
 import com.seastreams.tv.core.network.StremioManifest
 import com.seastreams.tv.core.network.StremioManifestParser
+import com.seastreams.tv.core.network.StremioStream
+import com.seastreams.tv.data.usenet.newznab.NzbRequest
+import com.seastreams.tv.data.usenet.newznab.UsenetSearchTarget
+import com.seastreams.tv.data.usenet.newznab.UsenetStreamSearch
 import com.seastreams.tv.domain.model.EpisodeRef
 import com.seastreams.tv.domain.model.MediaRef
 import com.seastreams.tv.domain.model.StreamAddon
 import com.seastreams.tv.domain.model.StreamSource
 import com.seastreams.tv.domain.model.SubtitleTrack
+import com.seastreams.tv.usenet.session.AddonServers
+import com.seastreams.tv.usenet.session.UsenetGrab
+import com.seastreams.tv.usenet.session.UsenetStreamRegistry
 import dagger.Lazy
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -40,32 +47,84 @@ data class StreamResolution(
 
 /**
  * Which title to resolve, with whose addons: only [profileId]'s enabled addons are queried.
- * [imdbId] is used where addons accept it, else the `tmdb:` id.
+ * [imdbId] is used where addons accept it, else the `tmdb:` id. [title] / [year] feed the Usenet `q=` fallback.
  */
-data class StreamQuery(val profileId: Long, val ref: MediaRef, val imdbId: String?, val episode: EpisodeRef?)
+data class StreamQuery(
+    val profileId: Long,
+    val ref: MediaRef,
+    val imdbId: String?,
+    val episode: EpisodeRef?,
+    val title: String? = null,
+    val year: Int? = null,
+) {
+    /** What the built-in `Usenet` addon searches for. */
+    val usenetTarget: UsenetSearchTarget
+        get() = episode?.let { UsenetSearchTarget.Episode(imdbId, title, it.season, it.episode) }
+            ?: UsenetSearchTarget.Movie(imdbId, title, year)
+}
 
 /**
  * Queries every Stremio addon the profile has enabled that serves `stream` or `subtitles` for the title's type, all in
- * parallel with a per-addon timeout, so one slow addon never holds up the list.
+ * parallel with a per-addon timeout, so one slow addon never holds up the list. The built-in `Usenet` addon (PRD §12)
+ * is searched alongside and listed after the Stremio addons, only while at least one provider and one indexer are
+ * enabled. Addon streams carrying an `nzbUrl` become opaque `seastreams-nntp://` streams, like the built-in ones.
  */
 class ResolveStreamsUseCase @Inject constructor(
     private val addonDao: AddonDao,
     /** Lazy so the HTTP stack is built on IO. */
     private val client: Lazy<StremioAddonClient>,
+    private val usenet: Lazy<UsenetStreamSearch>,
+    private val usenetStreams: UsenetStreamRegistry,
 ) {
     suspend operator fun invoke(query: StreamQuery): StreamResolution = withContext(Dispatchers.IO) {
         val type = query.ref.mediaType.stremioType
         val addons = addonDao.observeEnabled(query.profileId).first().mapNotNull { entity -> entity.parsed()?.let { entity to it } }
-        val results = coroutineScope {
-            addons.map { (entity, manifest) -> async { queryAddon(entity, manifest, type, query) } }.awaitAll()
+        val (results, builtIn) = coroutineScope {
+            val builtIn = async { queryUsenet(query) }
+            addons.map { (entity, manifest) -> async { queryAddon(entity, manifest, type, query) } }.awaitAll() to builtIn.await()
         }
+        val all = results + listOfNotNull(builtIn)
+        val usenetCard = builtIn?.let { StreamAddon(UsenetStreamSearch.USENET_ADDON_URL, UsenetStreamSearch.USENET_ADDON_NAME) }
         StreamResolution(
-            streams = results.flatMap { it.streams },
+            streams = all.flatMap { it.streams },
             subtitles = results.flatMap { it.subtitles },
-            failedAddons = results.filter { it.failed }.map { it.addonName },
+            failedAddons = all.filter { it.failed }.map { it.addonName },
             streamAddons = addons
                 .filter { (_, manifest) -> stremioId(manifest, STREAM, type, query) != null }
-                .map { (entity, _) -> StreamAddon(entity.manifestUrl, entity.displayName()) },
+                .map { (entity, _) -> StreamAddon(entity.manifestUrl, entity.displayName()) } + listOfNotNull(usenetCard),
+        )
+    }
+
+    /** The built-in `Usenet` addon, or `null` (no card) when no provider or no indexer is enabled. */
+    private suspend fun queryUsenet(query: StreamQuery): AddonResult? {
+        val name = UsenetStreamSearch.USENET_ADDON_NAME
+        return try {
+            val search = usenet.get()
+            if (!search.configured()) return null
+            withTimeout(USENET_TIMEOUT_MILLIS) {
+                val result = search.search(query.usenetTarget)
+                AddonResult(name, streams = result.streams, failed = result.failed)
+            }
+        } catch (e: TimeoutCancellationException) {
+            AddonResult(name, failed = true)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            AddonResult(name, failed = true)
+        }
+    }
+
+    /** An addon's `nzbUrl` stream, registered so its link (and any `servers` logins) stay out of the URL. */
+    private fun usenetUrl(entity: AddonEntity, stream: StremioStream): String {
+        val nzbUrl = stream.nzbUrl ?: return stream.url
+        val title = stream.description.lineSequence().firstOrNull { it.isNotBlank() } ?: stream.name
+        return usenetStreams.register(
+            UsenetGrab.FromAddon(
+                addonUrl = entity.manifestUrl,
+                nzb = NzbRequest(nzbUrl, cacheKey = "addon:" + entity.manifestUrl + ":" + nzbUrl, headers = stream.headers),
+                title = title,
+                servers = AddonServers.parse(stream.servers),
+            ),
         )
     }
 
@@ -89,10 +148,10 @@ class ResolveStreamsUseCase @Inject constructor(
                             StreamSource(
                                 addonUrl = entity.manifestUrl,
                                 addonName = name,
-                                url = stream.url,
+                                url = usenetUrl(entity, stream),
                                 label = stream.name.lines().filter { it.isNotBlank() }.joinToString(" · ").ifBlank { name },
                                 description = stream.description,
-                                headers = stream.headers,
+                                headers = if (stream.nzbUrl == null) stream.headers else emptyMap(),
                             )
                         },
                         subtitles = subtitles.await().map { SubtitleTrack(it.url, it.language, name) },
@@ -128,6 +187,9 @@ class ResolveStreamsUseCase @Inject constructor(
 
     companion object {
         const val ADDON_TIMEOUT_MILLIS = 15_000L
+
+        /** Caps, an id search and maybe a `q=` fallback per indexer: a little longer than one addon call. */
+        const val USENET_TIMEOUT_MILLIS = 20_000L
         private const val STREAM = "stream"
         private const val SUBTITLES = "subtitles"
     }

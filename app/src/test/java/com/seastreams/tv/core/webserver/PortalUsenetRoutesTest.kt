@@ -61,7 +61,7 @@ class PortalUsenetRoutesTest {
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         store = UsenetSettingsStore(PreferenceDataStoreFactory.create(scope = scope) { File(dir, "s.preferences_pb") })
         val repository = UsenetSourcesRepository(providerDao, indexerDao, cipher, Dispatchers.IO)
-        portal = LocalPortalServer(mockk<PortalController>(relaxed = true), PortalUsenetController(repository, store, updater, NntpConnectionTester(Dispatchers.IO)))
+        portal = LocalPortalServer(mockk<PortalController>(relaxed = true), PortalUsenetController(repository, store, updater, NntpConnectionTester(Dispatchers.IO), mockk(relaxed = true)))
         val port = requireNotNull(portal.start(port = 0, host = "127.0.0.1"))
         base = "http://127.0.0.1:$port"
         browser = HttpClient(OkHttp)
@@ -184,15 +184,15 @@ class PortalUsenetRoutesTest {
         assertEquals(30, initial.indexerPresets.size)
         assertEquals("PROWLARR" to "SABNZBD", initial.searchHeaders to initial.downloadHeaders)
         assertTrue(initial.headerPresets.any { it.label == "Prowlarr 2.7.0.5723" })
-        assertEquals(UsenetProfile.BALANCED, initial.performance.profile)
-        assertTrue(stateText().contains("\"readAheadSegments\":32"), "defaults are serialised")
+        assertEquals(UsenetProfile.CONSERVATIVE, initial.performance.profile)
+        assertTrue(stateText().contains("\"readAheadSegments\":16"), "defaults are serialised")
 
         post("/api/usenet/headers", """{"search":"NZBHYDRA2","download":"NZBGET"}""")
         assertEquals(HeaderPreset.NZBHYDRA2, store.headers.first().search)
         assertEquals(400, post("/api/usenet/headers", """{"search":"NOPE","download":"NZBGET"}""").status.value)
 
         post("/api/usenet/performance", """{"profile":"HIGH"}""")
-        assertEquals(64, store.performance.first().readAheadSegments)
+        assertEquals(32, store.performance.first().readAheadSegments)
         val values = json.encodeToString(com.seastreams.tv.domain.usenet.UsenetPerformance.serializer(), store.performance.first().copy(readAheadSegments = 100))
         post("/api/usenet/performance", """{"values":$values}""")
         assertEquals(UsenetProfile.CUSTOM to 100, store.performance.first().let { it.profile to it.readAheadSegments })
