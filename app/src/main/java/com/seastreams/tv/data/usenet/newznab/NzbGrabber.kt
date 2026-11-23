@@ -14,8 +14,13 @@ import javax.inject.Singleton
 /** The link served something other than an NZB (an HTML error page, an expired grab, an empty file). */
 class NotAnNzbException(message: String) : IOException(message)
 
-/** Where one NZB comes from: [cacheKey] identifies it in the NZB cache (hashed there; may hold the URL). */
-data class NzbRequest(val url: String, val cacheKey: String, val headers: Map<String, String> = emptyMap())
+/**
+ * Where one NZB comes from: [cacheKey] identifies it in the NZB cache (hashed there; may hold the URL).
+ * [url] (an indexer's holds its API key), [cacheKey] and [headers] are left out of [toString].
+ */
+data class NzbRequest(val url: String, val cacheKey: String, val headers: Map<String, String> = emptyMap()) {
+    override fun toString(): String = "NzbRequest(headers=${headers.size})"
+}
 
 /**
  * Downloads NZBs (PRD §12): the `Download` header preset (plus a stream's own headers), at most *Max NZB size*,

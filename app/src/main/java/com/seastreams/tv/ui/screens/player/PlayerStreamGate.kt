@@ -6,6 +6,8 @@ import com.seastreams.tv.player.SeaStreamsPlayerManager
 import com.seastreams.tv.player.usenet.PreflightResult
 import com.seastreams.tv.player.usenet.UsenetPreflight
 import com.seastreams.tv.ui.screens.playback.NONE_WOULD_PLAY
+import com.seastreams.tv.ui.screens.playback.StartPick
+import com.seastreams.tv.ui.screens.playback.firstPlayable
 import com.seastreams.tv.ui.screens.playback.skipStatus
 import com.seastreams.tv.usenet.session.UsenetStreamRegistry
 import kotlinx.coroutines.CoroutineScope
@@ -36,20 +38,15 @@ class PlayerStreamGate @Inject constructor(private val preflight: UsenetPrefligh
         onExhausted: () -> Unit,
     ) {
         cancel()
+        val first = streams.getOrNull(index) ?: return
         job = scope.launch {
-            var current = index
-            while (current < streams.size) {
-                val stream = streams[current]
-                val result = if (UsenetStreamRegistry.isUsenet(stream.url)) preflight.check(stream) else PreflightResult.Playable
-                when {
-                    result == PreflightResult.Playable -> return@launch onPlay(current)
-                    !failover -> return@launch onStopped(current)
-                    current + 1 >= streams.size -> return@launch onExhausted()
-                    else -> {
-                        onSkip(current, current + 1, streams.size)
-                        current++
-                    }
-                }
+            if (!failover) {
+                val refused = UsenetStreamRegistry.isUsenet(first.url) && preflight.check(first) is PreflightResult.Skip
+                return@launch if (refused) onStopped(index) else onPlay(index)
+            }
+            when (val pick = firstPlayable(streams, index, failover = true, preflight, onSkip)) {
+                is StartPick.Play -> onPlay(pick.index)
+                is StartPick.NonePlayable -> onExhausted()
             }
         }
     }
