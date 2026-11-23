@@ -33,11 +33,6 @@ enum class StreamKind(val id: String, val label: String) {
     USENET("usenet", "Usenet"),
     HTTP("http", "HTTP"),
     LIVE("live", "Live"),
-    ;
-
-    companion object {
-        fun fromId(id: String): StreamKind? = entries.firstOrNull { it.id.equals(id, ignoreCase = true) || it.label.equals(id, ignoreCase = true) }
-    }
 }
 
 /**

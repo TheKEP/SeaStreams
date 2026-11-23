@@ -1,18 +1,14 @@
 package com.seastreams.tv.core.webserver
 
 import com.seastreams.tv.data.UserFacingException
-import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
-import io.ktor.server.request.contentType
-import io.ktor.server.request.receiveText
 import io.ktor.server.response.header
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import kotlinx.coroutines.CancellationException
-import kotlinx.serialization.SerializationException
 import kotlinx.serialization.serializer
 
 /**
@@ -42,18 +38,12 @@ internal fun Route.streamRoutes(controller: PortalStreamController) {
 
 /** Like [guarded], but answers with the rendered preview instead of an [ApiMessage]. */
 private suspend fun ApplicationCall.formatPreview(controller: PortalStreamController) {
-    if (!hasTrustedHost()) return respondForbiddenHost()
-    if (!request.contentType().match(ContentType.Application.Json)) {
-        return respondJson(HttpStatusCode.UnsupportedMediaType, ApiMessage(false, "Expected application/json"), serializer())
-    }
-    val body = receiveText()
-    if (body.length > MAX_BODY_CHARS) return respondJson(HttpStatusCode.PayloadTooLarge, ApiMessage(false, "Request too large"), serializer())
+    if (!acceptsJsonPost()) return
     val request = try {
-        portalJson.decodeFromString(serializer<FormatPreviewRequest>(), body)
-    } catch (e: SerializationException) {
-        return respondJson(HttpStatusCode.BadRequest, ApiMessage(false, "Malformed request"), serializer())
-    } catch (e: IllegalArgumentException) {
-        return respondJson(HttpStatusCode.BadRequest, ApiMessage(false, "Malformed request"), serializer())
+        receiveJson(serializer<FormatPreviewRequest>())
+    } catch (e: UserFacingException) {
+        // As in [guarded]: a body over the limit without a declared length is a 400 like any other bad body.
+        return respondJson(HttpStatusCode.BadRequest, ApiMessage(false, e.message.orEmpty()), serializer())
     }
     try {
         respondJson(HttpStatusCode.OK, controller.preview(request), serializer())

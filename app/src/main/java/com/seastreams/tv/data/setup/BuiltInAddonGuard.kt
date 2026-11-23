@@ -1,8 +1,10 @@
 package com.seastreams.tv.data.setup
 
+import android.util.Log
 import com.seastreams.tv.core.database.dao.ProfileDao
 import com.seastreams.tv.data.addon.AddonRepository
 import com.seastreams.tv.data.addon.UsenetAddonState
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -29,6 +31,24 @@ class BuiltInAddonGuard @Inject constructor(
     suspend fun keepUsenetEntries() {
         combine(usenet.configured, profiles.observeAll()) { configured, list -> configured to list.map { it.id } }
             .distinctUntilChanged()
-            .collectLatest { (configured, _) -> if (configured) addonRepository.ensureUsenet() }
+            .collectLatest { (configured, _) -> if (configured) ensureUsenetOnce() }
+    }
+
+    /**
+     * One failed pass (e.g. a profile deleted between the lookup and the insert) is logged and retried on the next
+     * change instead of ending the upkeep for the rest of the process.
+     */
+    private suspend fun ensureUsenetOnce() {
+        try {
+            addonRepository.ensureUsenet()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "Adding the Usenet addon entries failed", e)
+        }
+    }
+
+    private companion object {
+        const val TAG = "BuiltInAddonGuard"
     }
 }
