@@ -111,6 +111,16 @@ class PortalStreamRoutesTest {
     }
 
     @Test
+    fun `format-preview refuses an oversized body before reading it, and a malformed one`() = runTest {
+        val huge = post("/api/streams/format-preview", """{"name":"${"x".repeat(MAX_BODY_CHARS)}","description":""}""")
+        assertEquals(413, huge.status.value)
+
+        val malformed = post("/api/streams/format-preview", """{"name":1""")
+        assertEquals(400, malformed.status.value)
+        assertEquals("Malformed request", json.decodeFromString<ApiMessage>(malformed.bodyAsText()).message)
+    }
+
+    @Test
     fun `custom templates are saved with the formatter choice`() = runTest {
         val ok = post("/api/streams/formatter", """{"profileId":2,"formatter":{"id":"CUSTOM","customName":"{addon.name}","customDescription":"{stream.filename}"}}""")
         assertEquals(200, ok.status.value)

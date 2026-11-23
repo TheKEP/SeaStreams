@@ -7,7 +7,10 @@ package com.seastreams.tv.domain.streams.format
  */
 object TemplateParser {
 
-    fun parse(template: String): List<TemplateNode> {
+    fun parse(template: String): List<TemplateNode> = parse(template, depth = 0)
+
+    /** Groups nested deeper than [MAX_GROUP_DEPTH] stay literal, so a hostile portal template can't exhaust the stack. */
+    private fun parse(template: String, depth: Int): List<TemplateNode> {
         val scanner = Scanner(template)
         val nodes = mutableListOf<TemplateNode>()
         var literalStart = 0
@@ -20,11 +23,11 @@ object TemplateParser {
                 continue
             }
             val brace = scanner.pos
-            if (scanner.startsWith("{?")) {
+            if (depth < MAX_GROUP_DEPTH && scanner.startsWith("{?")) {
                 val body = groupBody(scanner)
                 if (body != null) {
                     flush(brace)
-                    nodes += TemplateNode.Group(parse(body))
+                    nodes += TemplateNode.Group(parse(body, depth + 1))
                     literalStart = scanner.pos
                     continue
                 }
@@ -242,6 +245,8 @@ object TemplateParser {
     }
 
     private fun Char.isIdentifier(): Boolean = this == '_' || this in 'a'..'z' || this in 'A'..'Z' || this in '0'..'9'
+
+    private const val MAX_GROUP_DEPTH = 32
 
     internal val COMPARATORS = listOf("and", "or", "xor", "neq", "equal", "left", "right")
     private val LOOKS_LIKE_EXPRESSION = Regex("^\\s*[A-Za-z_][A-Za-z0-9_]*\\s*\\.\\s*[A-Za-z_][A-Za-z0-9_]*")

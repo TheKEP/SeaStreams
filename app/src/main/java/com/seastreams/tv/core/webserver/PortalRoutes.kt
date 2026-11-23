@@ -95,27 +95,43 @@ internal suspend fun ApplicationCall.mutateWithoutBody(action: suspend () -> Str
     guarded { action() }
 
 internal suspend fun <T> ApplicationCall.mutateWithBody(deserializer: KSerializer<T>, action: suspend (T) -> String) =
-    guarded {
-        val body = receiveText()
-        if (body.length > MAX_BODY_CHARS) throw UserFacingException("Request too large")
-        val request = try {
-            portalJson.decodeFromString(deserializer, body)
-        } catch (e: SerializationException) {
-            throw UserFacingException("Malformed request")
-        }
-        action(request)
-    }
+    guarded { action(receiveJson(deserializer)) }
 
-/** Shared checks + error mapping for every mutation. */
-internal suspend fun ApplicationCall.guarded(action: suspend () -> String) {
-    if (!hasTrustedHost()) return respondForbiddenHost()
+/** Reads and decodes a JSON body of at most [MAX_BODY_CHARS]; a bad body throws a [UserFacingException]. */
+internal suspend fun <T> ApplicationCall.receiveJson(deserializer: KSerializer<T>): T {
+    val body = receiveText()
+    if (body.length > MAX_BODY_CHARS) throw UserFacingException("Request too large")
+    return try {
+        portalJson.decodeFromString(deserializer, body)
+    } catch (e: SerializationException) {
+        throw UserFacingException("Malformed request")
+    }
+}
+
+/**
+ * The trusted-host, JSON content-type and declared-size checks every JSON POST passes; when one fails it answers the
+ * call itself and returns `false`.
+ */
+internal suspend fun ApplicationCall.acceptsJsonPost(): Boolean {
+    if (!hasTrustedHost()) {
+        respondForbiddenHost()
+        return false
+    }
     if (!request.contentType().match(ContentType.Application.Json)) {
-        return respondJson(HttpStatusCode.UnsupportedMediaType, ApiMessage(false, "Expected application/json"), serializer())
+        respondJson(HttpStatusCode.UnsupportedMediaType, ApiMessage(false, "Expected application/json"), serializer())
+        return false
     }
     val declaredLength = request.headers[HttpHeaders.ContentLength]?.toLongOrNull()
     if (declaredLength != null && declaredLength > MAX_BODY_CHARS) {
-        return respondJson(HttpStatusCode.PayloadTooLarge, ApiMessage(false, "Request too large"), serializer())
+        respondJson(HttpStatusCode.PayloadTooLarge, ApiMessage(false, "Request too large"), serializer())
+        return false
     }
+    return true
+}
+
+/** Shared checks + error mapping for every mutation. */
+internal suspend fun ApplicationCall.guarded(action: suspend () -> String) {
+    if (!acceptsJsonPost()) return
     val (status, message) = try {
         HttpStatusCode.OK to ApiMessage(true, action())
     } catch (e: CancellationException) {

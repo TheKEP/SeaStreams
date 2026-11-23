@@ -2,6 +2,7 @@ package com.seastreams.tv.domain.streams
 
 import com.seastreams.tv.domain.streams.format.TemplateRenderer
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class TemplateEngineTest {
@@ -32,6 +33,15 @@ class TemplateEngineTest {
         assertEquals("none", render("""{stream.releaseGroup["yes"||"no"||"none"]}"""))
         assertEquals("seeded", render("""{stream.seeders::>=0["seeded"||""]}"""))
         assertEquals("has DV", render("""{stream.visualTags::~dv["has DV"||""]}"""))
+    }
+
+    @Test
+    fun `deeply nested groups render without exhausting the stack`() {
+        val levels = 2_000
+        val template = "{?".repeat(levels) + "{addon.name}" + "?}".repeat(levels)
+        val rendered = render(template)
+        assertTrue(rendered.contains("Torrentio"))
+        assertEquals("Torrentio", render("{?{?{addon.name}?}?}"))
     }
 
     @Test
