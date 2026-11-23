@@ -23,7 +23,6 @@ import com.seastreams.tv.player.subtitle.ExternalSubtitleLoader
 import com.seastreams.tv.player.usenet.PlaybackDataSources
 import com.seastreams.tv.player.subtitle.sync.AutoSyncStatus
 import com.seastreams.tv.player.subtitle.sync.SyncRate
-import com.seastreams.tv.usenet.session.UsenetStreamRegistry
 import dagger.Lazy
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -197,7 +196,7 @@ class PlayerViewModel @Inject constructor(
         // Every new source (first start, fallback advance, stream/episode switch) shows the backdrop until its first frame.
         _state.update { it.onNewStream(index) }
         streamGate.cancel()
-        if (UsenetStreamRegistry.isUsenet(stream.url)) openThroughGate(manager, index, positionMs) else handOff(manager, index, positionMs)
+        if (streamGate.handles(stream.url)) openThroughGate(manager, index, positionMs) else handOff(manager, index, positionMs)
     }
 
     private fun onFallbackAdvance(from: Int, to: Int, reason: FallbackReason) {

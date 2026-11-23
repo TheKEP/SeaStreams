@@ -1,5 +1,6 @@
 package com.seastreams.tv.domain.usecase
 
+import com.seastreams.tv.testutil.unconfiguredDebrid
 import com.seastreams.tv.testutil.noStreamProcessing
 import com.seastreams.tv.testutil.unconfiguredUsenet
 import com.seastreams.tv.usenet.session.UsenetStreamRegistry
@@ -72,7 +73,7 @@ class ResolveStreamsAddonListTest {
         }
         coEvery { client.fetchSubtitles(any(), any(), any()) } returns emptyList()
 
-        val result = ResolveStreamsUseCase(dao, Lazy { client }, unconfiguredUsenet(), UsenetStreamRegistry(), noStreamProcessing(), usenetSettings())(movie)
+        val result = ResolveStreamsUseCase(dao, Lazy { client }, unconfiguredUsenet(), UsenetStreamRegistry(), noStreamProcessing(), usenetSettings(), unconfiguredDebrid())(movie)
 
         assertEquals(
             listOf(
@@ -103,7 +104,7 @@ class ResolveStreamsAddonListTest {
         }
         coEvery { client.fetchSubtitles(any(), any(), any()) } returns emptyList()
 
-        val result = ResolveStreamsUseCase(dao, Lazy { client }, unconfiguredUsenet(), UsenetStreamRegistry(), noStreamProcessing(), usenetSettings())(movie)
+        val result = ResolveStreamsUseCase(dao, Lazy { client }, unconfiguredUsenet(), UsenetStreamRegistry(), noStreamProcessing(), usenetSettings(), unconfiguredDebrid())(movie)
 
         // PlayerSettings.preferredAutoPlayAddonUrl defaults to null = "First enabled addon".
         assertEquals("https://first/manifest.json", topStream(result.streams, null)?.addonUrl)
@@ -114,7 +115,7 @@ class ResolveStreamsAddonListTest {
         val dao = FakeAddonDao(listOf(addon("subs", sortOrder = 0, resources = """["subtitles"]""")))
         coEvery { client.fetchSubtitles(any(), any(), any()) } returns emptyList()
 
-        val result = ResolveStreamsUseCase(dao, Lazy { client }, unconfiguredUsenet(), UsenetStreamRegistry(), noStreamProcessing(), usenetSettings())(movie)
+        val result = ResolveStreamsUseCase(dao, Lazy { client }, unconfiguredUsenet(), UsenetStreamRegistry(), noStreamProcessing(), usenetSettings(), unconfiguredDebrid())(movie)
 
         assertEquals(emptyList<StreamAddon>(), result.streamAddons)
     }

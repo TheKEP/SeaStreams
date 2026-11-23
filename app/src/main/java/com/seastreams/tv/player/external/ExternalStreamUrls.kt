@@ -4,6 +4,9 @@ import android.content.Context
 import com.seastreams.tv.core.util.IoDispatcher
 import com.seastreams.tv.core.webserver.LocalPortalServer
 import com.seastreams.tv.core.webserver.PortalLease
+import com.seastreams.tv.data.debrid.api.DebridException
+import com.seastreams.tv.data.debrid.stream.DebridLinkResolver
+import com.seastreams.tv.data.debrid.stream.DebridStreamRegistry
 import com.seastreams.tv.domain.model.StreamSource
 import com.seastreams.tv.usenet.session.UsenetSessionRegistry
 import com.seastreams.tv.usenet.session.UsenetStreamRegistry
@@ -21,7 +24,8 @@ import javax.inject.Singleton
  * `seastreams-nntp://<token>` URL becomes `http://127.0.0.1:<port>/nntp/<token>/<name>` on the loopback proxy.
  * Before the hand-off the release is opened and its head read (warm-up), so a release that can't stream fails here
  * and failover can move on, and the player's first request is answered from memory. A [PortalLease] plus the
- * [NntpProxyService] keep the proxy alive until [finish] (the player returned). Other streams pass through as-is.
+ * [NntpProxyService] keep the proxy alive until [finish] (the player returned). Debrid library streams
+ * (`seastreams-debrid://`) are handed over as their resolved HTTPS link (PRD §14). Other streams pass through as-is.
  */
 @Singleton
 class ExternalStreamUrls @Inject constructor(
@@ -30,11 +34,24 @@ class ExternalStreamUrls @Inject constructor(
     /** Lazy: the session graph (engine, caches) is resolved on IO. */
     private val sessions: Lazy<UsenetSessionRegistry>,
     @IoDispatcher private val io: CoroutineDispatcher,
+    /** Lazy: its HTTP stack is resolved off the main thread. */
+    private val debridLinks: Lazy<DebridLinkResolver>,
 ) {
     private var handoff: PortalLease? = null
 
-    /** [stream] ready for an external player; throws an [IOException] when its Usenet release can't be opened. */
+    /**
+     * [stream] ready for an external player; throws an [IOException] when its Usenet release can't be opened or its
+     * Debrid link can't be resolved. A Debrid stream is handed over as its HTTPS link (no proxy, no service).
+     */
     suspend fun prepare(stream: StreamSource, title: String): StreamSource {
+        DebridStreamRegistry.tokenOf(stream.url)?.let { debrid ->
+            val link = try {
+                debridLinks.get().resolve(debrid)
+            } catch (e: DebridException) {
+                throw IOException(e.message, e)
+            }
+            return stream.copy(url = link, headers = emptyMap())
+        }
         val token = UsenetStreamRegistry.tokenOf(stream.url) ?: return stream
         val lease = portal.acquireLease()
         try {

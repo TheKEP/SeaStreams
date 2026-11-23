@@ -26,7 +26,7 @@ class UsenetAddonRowTest {
         assertEquals("Built-in", addonStateLabel(builtIn = true, canDisable = false, enabled = true))
         assertEquals("Built-in · Disabled", addonStateLabel(builtIn = true, canDisable = true, enabled = false))
         assertEquals("Enabled", addonStateLabel(builtIn = false, canDisable = true, enabled = true))
-        assertEquals(false, BuiltInAddons.isListed(BuiltInAddons.USENET_URL, usenetConfigured = false))
-        assertEquals(true, BuiltInAddons.isListed(stremio.manifestUrl, usenetConfigured = false))
+        assertEquals(false, BuiltInAddons.isListed(BuiltInAddons.USENET_URL, usenetConfigured = false, debridListed = false))
+        assertEquals(true, BuiltInAddons.isListed(stremio.manifestUrl, usenetConfigured = false, debridListed = false))
     }
 }

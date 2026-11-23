@@ -6,6 +6,9 @@ import com.seastreams.tv.core.util.ApplicationScope
 import com.seastreams.tv.core.util.IoDispatcher
 import com.seastreams.tv.data.debrid.DebridSourcesRepository
 import com.seastreams.tv.data.debrid.auth.DeviceAuthSessions
+import com.seastreams.tv.data.debrid.library.DebridLibraryCache
+import com.seastreams.tv.data.debrid.stream.DebridLinkResolver
+import com.seastreams.tv.data.debrid.stream.DebridStreamRegistry
 import com.seastreams.tv.data.usenet.UsenetSourcesRepository
 import com.seastreams.tv.domain.usenet.UsenetPerformance
 import com.seastreams.tv.usenet.nntp.NntpEngine
@@ -102,7 +105,8 @@ class UsenetSettingsClear @Inject constructor(
 
 /**
  * `Clear Debrid settings`: pending code sign-ins stop (any that still completes is discarded), then every Debrid
- * account with its keys/tokens and every `debrid/` setting go (the toggle reads OFF again). Never touches a Usenet
+ * account with its keys/tokens and every `debrid/` setting go (the toggle reads OFF again), and every cached library
+ * listing, playback link and registered Debrid stream is dropped. Never touches a Usenet
  * table or `usenet/` key, addon rows or LAST USED streams.
  */
 @Singleton
@@ -110,6 +114,9 @@ class DebridSettingsClear @Inject constructor(
     repository: DebridSourcesRepository,
     store: DebridSettingsStore,
     sessions: DeviceAuthSessions,
+    library: DebridLibraryCache,
+    links: DebridLinkResolver,
+    streams: DebridStreamRegistry,
     @ApplicationScope scope: CoroutineScope,
     clock: Clock,
 ) : PendingSourceClear(
@@ -119,5 +126,9 @@ class DebridSettingsClear @Inject constructor(
         sessions.cancelAll()
         repository.deleteAll()
         store.clearAll()
+        // Nothing read from the cleared accounts survives: listings, file lists, playback links and registered files.
+        library.clear()
+        links.clear()
+        streams.clear()
     },
 )

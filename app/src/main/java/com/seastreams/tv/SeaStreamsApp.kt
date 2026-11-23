@@ -83,6 +83,11 @@ class SeaStreamsApp : Application(), SingletonImageLoader.Factory {
                 runCatching { builtInAddonGuard.get().keepUsenetEntries() }
                     .onFailure { Log.e("SeaStreamsApp", "Keeping the Usenet addon entries failed", it) }
             }
+            // The same for the built-in Debrid entry while Debrid is on with an enabled provider (PRD §14).
+            appScope.launch {
+                runCatching { builtInAddonGuard.get().keepDebridEntries() }
+                    .onFailure { Log.e("SeaStreamsApp", "Keeping the Debrid addon entries failed", it) }
+            }
             // The HTTP and image caches bound themselves (LRU); this only drops files nothing owns.
             runCatching { cacheManager.get().sweepOrphans() }
                 .onFailure { Log.e("SeaStreamsApp", "Sweeping orphaned cache files failed", it) }

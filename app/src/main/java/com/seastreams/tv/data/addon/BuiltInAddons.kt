@@ -1,6 +1,7 @@
 package com.seastreams.tv.data.addon
 
 import com.seastreams.tv.core.database.entity.AddonEntity
+import com.seastreams.tv.data.debrid.library.DebridLibrarySearch
 import com.seastreams.tv.data.usenet.newznab.UsenetStreamSearch
 
 /**
@@ -31,14 +32,47 @@ object BuiltInAddons {
         """"description":"Built-in Usenet streams from your indexers and providers",""" +
         """"resources":["stream"],"types":["movie","series"],"idPrefixes":["tt","tmdb:"],"catalogs":[]}"""
 
-    /** Built-in entries (TMDB, Usenet) cannot be removed; they can be renamed and reordered. */
-    fun isProtected(manifestUrl: String): Boolean = manifestUrl == TMDB_URL || manifestUrl == USENET_URL
+    /**
+     * The built-in Debrid library source (PRD §14), like [USENET_URL]: added (at the bottom) once `Enable Debrid` is ON
+     * with an enabled provider, and listed only while that holds.
+     */
+    const val DEBRID_URL = DebridLibrarySearch.DEBRID_ADDON_URL
 
-    /** TMDB can't be disabled either; Usenet can, which turns Usenet results off for that profile only. */
+    private const val DEBRID_MANIFEST = """{"id":"com.seastreams.debrid","version":"1.0.0","name":"Debrid",""" +
+        """"description":"Built-in streams from the files in your Debrid accounts",""" +
+        """"resources":["stream"],"types":["movie","series"],"idPrefixes":["tt","tmdb:"],"catalogs":[]}"""
+
+    /** Built-in entries (TMDB, Usenet, Debrid) cannot be removed; they can be renamed and reordered. */
+    fun isProtected(manifestUrl: String): Boolean = manifestUrl == TMDB_URL || manifestUrl == USENET_URL || manifestUrl == DEBRID_URL
+
+    /** TMDB can't be disabled either; Usenet and Debrid can, which turns their results off for that profile only. */
     fun canDisable(manifestUrl: String): Boolean = manifestUrl != TMDB_URL
 
-    /** Whether a row is listed: the Usenet entry only while Usenet streaming is configured. */
-    fun isListed(manifestUrl: String, usenetConfigured: Boolean): Boolean = manifestUrl != USENET_URL || usenetConfigured
+    /** Built-in stream sources (not Stremio addons): their results come from in-app searches. */
+    fun isBuiltInStreamSource(manifestUrl: String): Boolean = manifestUrl == USENET_URL || manifestUrl == DEBRID_URL
+
+    /**
+     * Whether a row is listed: the Usenet entry only while Usenet streaming is configured, the Debrid entry only while
+     * Debrid is on with an enabled provider. A hidden entry keeps its place, name and on/off state.
+     */
+    fun isListed(manifestUrl: String, usenetConfigured: Boolean, debridListed: Boolean): Boolean = when (manifestUrl) {
+        USENET_URL -> usenetConfigured
+        DEBRID_URL -> debridListed
+        else -> true
+    }
+
+    /** The Debrid entry for [profileId] at [sortOrder]. */
+    fun debrid(profileId: Long, sortOrder: Int, nowMillis: Long) = AddonEntity(
+        profileId = profileId,
+        manifestUrl = DEBRID_URL,
+        manifestId = "com.seastreams.debrid",
+        name = DebridLibrarySearch.DEBRID_ADDON_NAME,
+        customName = null,
+        enabled = true,
+        sortOrder = sortOrder,
+        manifestJson = DEBRID_MANIFEST,
+        installedAtMillis = nowMillis,
+    )
 
     /** The Usenet entry for [profileId] at [sortOrder]. */
     fun usenet(profileId: Long, sortOrder: Int, nowMillis: Long) = AddonEntity(

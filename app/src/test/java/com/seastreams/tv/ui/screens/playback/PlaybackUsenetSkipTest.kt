@@ -1,5 +1,6 @@
 package com.seastreams.tv.ui.screens.playback
 
+import com.seastreams.tv.testutil.streamPreflight
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.seastreams.tv.core.datastore.PlayerChoice
 import com.seastreams.tv.core.datastore.SettingsDataStore
@@ -94,7 +95,7 @@ class PlaybackUsenetSkipTest {
         maxSessions = 4,
         reapPeriodMs = 0,
     )
-    private val preflight = UsenetPreflight(Lazy { registry }, health, Dispatchers.Unconfined, usenetSettings(), UsenetStreamRegistry())
+    private val preflight = streamPreflight(UsenetPreflight(Lazy { registry }, health, Dispatchers.Unconfined, usenetSettings(), UsenetStreamRegistry()))
 
     private fun token(stream: StreamSource) = checkNotNull(UsenetStreamRegistry.tokenOf(stream.url))
 

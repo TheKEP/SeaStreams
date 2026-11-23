@@ -1,5 +1,6 @@
 package com.seastreams.tv.domain.streams.format
 
+import com.seastreams.tv.data.debrid.library.DebridLibrarySearch
 import com.seastreams.tv.domain.streams.ContentKind
 import com.seastreams.tv.domain.streams.FilterAttribute
 import com.seastreams.tv.domain.streams.StreamFilters
@@ -74,7 +75,8 @@ object TemplateFields {
                 "filename" to stream.filename?.ifEmpty { null },
                 "size" to stream.sizeBytes?.takeIf { it > 0 },
                 "bitrate" to stream.bitrate,
-                "library" to false,
+                // AIOStreams' "in your library": the built-in Debrid source lists only the user's own files.
+                "library" to (input.addonUrl == DebridLibrarySearch.DEBRID_ADDON_URL),
                 "quality" to release.quality,
                 "resolution" to release.resolution,
                 "subbed" to stream.subtitles.isNotEmpty(),

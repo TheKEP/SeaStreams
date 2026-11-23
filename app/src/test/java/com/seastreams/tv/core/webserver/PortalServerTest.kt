@@ -1,5 +1,6 @@
 package com.seastreams.tv.core.webserver
 
+import com.seastreams.tv.testutil.debridAddonState
 import com.seastreams.tv.testutil.usenetAddonState
 import com.seastreams.tv.data.catalog.DiscoverSnapshotStore
 import com.seastreams.tv.data.catalog.LoadedCatalogStore
@@ -106,7 +107,7 @@ class PortalServerTest {
             profiles = ProfileRepository(
                 profileDao, addonDao, settings, settings, clock, DiscoverSnapshotStore(), LoadedCatalogStore(Clock.systemUTC()),
             ),
-            addons = AddonRepository(addonDao, profileDao, StremioAddonClient(appHttp), clock, usenetAddonState()),
+            addons = AddonRepository(addonDao, profileDao, StremioAddonClient(appHttp), clock, usenetAddonState(), debridAddonState()),
             importMdbList = importUseCase,
             settings = settings,
         )

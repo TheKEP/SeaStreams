@@ -31,14 +31,25 @@ class AddonRepository @Inject constructor(
     private val addonClient: StremioAddonClient,
     private val clock: Clock,
     private val usenet: UsenetAddonState,
+    private val debrid: DebridAddonState,
 ) {
     private val orderLock = Mutex()
 
-    /** [profileId]'s list as Manage addons and the portal show it: the Usenet entry only while Usenet is configured. */
+    /**
+     * [profileId]'s list as Manage addons and the portal show it: the Usenet entry only while Usenet is configured, the
+     * Debrid entry only while Debrid is listed.
+     */
     fun observeAddons(profileId: Long): Flow<List<AddonEntity>> =
-        combine(addonDao.observeAll(profileId), usenet.configured) { addons, configured ->
-            addons.filter { BuiltInAddons.isListed(it.manifestUrl, configured) }
+        combine(addonDao.observeAll(profileId), usenet.configured, debrid.listed) { addons, usenetOn, debridOn ->
+            addons.filter { BuiltInAddons.isListed(it.manifestUrl, usenetOn, debridOn) }
         }
+
+    /** Adds the built-in Debrid entry (at the bottom, enabled) to every profile that doesn't have one yet. */
+    suspend fun ensureDebrid() = orderLock.withLock {
+        addonDao.profileIdsMissing(BuiltInAddons.DEBRID_URL).forEach { profileId ->
+            addonDao.insertIfAbsent(listOf(BuiltInAddons.debrid(profileId, addonDao.nextSortOrder(profileId), clock.millis())))
+        }
+    }
 
     /** Adds the built-in Usenet entry (at the bottom, enabled) to every profile that doesn't have one yet. */
     suspend fun ensureUsenet() = orderLock.withLock {

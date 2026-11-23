@@ -1,5 +1,6 @@
 package com.seastreams.tv.ui.screens.player
 
+import com.seastreams.tv.testutil.streamPreflight
 import com.seastreams.tv.data.usenet.newznab.NzbRequest
 import com.seastreams.tv.domain.model.StreamSource
 import com.seastreams.tv.player.usenet.UsenetPreflight
@@ -55,7 +56,7 @@ class PlayerStreamGateTest {
         maxSessions = 4,
         reapPeriodMs = 0,
     )
-    private val gate = PlayerStreamGate(UsenetPreflight(Lazy { sessions }, health, Dispatchers.Unconfined, usenetSettings(), UsenetStreamRegistry()))
+    private val gate = PlayerStreamGate(streamPreflight(UsenetPreflight(Lazy { sessions }, health, Dispatchers.Unconfined, usenetSettings(), UsenetStreamRegistry())))
 
     private fun token(stream: StreamSource) = checkNotNull(UsenetStreamRegistry.tokenOf(stream.url))
 
