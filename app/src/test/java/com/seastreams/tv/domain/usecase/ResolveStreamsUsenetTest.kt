@@ -1,5 +1,6 @@
 package com.seastreams.tv.domain.usecase
 
+import com.seastreams.tv.testutil.noStreamProcessing
 import com.seastreams.tv.core.database.entity.AddonEntity
 import com.seastreams.tv.core.network.StremioAddonClient
 import com.seastreams.tv.core.network.StremioResourceParser
@@ -55,7 +56,7 @@ class ResolveStreamsUsenetTest {
         ), "Usenet · 1080p", "$title\n4.0 GB · Idx", emptyMap(),
     )
 
-    private fun useCase() = ResolveStreamsUseCase(FakeAddonDao(listOf(addon("torrentio"))), Lazy { client }, Lazy { search }, registry)
+    private fun useCase() = ResolveStreamsUseCase(FakeAddonDao(listOf(addon("torrentio"))), Lazy { client }, Lazy { search }, registry, noStreamProcessing())
 
     private fun stubAddon(streams: List<StremioStream> = listOf(StremioStream("https://cdn/a.mkv", "Torrentio", "A", emptyMap()))) {
         coEvery { client.fetchStreams(any(), any(), any()) } returns streams

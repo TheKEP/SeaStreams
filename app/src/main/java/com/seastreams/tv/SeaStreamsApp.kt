@@ -70,6 +70,11 @@ class SeaStreamsApp : Application(), SingletonImageLoader.Factory {
                 runCatching { debugProfileSeeder.get().seedIfNeeded() }
                     .onFailure { Log.e("SeaStreamsApp", "Seeding the debug profile failed", it) }
             }
+            // Adds the built-in Usenet entry to each profile's addon list once Usenet is configured (runs for the process).
+            appScope.launch {
+                runCatching { builtInAddonGuard.get().keepUsenetEntries() }
+                    .onFailure { Log.e("SeaStreamsApp", "Keeping the Usenet addon entries failed", it) }
+            }
             // The HTTP and image caches bound themselves (LRU); this only drops files nothing owns.
             runCatching { cacheManager.get().sweepOrphans() }
                 .onFailure { Log.e("SeaStreamsApp", "Sweeping orphaned cache files failed", it) }

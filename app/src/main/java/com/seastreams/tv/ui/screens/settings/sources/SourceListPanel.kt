@@ -28,7 +28,9 @@ import com.seastreams.tv.ui.screens.settings.SettingsRow
 import com.seastreams.tv.ui.screens.settings.addonRemovalFocus
 import com.seastreams.tv.ui.screens.settings.addonsPanelLastIndex
 import com.seastreams.tv.ui.theme.ignoreInitialKeyUp
+import com.seastreams.tv.ui.theme.Follow
 import com.seastreams.tv.ui.theme.rememberListEdgeWrap
+import com.seastreams.tv.ui.theme.rememberReorderFocus
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
 import com.seastreams.tv.ui.theme.tryRequestFocus
 import com.seastreams.tv.ui.theme.verticalListEdgeWrap
@@ -65,6 +67,10 @@ fun SourceListPanel(
     val wrap = rememberListEdgeWrap(listState, first, last, lastIndex)
     LaunchedEffect(Unit) { first.requestFocusAfterFrame() }
     val scope = rememberCoroutineScope()
+    // Move up / Move down keep the moved row in view and its button focused once the new order is saved.
+    val reorder = rememberReorderFocus<Long>(listState)
+    val ids = rows.map { it.id }
+    reorder.Follow(ids)
     val removeRequesters = remember { HashMap<Long, FocusRequester>() }
     val removeOf: (SourceRow) -> FocusRequester = { removeRequesters.getOrPut(it.id) { FocusRequester() } }
     val removeKeepingFocus: (Int, SourceRow) -> Unit = { index, row ->
@@ -96,8 +102,14 @@ fun SourceListPanel(
                         .then(edge),
                 )
                 if (onTest != null) RoundIconButton(Icons.Filled.Refresh, "Test connection", edge) { onTest(row) }
-                RoundIconButton(Icons.Filled.KeyboardArrowUp, "Move up", edge) { onMove(row, -1) }
-                RoundIconButton(Icons.Filled.KeyboardArrowDown, "Move down", edge) { onMove(row, 1) }
+                RoundIconButton(Icons.Filled.KeyboardArrowUp, "Move up", edge.focusRequester(reorder.up(row.id))) {
+                    reorder.onMove(row.id, -1, ids)
+                    onMove(row, -1)
+                }
+                RoundIconButton(Icons.Filled.KeyboardArrowDown, "Move down", edge.focusRequester(reorder.down(row.id))) {
+                    reorder.onMove(row.id, 1, ids)
+                    onMove(row, 1)
+                }
                 RoundIconButton(Icons.Filled.Close, "Remove", edge.focusRequester(removeOf(row))) { removeKeepingFocus(index, row) }
             }
         }

@@ -1,5 +1,6 @@
 package com.seastreams.tv.data.addon
 
+import com.seastreams.tv.testutil.usenetAddonState
 import com.seastreams.tv.core.database.entity.AddonEntity
 import com.seastreams.tv.core.network.ApiEndpoints
 import com.seastreams.tv.core.network.HttpCachePolicy
@@ -40,6 +41,9 @@ abstract class AddonRepositoryTestBase {
     protected lateinit var dao: FakeAddonDao
     protected lateinit var repository: AddonRepository
 
+    /** Whether Usenet streaming counts as configured (the built-in `Usenet` entry is listed only then). */
+    protected val usenetConfigured = kotlinx.coroutines.flow.MutableStateFlow(false)
+
     @BeforeEach
     fun setUpRepository() {
         server = TestHttpServer {
@@ -62,7 +66,7 @@ abstract class AddonRepositoryTestBase {
         profileDao = FakeProfileDao()
         profileDao.rows.value = listOf(testProfile(PROFILE_A, isKids = false), testProfile(PROFILE_B, isKids = true))
         dao = FakeAddonDao(profileIds = { profileDao.rows.value.map { it.id } })
-        repository = AddonRepository(dao, profileDao, StremioAddonClient(http), clock)
+        repository = AddonRepository(dao, profileDao, StremioAddonClient(http), clock, usenetAddonState(usenetConfigured))
     }
 
     @AfterEach

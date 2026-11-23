@@ -40,6 +40,11 @@ import com.seastreams.tv.ui.screens.settings.sources.headerChoiceSpec
 import com.seastreams.tv.ui.screens.settings.sources.indexerSubtitle
 import com.seastreams.tv.ui.screens.settings.sources.performanceItems
 import com.seastreams.tv.ui.screens.settings.sources.providerSubtitle
+import com.seastreams.tv.ui.screens.settings.streams.STREAM_FILTERS_ROW_KEY
+import com.seastreams.tv.ui.screens.settings.streams.STREAM_FORMATTER_ROW_KEY
+import com.seastreams.tv.ui.screens.settings.streams.STREAM_SORT_ROW_KEY
+import com.seastreams.tv.ui.screens.settings.streams.StreamPanelHost
+import com.seastreams.tv.ui.screens.settings.streams.StreamProcessingViewModel
 import com.seastreams.tv.ui.components.LocalFocusOrigins
 import com.seastreams.tv.ui.components.LocalLayerCovered
 import com.seastreams.tv.ui.components.LocalTransientMessages
@@ -64,10 +69,12 @@ fun SettingsScreen(
     viewModel: SettingsViewModel,
     appearance: AppearanceViewModel,
     sources: SourcesViewModel,
+    streams: StreamProcessingViewModel,
     onOpenProfiles: () -> Unit,
 ) {
     val state by viewModel.state.collectAsState()
     val sourcesState by sources.state.collectAsState()
+    val streamState by streams.state.collectAsState()
     val savedBackground by appearance.saved.collectAsState()
     val cacheBytes by viewModel.cacheBytes.collectAsState()
     val messages = LocalTransientMessages.current
@@ -105,7 +112,7 @@ fun SettingsScreen(
         panel = next
     }
     val backAction = settingsBackAction(panelOpen = panel != SettingsPanel.Main, swatchesOpen = swatchesOpen, focusInList = listHasFocus)
-    BackHandler(enabled = !covered && backAction == SettingsBackAction.CLOSE_PANEL) { panel = SettingsPanel.Main }
+    BackHandler(enabled = !covered && backAction == SettingsBackAction.CLOSE_PANEL) { panel = panel.parent() }
     // REVERT_SWATCHES is the strip's own BackHandler; EXIT is ProfileShell's cover BackHandler.
     BackHandler(enabled = !covered && backAction == SettingsBackAction.FOCUS_ACTIVE_PILL) {
         pillRequesters[category.ordinal].tryRequestFocus()
@@ -146,6 +153,7 @@ fun SettingsScreen(
             updateHeaders = sources::updateHeadersNow,
         ),
         sources = sourcesState,
+        streams = streamState,
     )
 
     Column(
@@ -236,6 +244,15 @@ fun SettingsScreen(
                 is SettingsPanel.Headers -> ChoicePanel(headerChoiceSpec(current.use, sourcesState, sources::setHeaderPreset)) {
                     panel = SettingsPanel.Main
                 }
+                is SettingsPanel.Stream -> StreamPanelHost(
+                    panel = current,
+                    settings = streamState,
+                    viewModel = streams,
+                    open = { next -> openPanel(keyFor(next), next) },
+                    openPortal = { panel = SettingsPanel.Portal },
+                    close = { panel = SettingsPanel.Main },
+                    nowMillis = System.currentTimeMillis(),
+                )
                 SettingsPanel.SubtitleStyle -> SubtitleStyleScreen(state.settings.subtitles.style) { transform ->
                     viewModel.updateSubtitles { it.copy(style = transform(it.style)) }
                 }
@@ -253,6 +270,10 @@ private fun keyFor(panel: SettingsPanel): String = when (panel) {
     SettingsPanel.UsenetIndexers -> INDEXERS_ROW_KEY
     SettingsPanel.UsenetPerformance -> PERFORMANCE_ROW_KEY
     is SettingsPanel.Headers -> if (panel.use == HeaderUse.SEARCH) HEADERS_SEARCH_ROW_KEY else HEADERS_DOWNLOAD_ROW_KEY
+    SettingsPanel.Stream.Sort -> STREAM_SORT_ROW_KEY
+    SettingsPanel.Stream.Formatter -> STREAM_FORMATTER_ROW_KEY
+    // Nested filter panels all return to the `Stream filters` row once Back reaches the list.
+    is SettingsPanel.Stream -> STREAM_FILTERS_ROW_KEY
     is SettingsPanel.Choice -> when (panel.kind) {
         ChoiceKind.PREFERRED_ADDON -> "autoplay-addon"
         ChoiceKind.PLAYER -> PLAYER_ROW_KEY

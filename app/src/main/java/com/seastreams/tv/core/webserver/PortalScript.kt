@@ -81,6 +81,7 @@ function render() {
   renderProfiles(st);
   renderAddons(st);
   renderImportProfiles(st);
+  renderStreamProfiles(st);
 }
 
 function renderProfiles(st) {
@@ -198,7 +199,7 @@ function renderAddons(st) {
       h('button', { type: 'button', class: 'icon', 'aria-label': 'Move down', disabled: i === addons.length - 1,
         onclick: (e) => addonApi('/addons/move', { manifestUrl: a.manifestUrl, offset: 1 }, e.currentTarget) }, '↓'),
       h('label', { class: 'check' },
-        h('input', { type: 'checkbox', checked: a.enabled, disabled: a.builtIn,
+        h('input', { type: 'checkbox', checked: a.enabled, disabled: !a.canDisable,
           onchange: (e) => addonApi('/addons/enabled', { manifestUrl: a.manifestUrl, enabled: e.currentTarget.checked }) }),
         'Enabled'),
       h('button', { type: 'button', class: 'icon', onclick: (e) => renameAddon(a, e.currentTarget) }, 'Rename'),

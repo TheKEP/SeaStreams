@@ -124,6 +124,7 @@ data class TmdbMovieDetails(
     @SerialName("release_dates") val releaseDates: TmdbReleaseDates? = null,
     val credits: TmdbCredits? = null,
     val images: TmdbImages? = null,
+    @SerialName("original_language") val originalLanguage: String? = null,
 ) {
     /** US MPA certification, preferring the theatrical release, else the earliest typed release. */
     fun usCertification(): String? =
@@ -165,6 +166,7 @@ data class TmdbTvDetails(
     @SerialName("created_by") val createdBy: List<TmdbCreator> = emptyList(),
     val images: TmdbImages? = null,
     @SerialName("last_episode_to_air") val lastEpisodeToAir: TmdbEpisodeRef? = null,
+    @SerialName("original_language") val originalLanguage: String? = null,
 ) {
     /** US TV Parental Guidelines rating, if TMDB has one. */
     fun usCertification(): String? =

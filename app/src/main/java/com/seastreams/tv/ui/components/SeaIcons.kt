@@ -66,6 +66,18 @@ object SeaIcons {
         icon("TextSize", "M9,4v3h5v12h3V7h5V4H9zM3,12h3v7h3v-7h3V9H3v3z")
     }
 
+    val FilterList by lazy {
+        icon("FilterList", "M10,18h4v-2h-4v2zM3,6v2h18V6H3zM6,13h12v-2H6v2z")
+    }
+    val Sort by lazy {
+        icon("Sort", "M3,18h6v-2H3v2zM3,6v2h18V6H3zM3,13h12v-2H3v2z")
+    }
+
+    /** [Sort] flipped upside down: short bar on top (ascending). */
+    val SortAscending by lazy {
+        icon("SortAscending", "M3,6h6v2H3V6zM3,18v-2h18v2H3zM3,11h12v2H3v-2z")
+    }
+
     val Pause by lazy {
         icon("Pause", "M6,19h4V5H6v14zM14,5v14h4V5h-4z")
     }

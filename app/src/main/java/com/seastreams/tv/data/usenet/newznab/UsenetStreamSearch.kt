@@ -1,6 +1,7 @@
 package com.seastreams.tv.data.usenet.newznab
 
 import com.seastreams.tv.data.usenet.UsenetSourcesRepository
+import com.seastreams.tv.domain.model.StreamHints
 import com.seastreams.tv.domain.model.StreamSource
 import com.seastreams.tv.usenet.session.UsenetEngineSetup
 import com.seastreams.tv.usenet.session.UsenetGrab
@@ -100,6 +101,7 @@ class UsenetStreamSearch @Inject constructor(
             label = listOfNotNull(USENET_ADDON_NAME, resolution(item.title)).joinToString(" · "),
             description = item.title + "\n" + details.joinToString(" · "),
             headers = emptyMap(),
+            hints = StreamHints(filename = item.title, sizeBytes = item.sizeBytes.takeIf { it > 0 }, publishedMillis = item.publishedMillis, indexer = endpoint.name),
         )
     }
 

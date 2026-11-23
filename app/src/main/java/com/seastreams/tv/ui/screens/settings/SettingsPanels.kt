@@ -42,7 +42,10 @@ import com.seastreams.tv.data.addon.BuiltInAddons
 import com.seastreams.tv.ui.components.QrCode
 import com.seastreams.tv.ui.components.SeaIcons
 import com.seastreams.tv.ui.theme.TextSecondary
+import com.seastreams.tv.ui.theme.Follow
+import com.seastreams.tv.ui.theme.focusItem
 import com.seastreams.tv.ui.theme.rememberListEdgeWrap
+import com.seastreams.tv.ui.theme.rememberReorderFocus
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
 import com.seastreams.tv.ui.theme.tryRequestFocus
 import com.seastreams.tv.ui.theme.verticalEdgeKeys
@@ -54,8 +57,12 @@ import kotlinx.coroutines.launch
 fun ChoicePanel(spec: ChoiceSpec, onDone: () -> Unit) {
     val selected = remember { FocusRequester() }
     val first = remember { FocusRequester() }
-    LaunchedEffect(Unit) { if (!selected.requestFocusAfterFrame()) first.requestFocusAfterFrame() }
-    PanelColumn(spec.title) {
+    val listState = rememberLazyListState()
+    // Scroll to the chosen option first: an off-screen row has no attached requester yet.
+    LaunchedEffect(Unit) {
+        if (!listState.focusItem(spec.options.indexOfFirst { it.selected }, selected)) listState.focusItem(0, first)
+    }
+    PanelColumn(spec.title, listState) {
         itemsIndexed(spec.options, key = { _, option -> option.label }) { index, option ->
             SettingsRow(
                 icon = if (option.selected) Icons.Filled.Check else null,
@@ -99,6 +106,10 @@ fun AddonsPanel(
     val wrap = rememberListEdgeWrap(listState, first, last, lastIndex)
     LaunchedEffect(Unit) { first.requestFocusAfterFrame() }
     val scope = rememberCoroutineScope()
+    // Move up / Move down keep the moved row in view and its button focused once the new order is saved.
+    val reorder = rememberReorderFocus<String>(listState)
+    val urls = addons.map { it.manifestUrl }
+    reorder.Follow(urls)
     // Rows are keyed by manifest URL, so a row's requesters follow it when the rows above change.
     val rowFocus = remember { HashMap<String, AddonRowFocus>() }
     val focusOf: (AddonEntity) -> AddonRowFocus = { rowFocus.getOrPut(it.manifestUrl) { AddonRowFocus() } }
@@ -127,7 +138,7 @@ fun AddonsPanel(
                 SettingsRow(
                     icon = SeaIcons.Addons,
                     title = addon.displayName(),
-                    value = if (builtIn) "Built-in" else if (addon.enabled) "Enabled" else "Disabled",
+                    value = addonStateLabel(builtIn, BuiltInAddons.canDisable(addon.manifestUrl), addon.enabled),
                     trailing = RowTrailing.Toggle(addon.enabled),
                     onClick = { onToggle(addon) },
                     modifier = Modifier
@@ -136,8 +147,14 @@ fun AddonsPanel(
                         .then(if (index == 0) Modifier.focusRequester(first) else Modifier)
                         .then(edge),
                 )
-                RoundIconButton(Icons.Filled.KeyboardArrowUp, "Move up", edge) { onMove(addon, -1) }
-                RoundIconButton(Icons.Filled.KeyboardArrowDown, "Move down", edge) { onMove(addon, 1) }
+                RoundIconButton(Icons.Filled.KeyboardArrowUp, "Move up", edge.focusRequester(reorder.up(addon.manifestUrl))) {
+                    reorder.onMove(addon.manifestUrl, -1, urls)
+                    onMove(addon, -1)
+                }
+                RoundIconButton(Icons.Filled.KeyboardArrowDown, "Move down", edge.focusRequester(reorder.down(addon.manifestUrl))) {
+                    reorder.onMove(addon.manifestUrl, 1, urls)
+                    onMove(addon, 1)
+                }
                 if (!builtIn) {
                     RoundIconButton(Icons.Filled.Close, "Remove", edge.focusRequester(focusOf(addon).remove)) {
                         removeKeepingFocus(index, addon)
@@ -159,6 +176,16 @@ fun AddonsPanel(
                     .verticalListEdgeWrap(lastIndex, lastIndex, wrap.toFirst, wrap.toLast),
             )
         }
+    }
+}
+
+/** `Built-in` (TMDB), `Built-in · Enabled` (Usenet), else `Enabled` / `Disabled`. */
+internal fun addonStateLabel(builtIn: Boolean, canDisable: Boolean, enabled: Boolean): String {
+    val state = if (enabled) "Enabled" else "Disabled"
+    return when {
+        builtIn && canDisable -> "Built-in · $state"
+        builtIn -> "Built-in"
+        else -> state
     }
 }
 

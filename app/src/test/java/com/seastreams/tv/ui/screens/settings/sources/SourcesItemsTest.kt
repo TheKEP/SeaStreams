@@ -44,6 +44,14 @@ class SourcesItemsTest {
         ).filterIsInstance<SettingsItem.Entry>()
 
     @Test
+    fun `every Sources row sits under the USENET subheading`() {
+        val all = sourcesItems(SourcesUiState(), SettingsCallbacks({}, {}, {}, mockk(relaxed = true), {}, {}, {}, {}), now, zone)
+        assertEquals(SettingsItem.Section(USENET_SECTION_KEY, "Usenet"), all.first())
+        assertEquals(1, all.count { it is SettingsItem.Section })
+        assertEquals(PROVIDERS_ROW_KEY, com.seastreams.tv.ui.screens.settings.firstEntryKey(all))
+    }
+
+    @Test
     fun `rows show counts, header versions and the profile`() {
         val state = SourcesUiState(
             providers = listOf(provider(1), provider(2, enabled = false)),
@@ -52,7 +60,9 @@ class SourcesItemsTest {
             headers = RequestHeaderSettings(versions = mapOf(HeaderPreset.SABNZBD to "5.2.0")),
         )
         assertEquals(
-            listOf("1 of 2 enabled", "1 of 1 enabled", "Prowlarr 2.7.0.5723", "SABnzbd 5.2.0", "Never checked", "High", "Add providers and indexers from your phone"),
+            listOf("1 of 2 enabled", "1 of 1 enabled", "Prowlarr 2.7.0.5723", "SABnzbd 5.2.0", "Never checked", "High",
+                "Add providers, indexers, regexes and templates from your phone",
+            ),
             items(state).map { it.value },
         )
         assertEquals("None yet — add one from your phone", items(SourcesUiState()).first().value)

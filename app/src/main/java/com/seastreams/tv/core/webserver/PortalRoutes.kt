@@ -22,13 +22,13 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
 
-private val portalJson = Json {
+internal val portalJson = Json {
     ignoreUnknownKeys = true
     // Responses always carry every field (e.g. performance values equal to their defaults).
     encodeDefaults = true
 }
 
-private const val MAX_BODY_CHARS = 64 * 1024
+internal const val MAX_BODY_CHARS = 64 * 1024
 private const val TAG = "LocalPortal"
 
 /**
@@ -37,13 +37,19 @@ private const val TAG = "LocalPortal"
  * - `GET /api/state` – [PortalState]
  * - `POST /api/…` – JSON mutations, each answering [ApiMessage]
  * - `/api/usenet…` – app-wide Usenet Sources ([usenetRoutes])
+ * - `/api/streams…` – per-profile stream filters, sorting and formatter ([streamRoutes])
  * - `GET/HEAD /nntp/{token}/{name}` – the loopback-only Usenet proxy for external players ([nntpProxyRoutes])
  *
  * Mutations require `Content-Type: application/json`, which browsers cannot send cross-origin
  * without a CORS preflight this server never approves (CSRF protection). Requests whose `Host` is
  * not an IP literal or `localhost` are refused, which defeats DNS-rebinding attacks.
  */
-fun Application.portalModule(controller: PortalController, usenet: PortalUsenetController, proxy: NntpProxy? = null) {
+fun Application.portalModule(
+    controller: PortalController,
+    usenet: PortalUsenetController,
+    proxy: NntpProxy? = null,
+    streams: PortalStreamController? = null,
+) {
     routing {
         proxy?.let { nntpProxyRoutes(it) }
         get("/") {
@@ -75,6 +81,7 @@ fun Application.portalModule(controller: PortalController, usenet: PortalUsenetC
             post("/addons/reorder") { call.mutate<AddonReorderRequest>(controller::reorderAddons) }
             post("/library/import") { call.mutate<LibraryImportRequest>(controller::importToLibrary) }
             usenetRoutes(usenet)
+            streams?.let { streamRoutes(it) }
         }
     }
 }

@@ -73,6 +73,7 @@ fun CoverContent(
             viewModel = activityViewModel(),
             appearance = activityViewModel(),
             sources = activityViewModel(),
+            streams = activityViewModel(),
             onOpenProfiles = { onPush(Cover.Profiles) },
         )
         // Back is the shell's cover BackHandler (→ Settings, `Profiles` row focused); a pick enters Home.

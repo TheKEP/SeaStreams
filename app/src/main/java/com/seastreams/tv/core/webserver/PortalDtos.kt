@@ -64,6 +64,8 @@ data class AddonDto(
     val resources: List<String>,
     val enabled: Boolean,
     val builtIn: Boolean,
+    /** `false` only for TMDB; the built-in `Usenet` entry can be switched off per profile. */
+    val canDisable: Boolean = true,
 )
 
 /** Everything the portal page renders, fetched in one call after every mutation. */

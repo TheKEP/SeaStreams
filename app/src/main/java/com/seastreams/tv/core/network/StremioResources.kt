@@ -25,6 +25,10 @@ data class StremioStream(
     val nzbUrl: String? = null,
     /** `nntp(s)://user:pass@host:port/connections` servers the addon supplies for [nzbUrl] (empty = the user's providers). */
     val servers: List<String> = emptyList(),
+    /** `behaviorHints.filename`: the release / file name, read by stream filtering (PRD §13). */
+    val filename: String? = null,
+    /** `behaviorHints.videoSize` in bytes. */
+    val videoSize: Long? = null,
 )
 
 /** One subtitle file from an addon's `/subtitles/{type}/{id}.json`. */
@@ -49,6 +53,8 @@ object StremioResourceParser {
             headers = requestHeaders(obj),
             nzbUrl = nzb,
             servers = if (nzb == null) emptyList() else servers(obj),
+            filename = (obj["behaviorHints"] as? JsonObject)?.string("filename"),
+            videoSize = videoSize(obj),
         )
     }
 
@@ -77,6 +83,12 @@ object StremioResourceParser {
         return request.mapNotNull { (name, value) ->
             (value as? JsonPrimitive)?.takeIf { it.isString }?.content?.let { name to it }
         }.toMap()
+    }
+
+    /** `behaviorHints.videoSize` when it is a positive whole number of bytes. */
+    private fun videoSize(stream: JsonObject): Long? {
+        val hints = stream["behaviorHints"] as? JsonObject ?: return null
+        return (hints["videoSize"] as? JsonPrimitive)?.takeUnless { it.isString }?.content?.toDoubleOrNull()?.toLong()?.takeIf { it > 0 }
     }
 
     /** The entry's `url` when it is a plain http(s) link a video player can open. */

@@ -1,5 +1,6 @@
 package com.seastreams.tv.core.webserver
 
+import com.seastreams.tv.testutil.usenetAddonState
 import com.seastreams.tv.data.catalog.DiscoverSnapshotStore
 import com.seastreams.tv.data.catalog.LoadedCatalogStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
@@ -105,7 +106,7 @@ class PortalServerTest {
             profiles = ProfileRepository(
                 profileDao, addonDao, settings, settings, clock, DiscoverSnapshotStore(), LoadedCatalogStore(Clock.systemUTC()),
             ),
-            addons = AddonRepository(addonDao, profileDao, StremioAddonClient(appHttp), clock),
+            addons = AddonRepository(addonDao, profileDao, StremioAddonClient(appHttp), clock, usenetAddonState()),
             importMdbList = importUseCase,
             settings = settings,
         )

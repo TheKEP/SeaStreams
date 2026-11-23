@@ -4,23 +4,8 @@ import com.seastreams.tv.domain.usenet.DamagePolicy
 import com.seastreams.tv.domain.usenet.UsenetPerformance
 import com.seastreams.tv.domain.usenet.UsenetProfile
 import com.seastreams.tv.domain.usenet.VerifyMode
+import com.seastreams.tv.ui.screens.settings.PanelItem
 import com.seastreams.tv.ui.screens.settings.RowTrailing
-
-/** One entry of the `Usenet performance` sub-panel: a non-focusable section label or a setting row. */
-sealed interface PerformanceItem {
-    val key: String
-
-    data class Section(override val key: String, val title: String) : PerformanceItem
-
-    /** [onClick] = OK: toggles a switch, or steps a value forward and wraps. */
-    data class Row(
-        override val key: String,
-        val title: String,
-        val value: String,
-        val trailing: RowTrailing,
-        val onClick: () -> Unit,
-    ) : PerformanceItem
-}
 
 /**
  * The rows of `Usenet performance` (PRD §12), grouped under the `aio-usenet-settings1–6.png` sections.
@@ -30,9 +15,9 @@ fun performanceItems(
     p: UsenetPerformance,
     setProfile: (UsenetProfile) -> Unit,
     edit: ((UsenetPerformance) -> UsenetPerformance) -> Unit,
-): List<PerformanceItem> {
+): List<PanelItem> {
     fun number(key: String, title: String, options: List<Int>, value: Int, label: (Int) -> String, set: UsenetPerformance.(Int) -> UsenetPerformance) =
-        PerformanceItem.Row(
+        PanelItem.Row(
             key, title, label(value),
             RowTrailing.Stepper(
                 onDecrease = { edit { it.set(stepOption(options, value, -1)) } },
@@ -41,10 +26,10 @@ fun performanceItems(
         ) { edit { it.set(stepOption(options, value, 1, wrap = true)) } }
 
     fun toggle(key: String, title: String, checked: Boolean, set: UsenetPerformance.(Boolean) -> UsenetPerformance) =
-        PerformanceItem.Row(key, title, if (checked) "On" else "Off", RowTrailing.Toggle(checked)) { edit { it.set(!checked) } }
+        PanelItem.Row(key, title, if (checked) "On" else "Off", RowTrailing.Toggle(checked)) { edit { it.set(!checked) } }
 
     fun <E> choice(key: String, title: String, options: List<E>, value: E, label: (E) -> String, apply: (E) -> Unit) =
-        PerformanceItem.Row(
+        PanelItem.Row(
             key, title, label(value),
             RowTrailing.Stepper(
                 onDecrease = { apply(stepChoice(options, value, -1)) },
@@ -53,26 +38,26 @@ fun performanceItems(
         ) { apply(stepChoice(options, value, 1, wrap = true)) }
 
     return listOf(
-        PerformanceItem.Section("s-performance", "Performance"),
+        PanelItem.Section("s-performance", "Performance"),
         choice(PROFILE_KEY, "Performance profile", UsenetProfile.entries, p.profile, { it.label }, setProfile),
         number("read-ahead", "Read-ahead (segments)", READ_AHEAD, p.readAheadSegments, Int::toString) { copy(readAheadSegments = it) },
         number("max-downloads", "Max concurrent downloads", MAX_DOWNLOADS, p.maxConcurrentDownloads, { if (it == 0) "Auto" else "$it" }) { copy(maxConcurrentDownloads = it) },
         number("disk-cache", "Segment disk cache size", DISK_CACHE_MB, p.segmentDiskCacheMb, ::megabytesLabel) { copy(segmentDiskCacheMb = it) },
         number("warm", "Warm connections", UsenetPerformance.WARM_CONNECTION_CHOICES, p.warmConnections, Int::toString) { copy(warmConnections = it) },
-        PerformanceItem.Section("s-connections", "Connections & timeouts"),
+        PanelItem.Section("s-connections", "Connections & timeouts"),
         number("priority", "Streaming priority share", PRIORITY_PERCENT, p.streamingPriorityPercent, ::shareLabel) { copy(streamingPriorityPercent = it) },
         number("segment-timeout", "Segment timeout", SEGMENT_TIMEOUT, p.segmentTimeoutSeconds, { durationLabel(it, zero = "Never") }) { copy(segmentTimeoutSeconds = it) },
         number("stall-timeout", "Segment stall timeout", STALL_TIMEOUT, p.segmentStallTimeoutSeconds, ::durationLabel) { copy(segmentStallTimeoutSeconds = it) },
         number("dial-timeout", "Dial timeout", DIAL_TIMEOUT, p.dialTimeoutSeconds, ::durationLabel) { copy(dialTimeoutSeconds = it) },
         number("idle-ttl", "Idle connection TTL", IDLE_TTL, p.idleConnectionTtlSeconds, ::durationLabel) { copy(idleConnectionTtlSeconds = it) },
         number("stream-idle", "Stream idle timeout", STREAM_IDLE, p.streamIdleTimeoutSeconds, { durationLabel(it, zero = "Off") }) { copy(streamIdleTimeoutSeconds = it) },
-        PerformanceItem.Section("s-reliability", "Reliability"),
+        PanelItem.Section("s-reliability", "Reliability"),
         number("breaker-threshold", "Circuit breaker threshold", BREAKER_THRESHOLD, p.circuitBreakerThreshold, Int::toString) { copy(circuitBreakerThreshold = it) },
         number("breaker-cooldown", "Circuit breaker cooldown", BREAKER_COOLDOWN, p.circuitBreakerCooldownSeconds, ::durationLabel) { copy(circuitBreakerCooldownSeconds = it) },
-        PerformanceItem.Section("s-archives", "Archive handling"),
+        PanelItem.Section("s-archives", "Archive handling"),
         toggle("lazy-rar", "Lazy RAR resolution", p.lazyRarResolution) { copy(lazyRarResolution = it) },
         toggle("strict-archive", "Strict archive membership", p.strictArchiveMembership) { copy(strictArchiveMembership = it) },
-        PerformanceItem.Section("s-verification", "Verification"),
+        PanelItem.Section("s-verification", "Verification"),
         choice("verify-mode", "Verify mode", VerifyMode.entries, p.verifyMode, { it.label }) { mode -> edit { it.copy(verifyMode = mode) } },
         number("verify-budget", "Verify budget", VERIFY_BUDGET, p.verifyBudgetMillis, { "$it ms" }) { copy(verifyBudgetMillis = it) },
         toggle("verify-contents", "Verify file contents", p.verifyFileContents) { copy(verifyFileContents = it) },
@@ -81,7 +66,7 @@ fun performanceItems(
         toggle("mkv-repair", "Matroska hole repair", p.matroskaHoleRepair) { copy(matroskaHoleRepair = it) },
         number("census-concurrency", "Census background concurrency", CENSUS_CONCURRENCY, p.censusConcurrency, Int::toString) { copy(censusConcurrency = it) },
         number("census-lifetime", "Census max lifetime", CENSUS_LIFETIME, p.censusMaxLifetimeMinutes, { durationLabel(it * 60) }) { copy(censusMaxLifetimeMinutes = it) },
-        PerformanceItem.Section("s-import", "Import"),
+        PanelItem.Section("s-import", "Import"),
         number("max-nzb", "Max NZB size", MAX_NZB_MB, p.maxNzbSizeMb, ::megabytesLabel) { copy(maxNzbSizeMb = it) },
         number("max-imports", "Max concurrent imports", MAX_IMPORTS, p.maxConcurrentImports, { if (it == 0) "Unlimited" else "$it" }) { copy(maxConcurrentImports = it) },
     )

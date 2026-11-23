@@ -51,14 +51,19 @@ internal fun StreamPanelEntry(onClick: () -> Unit, modifier: Modifier = Modifier
 internal data class StreamCardText(val header: String, val title: String, val detailLines: List<String>)
 
 /**
- * Splits an addon stream into card text. Every non-blank description line is kept as its own line
- * (trailing whitespace trimmed) so a long filename that wraps never pushes the audio/size line out.
+ * Splits an addon stream into card text: the formatter's output when a Stream formatter is on (PRD §13), else the
+ * addon's own label and description. Every non-blank description line is kept as its own line (trailing whitespace
+ * trimmed) so a long filename that wraps never pushes the audio/size line out.
  */
-internal fun streamCardText(stream: StreamSource, rank: Int? = null): StreamCardText = StreamCardText(
-    header = stream.addonName,
-    title = if (rank == null) stream.label else "#$rank  ${stream.label}",
-    detailLines = stream.description.lines().map { it.trimEnd() }.filter { it.isNotBlank() },
-)
+internal fun streamCardText(stream: StreamSource, rank: Int? = null): StreamCardText {
+    val label = stream.display?.name?.ifBlank { null } ?: stream.label
+    val description = stream.display?.description ?: stream.description
+    return StreamCardText(
+        header = stream.addonName,
+        title = if (rank == null) label else "#$rank  $label",
+        detailLines = description.lines().map { it.trimEnd() }.filter { it.isNotBlank() },
+    )
+}
 
 /**
  * A stream result pill shared by the Details stream selection modal and the in-player `Streams`

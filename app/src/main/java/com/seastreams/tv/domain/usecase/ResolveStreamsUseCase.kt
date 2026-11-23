@@ -3,6 +3,7 @@ package com.seastreams.tv.domain.usecase
 import com.seastreams.tv.core.database.dao.AddonDao
 import com.seastreams.tv.core.database.entity.AddonEntity
 import com.seastreams.tv.core.network.InvalidManifestException
+import com.seastreams.tv.data.addon.BuiltInAddons
 import com.seastreams.tv.core.network.StremioAddonClient
 import com.seastreams.tv.core.network.StremioManifest
 import com.seastreams.tv.core.network.StremioManifestParser
@@ -12,9 +13,14 @@ import com.seastreams.tv.data.usenet.newznab.UsenetSearchTarget
 import com.seastreams.tv.data.usenet.newznab.UsenetStreamSearch
 import com.seastreams.tv.domain.model.EpisodeRef
 import com.seastreams.tv.domain.model.MediaRef
+import com.seastreams.tv.domain.model.MediaType
 import com.seastreams.tv.domain.model.StreamAddon
+import com.seastreams.tv.domain.model.StreamHints
 import com.seastreams.tv.domain.model.StreamSource
 import com.seastreams.tv.domain.model.SubtitleTrack
+import com.seastreams.tv.domain.streams.ContentKind
+import com.seastreams.tv.domain.streams.ProcessStreamsUseCase
+import com.seastreams.tv.domain.streams.StreamContext
 import com.seastreams.tv.usenet.session.AddonServers
 import com.seastreams.tv.usenet.session.UsenetGrab
 import com.seastreams.tv.usenet.session.UsenetStreamRegistry
@@ -56,7 +62,19 @@ data class StreamQuery(
     val episode: EpisodeRef?,
     val title: String? = null,
     val year: Int? = null,
+    /** TMDB runtime (the episode's for shows): stream bitrate is estimated as size ÷ runtime (PRD §13). */
+    val runtimeMinutes: Int? = null,
+    /** Japanese animation: the `Anime` sort list applies. */
+    val isAnime: Boolean = false,
 ) {
+    /** Which stream sort list and size limits apply. */
+    val contentKind: ContentKind
+        get() = when {
+            isAnime -> ContentKind.ANIME
+            ref.mediaType == MediaType.MOVIE -> ContentKind.MOVIE
+            else -> ContentKind.SERIES
+        }
+
     /** What the built-in `Usenet` addon searches for. */
     val usenetTarget: UsenetSearchTarget
         get() = episode?.let { UsenetSearchTarget.Episode(imdbId, title, it.season, it.episode) }
@@ -75,24 +93,67 @@ class ResolveStreamsUseCase @Inject constructor(
     private val client: Lazy<StremioAddonClient>,
     private val usenet: Lazy<UsenetStreamSearch>,
     private val usenetStreams: UsenetStreamRegistry,
+    private val process: ProcessStreamsUseCase,
 ) {
     suspend operator fun invoke(query: StreamQuery): StreamResolution = withContext(Dispatchers.IO) {
         val type = query.ref.mediaType.stremioType
-        val addons = addonDao.observeEnabled(query.profileId).first().mapNotNull { entity -> entity.parsed()?.let { entity to it } }
+        val enabled = addonDao.observeEnabled(query.profileId).first()
+        val addons = enabled.mapNotNull { entity -> entity.parsed()?.let { entity to it } }
+        val usenet = UsenetSlot.of(enabled, addons.map { it.first }, disabled = enabled.none { it.manifestUrl == BuiltInAddons.USENET_URL } &&
+            addonDao.getByUrl(query.profileId, BuiltInAddons.USENET_URL) != null)
         val (results, builtIn) = coroutineScope {
-            val builtIn = async { queryUsenet(query) }
+            val builtIn = async { if (usenet.disabled) null else queryUsenet(query) }
             addons.map { (entity, manifest) -> async { queryAddon(entity, manifest, type, query) } }.awaitAll() to builtIn.await()
         }
-        val all = results + listOfNotNull(builtIn)
-        val usenetCard = builtIn?.let { StreamAddon(UsenetStreamSearch.USENET_ADDON_URL, UsenetStreamSearch.USENET_ADDON_NAME) }
+        // Usenet results take the built-in entry's place in the profile's addon order (the bottom when it has none yet).
+        val all = results.toMutableList().apply { builtIn?.let { add(usenet.index.coerceAtMost(size), it) } }
+        val cards = addons
+            .filter { (_, manifest) -> stremioId(manifest, STREAM, type, query) != null }
+            .map { (entity, _) -> StreamAddon(entity.manifestUrl, entity.displayName()) }
+        val usenetCard = builtIn?.let { StreamAddon(UsenetStreamSearch.USENET_ADDON_URL, usenet.name) }
+        val context = StreamContext(
+            kind = query.contentKind,
+            runtimeMinutes = query.runtimeMinutes,
+            title = query.title,
+            year = query.year,
+            addonOrder = usenet.addonOrder,
+        )
         StreamResolution(
-            streams = all.flatMap { it.streams },
+            // Filters, dedup, sort, limits and formatter (PRD §13) run here, so every consumer sees the processed list.
+            streams = process(query.profileId, all.flatMap { it.streams }, context),
             subtitles = results.flatMap { it.subtitles },
             failedAddons = all.filter { it.failed }.map { it.addonName },
-            streamAddons = addons
-                .filter { (_, manifest) -> stremioId(manifest, STREAM, type, query) != null }
-                .map { (entity, _) -> StreamAddon(entity.manifestUrl, entity.displayName()) } + listOfNotNull(usenetCard),
+            streamAddons = cards.toMutableList().apply {
+                usenetCard?.let { add(usenet.cardIndex(addons.map { it.first }, cards).coerceAtMost(size), it) }
+            },
         )
+    }
+
+    /**
+     * Where the built-in `Usenet` entry sits among [enabled] addons: [index] counts the queried Stremio addons before
+     * it, [addonOrder] is every enabled addon URL in order (Usenet last when the profile has no entry yet), and
+     * [disabled] means the profile switched Usenet off (it isn't searched).
+     */
+    private class UsenetSlot(val index: Int, val addonOrder: List<String>, val name: String, val disabled: Boolean, private val row: Int) {
+
+        /** The card's position among the stream-capable addon [cards]. */
+        fun cardIndex(queried: List<AddonEntity>, cards: List<StreamAddon>): Int =
+            if (row < 0) cards.size else queried.take(index).count { entity -> cards.any { it.url == entity.manifestUrl } }
+
+        companion object {
+            fun of(enabled: List<AddonEntity>, queried: List<AddonEntity>, disabled: Boolean): UsenetSlot {
+                val row = enabled.indexOfFirst { it.manifestUrl == BuiltInAddons.USENET_URL }
+                val before = if (row < 0) queried.size else enabled.take(row).count { it in queried }
+                val urls = enabled.map { it.manifestUrl }
+                return UsenetSlot(
+                    index = before,
+                    addonOrder = if (row < 0) urls + BuiltInAddons.USENET_URL else urls,
+                    name = enabled.getOrNull(row)?.let { it.customName ?: it.name } ?: UsenetStreamSearch.USENET_ADDON_NAME,
+                    disabled = disabled,
+                    row = row,
+                )
+            }
+        }
     }
 
     /** The built-in `Usenet` addon, or `null` (no card) when no provider or no indexer is enabled. */
@@ -152,6 +213,7 @@ class ResolveStreamsUseCase @Inject constructor(
                                 label = stream.name.lines().filter { it.isNotBlank() }.joinToString(" · ").ifBlank { name },
                                 description = stream.description,
                                 headers = if (stream.nzbUrl == null) stream.headers else emptyMap(),
+                                hints = StreamHints(filename = stream.filename, sizeBytes = stream.videoSize),
                             )
                         },
                         subtitles = subtitles.await().map { SubtitleTrack(it.url, it.language, name) },
