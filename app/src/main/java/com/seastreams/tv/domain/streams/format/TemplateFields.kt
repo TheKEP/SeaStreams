@@ -212,6 +212,6 @@ object TemplateFields {
         FilterAttribute.KEYWORD -> "keywords"
     }
 
-    private const val APP_NAME = "SeaStreams"
+    private const val APP_NAME = "seastreams"
     private const val HOURS_PER_DAY = 24.0
 }

@@ -88,7 +88,7 @@ fun ProfileCreateScreen(
 private fun Header(mode: ProfileEditorMode) {
     val (title, subtitle) = when (mode) {
         ProfileEditorMode.Onboarding ->
-            "Welcome to SeaStreams" to "Create your first profile. A TMDB API key is required to continue."
+            "Welcome to seastreams" to "Create your first profile. A TMDB API key is required to continue."
         ProfileEditorMode.Create -> "New profile" to "Up to 5 profiles. Kids profiles only see age-appropriate titles."
         is ProfileEditorMode.Edit -> "Edit profile" to "Changes apply immediately."
     }

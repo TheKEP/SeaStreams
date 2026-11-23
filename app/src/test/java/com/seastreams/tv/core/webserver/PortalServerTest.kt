@@ -140,7 +140,7 @@ class PortalServerTest {
         val html = page.bodyAsText()
 
         assertEquals(200, page.status.value)
-        assertTrue(html.contains("<title>SeaStreams Portal</title>"))
+        assertTrue(html.contains("<title>seastreams Portal</title>"))
         assertTrue(html.contains("window.AVATARS = ["))
         assertTrue(html.contains("function refresh()"))
         assertFalse(html.contains("/*SCRIPT*/"))
