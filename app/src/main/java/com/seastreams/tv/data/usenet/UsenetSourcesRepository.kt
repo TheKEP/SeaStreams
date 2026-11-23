@@ -117,6 +117,12 @@ class UsenetSourcesRepository @Inject constructor(
         indexerDao.reorder(indexerDao.getAll().map { it.id })
     }
 
+    /** `Clear Usenet settings`: every NNTP provider and Newznab indexer (never a Debrid row). */
+    suspend fun clearAll() = orderLock.withLock {
+        providerDao.deleteAll()
+        indexerDao.deleteAll()
+    }
+
     /** Enabled providers in sort order with decrypted passwords, for the NNTP engine. Undecryptable ones are skipped. */
     suspend fun enabledEndpoints(): List<NntpEndpoint> = withContext(io) {
         providerDao.getAll().filter { it.enabled }.mapNotNull { row ->

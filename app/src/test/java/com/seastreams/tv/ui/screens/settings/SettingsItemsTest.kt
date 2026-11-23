@@ -38,8 +38,9 @@ class SettingsItemsTest {
                 "Clean SDH", "Subtitle styling", "Auto-sync external subtitles",
             ),
             SettingsCategory.SOURCES to listOf(
-                "Usenet providers", "Indexers", "Search request headers", "Download request headers",
-                "Update header versions", "Usenet performance", "Web portal",
+                "Enable Usenet", "Usenet providers", "Indexers", "Search request headers", "Download request headers",
+                "Update header versions", "Usenet performance", "Clear Usenet settings",
+                "Enable Debrid", "Debrid providers", "Clear Debrid settings", "Web portal",
             ),
             SettingsCategory.OTHER to listOf("Clear library", "Clear cache"),
         )

@@ -73,6 +73,7 @@ fun CoverContent(
             viewModel = activityViewModel(),
             appearance = activityViewModel(),
             sources = activityViewModel(),
+            debrid = activityViewModel(),
             streams = activityViewModel(),
             onOpenProfiles = { onPush(Cover.Profiles) },
         )

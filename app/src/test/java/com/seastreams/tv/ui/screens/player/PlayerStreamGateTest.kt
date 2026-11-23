@@ -20,6 +20,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import com.seastreams.tv.testutil.usenetSettings
 
 /**
  * PRD §12 Playback inside the open player: a fallback advance or a Streams pick that lands on an unstreamable Usenet
@@ -54,7 +55,7 @@ class PlayerStreamGateTest {
         maxSessions = 4,
         reapPeriodMs = 0,
     )
-    private val gate = PlayerStreamGate(UsenetPreflight(Lazy { sessions }, health, Dispatchers.Unconfined))
+    private val gate = PlayerStreamGate(UsenetPreflight(Lazy { sessions }, health, Dispatchers.Unconfined, usenetSettings(), UsenetStreamRegistry()))
 
     private fun token(stream: StreamSource) = checkNotNull(UsenetStreamRegistry.tokenOf(stream.url))
 

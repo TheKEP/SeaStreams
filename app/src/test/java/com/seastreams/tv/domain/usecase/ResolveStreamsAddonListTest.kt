@@ -17,6 +17,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import java.io.IOException
+import com.seastreams.tv.testutil.usenetSettings
 
 /** PRD §6 Addon Selector Cards: which addons get a card, and in what order. */
 class ResolveStreamsAddonListTest {
@@ -71,7 +72,7 @@ class ResolveStreamsAddonListTest {
         }
         coEvery { client.fetchSubtitles(any(), any(), any()) } returns emptyList()
 
-        val result = ResolveStreamsUseCase(dao, Lazy { client }, unconfiguredUsenet(), UsenetStreamRegistry(), noStreamProcessing())(movie)
+        val result = ResolveStreamsUseCase(dao, Lazy { client }, unconfiguredUsenet(), UsenetStreamRegistry(), noStreamProcessing(), usenetSettings())(movie)
 
         assertEquals(
             listOf(
@@ -102,7 +103,7 @@ class ResolveStreamsAddonListTest {
         }
         coEvery { client.fetchSubtitles(any(), any(), any()) } returns emptyList()
 
-        val result = ResolveStreamsUseCase(dao, Lazy { client }, unconfiguredUsenet(), UsenetStreamRegistry(), noStreamProcessing())(movie)
+        val result = ResolveStreamsUseCase(dao, Lazy { client }, unconfiguredUsenet(), UsenetStreamRegistry(), noStreamProcessing(), usenetSettings())(movie)
 
         // PlayerSettings.preferredAutoPlayAddonUrl defaults to null = "First enabled addon".
         assertEquals("https://first/manifest.json", topStream(result.streams, null)?.addonUrl)
@@ -113,7 +114,7 @@ class ResolveStreamsAddonListTest {
         val dao = FakeAddonDao(listOf(addon("subs", sortOrder = 0, resources = """["subtitles"]""")))
         coEvery { client.fetchSubtitles(any(), any(), any()) } returns emptyList()
 
-        val result = ResolveStreamsUseCase(dao, Lazy { client }, unconfiguredUsenet(), UsenetStreamRegistry(), noStreamProcessing())(movie)
+        val result = ResolveStreamsUseCase(dao, Lazy { client }, unconfiguredUsenet(), UsenetStreamRegistry(), noStreamProcessing(), usenetSettings())(movie)
 
         assertEquals(emptyList<StreamAddon>(), result.streamAddons)
     }

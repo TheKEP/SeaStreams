@@ -13,6 +13,7 @@ import com.seastreams.tv.data.setup.DebugProfileSeeder
 import com.seastreams.tv.data.trailer.NewPipeInitializer
 import com.seastreams.tv.data.usenet.headers.HeaderVersionUpdater
 import com.seastreams.tv.data.setup.ProfileSettingsMigrator
+import com.seastreams.tv.data.setup.SourceTogglesMigrator
 import dagger.Lazy
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
@@ -46,6 +47,10 @@ class SeaStreamsApp : Application(), SingletonImageLoader.Factory {
     @Inject
     lateinit var headerVersions: Lazy<HeaderVersionUpdater>
 
+    /** One-time `Enable Usenet` upgrade (ON for installs already set up); Room is built on IO. */
+    @Inject
+    lateinit var sourceToggles: Lazy<SourceTogglesMigrator>
+
     /** Process-lifetime scope (off the main thread) for fire-and-forget startup work. */
     @Inject
     @ApplicationScope
@@ -63,6 +68,9 @@ class SeaStreamsApp : Application(), SingletonImageLoader.Factory {
             // NewPipe.init(OkHttpDownloader(okHttpClient)); trailer extraction also ensures it lazily.
             runCatching { newPipe.get().ensureInitialized() }
                 .onFailure { Log.e("SeaStreamsApp", "NewPipe init failed", it) }
+            // Before the Usenet entry upkeep below reads the toggle.
+            runCatching { sourceToggles.get().migrateIfNeeded() }
+                .onFailure { Log.e("SeaStreamsApp", "Migrating the source toggles failed", it) }
             // Profiles get their default addons when created; this only repairs a missing TMDB entry.
             runCatching { builtInAddonGuard.get().ensureBuiltIns() }
                 .onFailure { Log.e("SeaStreamsApp", "Checking built-in addons failed", it) }

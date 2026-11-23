@@ -23,6 +23,7 @@ import io.mockk.slot
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import com.seastreams.tv.testutil.usenetSettings
 
 /** The built-in `Usenet` entry's place in the profile's addon order decides where its card and results go. */
 class ResolveStreamsUsenetOrderTest {
@@ -47,7 +48,7 @@ class ResolveStreamsUsenetOrderTest {
     }
 
     private fun useCase(rows: List<AddonEntity>, process: ProcessStreamsUseCase = noStreamProcessing()) =
-        ResolveStreamsUseCase(FakeAddonDao(rows), Lazy { client }, Lazy { search }, UsenetStreamRegistry(), process)
+        ResolveStreamsUseCase(FakeAddonDao(rows), Lazy { client }, Lazy { search }, UsenetStreamRegistry(), process, usenetSettings())
 
     @Test
     fun `Usenet moved between two addons sits between them, card and results`() = runTest {

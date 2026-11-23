@@ -7,6 +7,20 @@
 
 ---
 
+## Run this audit after every milestone in a fresh session
+**Prompt for Claude Code:**
+Perform a strict codebase audit. Check for:
+1. Any Kotlin file exceeding 350 lines that should be split,
+2. Duplicated logic,
+3. Any network, socket, or disk I/O running on the Main thread,
+4. Resource and lifecycle leaks: unclosed sockets/NIO channels, leaked worker threads/coroutines, unreturned pooled buffers (`SegmentBufferPool`/`SegmentArena`), or missing cancellation/cleanup in `NntpEngine`, `WarmConnections`, `ParallelRangeReader`, `SubtitleAutoSync`, ExoPlayer, or Ktor server lifecycles,
+5. Secret/security hygiene (no plain-text passwords or API keys in logs, URLs, or portal responses) and non-null `!!` assertions, and
+6. Unused dependencies or dead code.
+
+Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if any files were split or moved, and verify both `./gradlew testDebugUnitTest` and `./gradlew assembleDebug` pass with zero errors.
+
+---
+
 ## Milestone 1: Foundation, Database, Caching & Age Engine
 **Prompt for Claude Code:**
 > Read `CLAUDE.md`, `PRD.md`, and `ARCHITECTURE.md`. Execute **Milestone 1**:
@@ -21,20 +35,6 @@
 - Project compiles cleanly and all unit tests pass.
 - `/external_ids` is strictly single-item lookup only (no batch endpoints).
 - Kids age filter blocks out-of-range ratings and respects `allowUnrated`.
-
----
-
-## Run audit after every milestone
-**Prompt for Claude Code:**
-Perform a strict codebase audit. Check for:
-1. Any Kotlin file exceeding 350 lines that should be split,
-2. Duplicated logic,
-3. Any network, socket, or disk I/O running on the Main thread,
-4. Resource and lifecycle leaks: unclosed sockets/NIO channels, leaked worker threads/coroutines, unreturned pooled buffers (`SegmentBufferPool`/`SegmentArena`), or missing cancellation/cleanup in `NntpEngine`, `WarmConnections`, `ParallelRangeReader`, `SubtitleAutoSync`, ExoPlayer, or Ktor server lifecycles,
-5. Secret/security hygiene (no plain-text passwords or API keys in logs, URLs, or portal responses) and non-null `!!` assertions, and
-6. Unused dependencies or dead code.
-
-Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if any files were split or moved, and verify both `./gradlew testDebugUnitTest` and `./gradlew assembleDebug` pass with zero errors.
 
 ---
 
@@ -53,20 +53,6 @@ Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if an
 **Acceptance Criteria:**
 - App boots into `ProfileCreateScreen` when no profiles exist and blocks continuing until a valid TMDB API key is saved.
 - Scanning the QR code or visiting `http://<tv-ip>:8765` on a phone loads the Web Portal and updates the TV screen reactively.
-
----
-
-## Run audit after every milestone
-**Prompt for Claude Code:**
-Perform a strict codebase audit. Check for:
-1. Any Kotlin file exceeding 350 lines that should be split,
-2. Duplicated logic,
-3. Any network, socket, or disk I/O running on the Main thread,
-4. Resource and lifecycle leaks: unclosed sockets/NIO channels, leaked worker threads/coroutines, unreturned pooled buffers (`SegmentBufferPool`/`SegmentArena`), or missing cancellation/cleanup in `NntpEngine`, `WarmConnections`, `ParallelRangeReader`, `SubtitleAutoSync`, ExoPlayer, or Ktor server lifecycles,
-5. Secret/security hygiene (no plain-text passwords or API keys in logs, URLs, or portal responses) and non-null `!!` assertions, and
-6. Unused dependencies or dead code.
-
-Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if any files were split or moved, and verify both `./gradlew testDebugUnitTest` and `./gradlew assembleDebug` pass with zero errors.
 
 ---
 
@@ -96,20 +82,6 @@ Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if an
 
 ---
 
-## Run audit after every milestone
-**Prompt for Claude Code:**
-Perform a strict codebase audit. Check for:
-1. Any Kotlin file exceeding 350 lines that should be split,
-2. Duplicated logic,
-3. Any network, socket, or disk I/O running on the Main thread,
-4. Resource and lifecycle leaks: unclosed sockets/NIO channels, leaked worker threads/coroutines, unreturned pooled buffers (`SegmentBufferPool`/`SegmentArena`), or missing cancellation/cleanup in `NntpEngine`, `WarmConnections`, `ParallelRangeReader`, `SubtitleAutoSync`, ExoPlayer, or Ktor server lifecycles,
-5. Secret/security hygiene (no plain-text passwords or API keys in logs, URLs, or portal responses) and non-null `!!` assertions, and
-6. Unused dependencies or dead code.
-
-Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if any files were split or moved, and verify both `./gradlew testDebugUnitTest` and `./gradlew assembleDebug` pass with zero errors.
-
----
-
 ## Milestone 4: Movies, TV Shows, View More, Search & Library Screens
 **Prompt for Claude Code:**
 > Read `CLAUDE.md`, `PRD.md`, and `ARCHITECTURE.md`, and inspect `docs/ui-references/view-more.jpg`, `search-screen.jpg`, and `search-results.jpg`. Execute **Milestone 4**:
@@ -126,20 +98,6 @@ Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if an
 - `View More`, `Search`, and `Library` grids use standard 2:3 posters only (no 16:9 card expansion).
 - Search opens with D-pad focus on the Microphone icon and `Trending Movies` displayed on the right.
 - Library opens with `All` selected and restores the profile's last-used sort order.
-
----
-
-## Run audit after every milestone
-**Prompt for Claude Code:**
-Perform a strict codebase audit. Check for:
-1. Any Kotlin file exceeding 350 lines that should be split,
-2. Duplicated logic,
-3. Any network, socket, or disk I/O running on the Main thread,
-4. Resource and lifecycle leaks: unclosed sockets/NIO channels, leaked worker threads/coroutines, unreturned pooled buffers (`SegmentBufferPool`/`SegmentArena`), or missing cancellation/cleanup in `NntpEngine`, `WarmConnections`, `ParallelRangeReader`, `SubtitleAutoSync`, ExoPlayer, or Ktor server lifecycles,
-5. Secret/security hygiene (no plain-text passwords or API keys in logs, URLs, or portal responses) and non-null `!!` assertions, and
-6. Unused dependencies or dead code.
-
-Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if any files were split or moved, and verify both `./gradlew testDebugUnitTest` and `./gradlew assembleDebug` pass with zero errors.
 
 ---
 
@@ -178,20 +136,6 @@ Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if an
 ## Automated UI & D-Pad Navigation Tests
 **Prompt for Claude Code:**
 > Write Compose UI Tests (createComposeRule()) that simulate D-pad key presses (Key.DirectionDown, Key.DirectionRight, Key.DirectionCenter, Key.Back) across the Home screen, Profile switcher, and Player HUD to guarantee no screen ever traps or loses D-pad focus.
-
----
-
-## Run audit after every milestone
-**Prompt for Claude Code:**
-Perform a strict codebase audit. Check for:
-1. Any Kotlin file exceeding 350 lines that should be split,
-2. Duplicated logic,
-3. Any network, socket, or disk I/O running on the Main thread,
-4. Resource and lifecycle leaks: unclosed sockets/NIO channels, leaked worker threads/coroutines, unreturned pooled buffers (`SegmentBufferPool`/`SegmentArena`), or missing cancellation/cleanup in `NntpEngine`, `WarmConnections`, `ParallelRangeReader`, `SubtitleAutoSync`, ExoPlayer, or Ktor server lifecycles,
-5. Secret/security hygiene (no plain-text passwords or API keys in logs, URLs, or portal responses) and non-null `!!` assertions, and
-6. Unused dependencies or dead code.
-
-Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if any files were split or moved, and verify both `./gradlew testDebugUnitTest` and `./gradlew assembleDebug` pass with zero errors.
 
 ---
 
@@ -240,20 +184,6 @@ Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if an
 - During media playback, `Enter` pauses and opens the HUD, `Up`/`Down` opens the HUD without pausing, each `Back` press does exactly one thing for media and trailers alike (an open sub-overlay closes with focus on its bar button, else the main HUD is dismissed while playback continues, else playback exits with focus restored to the originating `DetailsScreen` control, falling back to `Play`/`Resume`, and the trailing `KeyUp` consumed), and the bottom bar provides dynamic Play/Pause, episode-only Next Episode & Episodes browser, Subtitles overlay, external-subtitle-only `- 0.0s +` (`0.1s` steps, `-60.0s` to `+60.0s`), session-only Audio overlay (reverting to General Settings on exit), live Streams switcher overlay, and full technical Info overlay (including live `Mbps` throughput and buffered seconds/MB).
 - `Settings -> Playback` exposes `Playback Buffer Profile` (`Standard`, `Large (2 min)`, `Max (5 min)`) and `Parallel Stream Connections` (`Off (1x)` to `4x`), smoothly absorbing transient peering congestion without stalling or corrupting seeks.
 - `ProfileSelectScreen` featured backdrop artwork excludes Horror (`27`), Romance (`10749`), Thriller (`53`), and Crime (`80`) genres, never uses `Continue Watching` history, and enforces `PG`/`TV-PG` (`allowUnrated = false`) when any Kids profile exists (or `PG-13`/`TV-14` with `allowUnrated = false` otherwise).
-
----
-
-## Run audit after every milestone
-**Prompt for Claude Code:**
-Perform a strict codebase audit. Check for:
-1. Any Kotlin file exceeding 350 lines that should be split,
-2. Duplicated logic,
-3. Any network, socket, or disk I/O running on the Main thread,
-4. Resource and lifecycle leaks: unclosed sockets/NIO channels, leaked worker threads/coroutines, unreturned pooled buffers (`SegmentBufferPool`/`SegmentArena`), or missing cancellation/cleanup in `NntpEngine`, `WarmConnections`, `ParallelRangeReader`, `SubtitleAutoSync`, ExoPlayer, or Ktor server lifecycles,
-5. Secret/security hygiene (no plain-text passwords or API keys in logs, URLs, or portal responses) and non-null `!!` assertions, and
-6. Unused dependencies or dead code.
-
-Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if any files were split or moved, and verify both `./gradlew testDebugUnitTest` and `./gradlew assembleDebug` pass with zero errors.
 
 ---
 
@@ -350,20 +280,6 @@ Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if an
 
 ---
 
-## Run audit after every milestone
-**Prompt for Claude Code:**
-Perform a strict codebase audit. Check for:
-1. Any Kotlin file exceeding 350 lines that should be split,
-2. Duplicated logic,
-3. Any network, socket, or disk I/O running on the Main thread,
-4. Resource and lifecycle leaks: unclosed sockets/NIO channels, leaked worker threads/coroutines, unreturned pooled buffers (`SegmentBufferPool`/`SegmentArena`), or missing cancellation/cleanup in `NntpEngine`, `WarmConnections`, `ParallelRangeReader`, `SubtitleAutoSync`, ExoPlayer, or Ktor server lifecycles,
-5. Secret/security hygiene (no plain-text passwords or API keys in logs, URLs, or portal responses) and non-null `!!` assertions, and
-6. Unused dependencies or dead code.
-
-Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if any files were split or moved, and verify both `./gradlew testDebugUnitTest` and `./gradlew assembleDebug` pass with zero errors.
-
----
-
 ## Milestone 8: NNTP Engine Core — Connections, Pipelining, yEnc, NZB, Read-Ahead & Bounded Segment Cache
 **Prompt for Claude Code:**
 > Read `CLAUDE.md`, `PRD.md` §12 and `ARCHITECTURE.md` §3 and §10. Use `C:\Users\Ken\Downloads\Nabrio\pov-rajput-android-tv` (`dev/pov/tv/usenet/`) and `C:\Users\Ken\Downloads\AIOStreams\AIOStreams` (`packages/core/src/usenet/`) as references. Execute **Milestone 8** (pure JVM engine, no player wiring):
@@ -391,20 +307,6 @@ Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if an
 - The circuit breaker rests a failing provider. Warm connections are reused.
 - The segment cache never exceeds its cap or the free-space guard. `Clear cache` empties it; the orphan sweep never deletes it.
 - The provider `Test` button reports success / bad login / connection limit / unreachable.
-
----
-
-## Run audit after every milestone
-**Prompt for Claude Code:**
-Perform a strict codebase audit. Check for:
-1. Any Kotlin file exceeding 350 lines that should be split,
-2. Duplicated logic,
-3. Any network, socket, or disk I/O running on the Main thread,
-4. Resource and lifecycle leaks: unclosed sockets/NIO channels, leaked worker threads/coroutines, unreturned pooled buffers (`SegmentBufferPool`/`SegmentArena`), or missing cancellation/cleanup in `NntpEngine`, `WarmConnections`, `ParallelRangeReader`, `SubtitleAutoSync`, ExoPlayer, or Ktor server lifecycles,
-5. Secret/security hygiene (no plain-text passwords or API keys in logs, URLs, or portal responses) and non-null `!!` assertions, and
-6. Unused dependencies or dead code.
-
-Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if any files were split or moved, and verify both `./gradlew testDebugUnitTest` and `./gradlew assembleDebug` pass with zero errors.
 
 ---
 
@@ -449,20 +351,6 @@ Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if an
 
 ---
 
-## Run audit after every milestone
-**Prompt for Claude Code:**
-Perform a strict codebase audit. Check for:
-1. Any Kotlin file exceeding 350 lines that should be split,
-2. Duplicated logic,
-3. Any network, socket, or disk I/O running on the Main thread,
-4. Resource and lifecycle leaks: unclosed sockets/NIO channels, leaked worker threads/coroutines, unreturned pooled buffers (`SegmentBufferPool`/`SegmentArena`), or missing cancellation/cleanup in `NntpEngine`, `WarmConnections`, `ParallelRangeReader`, `SubtitleAutoSync`, ExoPlayer, or Ktor server lifecycles,
-5. Secret/security hygiene (no plain-text passwords or API keys in logs, URLs, or portal responses) and non-null `!!` assertions, and
-6. Unused dependencies or dead code.
-
-Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if any files were split or moved, and verify both `./gradlew testDebugUnitTest` and `./gradlew assembleDebug` pass with zero errors.
-
----
-
 ## Milestone 10: Stream Filtering, Sorting & Formatter (AIOStreams-style, per profile)
 **Prompt for Claude Code:**
 > Read `CLAUDE.md`, `PRD.md` §13 and `ARCHITECTURE.md` §11, and inspect `docs/ui-references/aio-filters.png`, `aio-sorting.png` and `aio-formatter.png`. Use AIOStreams `packages/core/src/{parser,streams,formatters}` as the reference. Execute **Milestone 10**:
@@ -492,17 +380,94 @@ Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if an
 
 ---
 
-## Run audit after every milestone
+## Milestone 11: Sources Overhaul & Debrid Providers — Toggles, Scoped Clear, Room v8, Encrypted Sign-In, Connection Tests & Web Portal (`feat/debrid-sources`)
 **Prompt for Claude Code:**
-Perform a strict codebase audit. Check for:
-1. Any Kotlin file exceeding 350 lines that should be split,
-2. Duplicated logic,
-3. Any network, socket, or disk I/O running on the Main thread,
-4. Resource and lifecycle leaks: unclosed sockets/NIO channels, leaked worker threads/coroutines, unreturned pooled buffers (`SegmentBufferPool`/`SegmentArena`), or missing cancellation/cleanup in `NntpEngine`, `WarmConnections`, `ParallelRangeReader`, `SubtitleAutoSync`, ExoPlayer, or Ktor server lifecycles,
-5. Secret/security hygiene (no plain-text passwords or API keys in logs, URLs, or portal responses) and non-null `!!` assertions, and
-6. Unused dependencies or dead code.
+> Read `CLAUDE.md`, `PRD.md` (§8, §11 `Sources`, §12, §14) and `ARCHITECTURE.md` (§1, §10, §12). Use `C:\Users\Ken\Downloads\Nabrio\pov-rajput-android-tv` (`dev/pov/tv/data/LinkDebrids.kt` `validate`, `TorBoxApi.kt` device auth, `OffcloudApi.kt`) as the reference for account checks and device flows only. Do **not** port its hash / magnet / `checkcached` resolver. Execute **Milestone 11** (configuration, sign-in and tests only, no library scanning):
+> 1. **Room v8:**
+>    - Add the app-wide `DebridProviderEntity` (`debrid_providers`, unique `kind`, index on `sortOrder`) and `DebridProviderDao`.
+>    - Add `DebridSourcesMigration` (7→8, Room's exported createSql verbatim) and `app/schemas/…/8.json`.
+>    - Register both in `DatabaseModule`.
+> 2. **Repository:** add `data/debrid/DebridSourcesRepository` (CRUD, enable, move, remove, `deleteAll`; key/token validation incl. CR/LF; a blank key keeps the stored one; every secret through `SecretCipher`; undecryptable → *Sign-in needed*) and `DebridServiceKind` (7 services, auth methods, key-page URLs, BuildConfig client-ID gates for Debrid-Link / put.io).
+> 3. **Clients (account only):** `data/debrid/api/DebridHttp` (`no-store`, Bearer headers, error mapping) and one `DebridLibraryClient` per service implementing `account()` → `DebridTestResult` (premium expiry only; never username/email).
+> 4. **Sign-in:** `data/debrid/auth/` `DeviceAuthSessions`, `RealDebridDeviceFlow`, `AllDebridPinFlow`, `TorBoxDeviceFlow`, `DebridTokenRefresher` (ARCH §12).
+> 5. **Toggles:**
+>    - `usenet/enabled` in `UsenetSettingsStore` and a new `DebridSettingsStore` (`debrid/enabled`), both default false.
+>    - `data/setup/SourceTogglesMigrator`: a one-time `usenet/enabled = true` when ≥ 1 provider and ≥ 1 indexer already exist.
+>    - AND the Usenet flag into `UsenetAddonState.configured`, `UsenetStreamSearch.configured()`, addon `nzbUrl` registration (own `servers` exempt) and `UsenetPreflight`.
+> 6. **Scoped clear:** `PendingSourceClear` (one per source, 5 s, Undo) plus `UsenetSourcesRepository.clearAll()` + `UsenetSettingsStore.clearAll()` + `NntpEngine` reconfigure, and the Debrid equivalent (ARCH §10, §12).
+> 7. **Settings UI (`ui/screens/settings/sources/`):**
+>    - `USENET` / `DEBRID` / `PORTAL` sections exactly as PRD §11.
+>    - `Enable Usenet` / `Enable Debrid` toggles.
+>    - `Clear … settings` rows whose labels switch to `Undo clear …`.
+>    - A `Debrid providers` sub-panel on the shared `SourceListPanel` (toggle + Move up/down + Test + Remove, closing `Add a provider` → Web portal, two-way wrap, keep-focus remove, Back → row).
+>    - `DebridSourcesViewModel`.
+> 8. **Portal:** `PortalDebridRoutes` / `PortalDebridController` / DTOs / `PortalDebridScript` (no `$`), with key paste, device-code panel (code + link + countdown + status polling), test, enable, move, remove, and the two source toggles. Secrets are never returned.
+> 9. **Tests:**
+>    - migration (sqlite-jdbc, v7 data survives, unique `kind`);
+>    - repository validation / CR-LF / blank keeps;
+>    - cipher round-trip (fake);
+>    - per-service `account()` JSON fixtures → each `DebridTestResult`, no PII retained;
+>    - device-flow state machines (pending / linked / expired / denied / cancelled / superseded / discarded-after-clear) on a virtual clock;
+>    - refresher (pre-expiry, after `401`, single-flight, failure → *Sign-in needed*);
+>    - upgrade migrator (configured → ON, empty → OFF, runs once);
+>    - Usenet gating (OFF → no entry, no search, own-`servers` `nzbUrl` still listed);
+>    - Clear isolation: Usenet clear leaves Debrid rows/keys intact and vice versa, Undo restores, both windows independent, nothing deleted before 5 s;
+>    - Sources rows / order / sections / one-way wrap, Debrid panel edges;
+>    - portal routes (masking, blank keeps, toggles, auth session lifecycle, guards).
+>
+> Run `./gradlew testDebugUnitTest` and `./gradlew assembleDebug`.
 
-Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if any files were split or moved, and verify both `./gradlew testDebugUnitTest` and `./gradlew assembleDebug` pass with zero errors.
+**Acceptance Criteria:**
+- `Sources` shows `USENET` (`Enable Usenet` … `Usenet performance`, `Clear Usenet settings`), `DEBRID` (`Enable Debrid`, `Debrid providers`, `Clear Debrid settings`) and `PORTAL` (`Web portal`). A fresh `Down` on `Web portal` wraps to `Enable Usenet`.
+- On a fresh install both toggles are OFF. An install upgraded with providers and indexers configured keeps Usenet results (toggle reads ON). Switching a toggle OFF hides that source's built-in entry and keeps every provider, indexer and setting; switching it back ON restores them.
+- `Clear Usenet settings` → `Undo clear Usenet settings` for 5 s. Undo keeps everything; letting it pass empties providers, indexers and Usenet settings while every Debrid provider stays. `Clear Debrid settings` behaves the same in reverse, and both can be pending at once.
+- From the Web Portal: Real-Debrid, AllDebrid and TorBox sign in with a device / PIN code, and all seven services accept a pasted key or token. The provider appears on TV at once, and `/api/debrid` never returns a key or token.
+- On TV a Debrid provider can be enabled/disabled, moved, tested and removed with Manage addons focus rules. `Test` reports connected (with premium expiry), invalid key, not premium, rate limited or unreachable.
+
+---
+
+## Milestone 12: Debrid Library Scanner, Built-In Debrid Addon, Stream Processing & Playback (`feat/debrid-library`)
+**Prompt for Claude Code:**
+> Read `CLAUDE.md`, `PRD.md` (§8, §9, §13, §14) and `ARCHITECTURE.md` (§10, §11, §12). Use Nabrio `TorBoxApi.cloud` / `OffcloudApi.cloud` + `cloudFiles` and `EpisodeFilename` as references for listing and episode-file choice only. Execute **Milestone 12** (library-only: no hash, magnet or cache-check calls anywhere):
+> 1. **Clients:** implement `library()`, `files()` and `resolve()` for all seven `DebridLibraryClient`s per the ARCH §12 endpoint table (pagination ≤ 2,000 items, finished items only, HTTPS links only).
+> 2. **`data/debrid/library/`:**
+>    - `DebridLibraryCache` (60 s, single-flight, cleared on credential change / remove / Clear).
+>    - `DebridLibraryMatcher` + `EpisodeFilePicker` (ReleaseParser / ReleaseMatch, year ±1, SxxEyy / ranges / `1x02`, packs, IMDb tag, video-only, sample < 5% dropped, ≤ 8 `files()` calls per provider).
+>    - `DebridLibrarySearch` (parallel, provider order, 20 s timeout, per-provider failure isolation).
+> 3. **`data/debrid/stream/`:** `DebridStreamRegistry` (stable SHA-1 token) and `DebridLinkResolver` (20 min cache, refresher-wrapped).
+> 4. **Addon list:**
+>    - Add `BuiltInAddons.DEBRID_URL` (`debrid://builtin`), `DebridAddonState.listed`, and `BuiltInAddonGuard.keepDebridEntries` → `AddonRepository.ensureDebrid` (bottom of every profile, protected, movable / renamable / switchable).
+>    - Make sure Manage addons, Preferred auto-play addon and the portal addon editor show it only while listed.
+> 5. **Resolve:**
+>    - Generalise `UsenetSlot` into `BuiltInSlot` in `ResolveStreamsUseCase` and add the Debrid slot.
+>    - Feed results through `ProcessStreamsUseCase`.
+>    - `StreamFacts` type Debrid and indexer = service name.
+>    - `PredefinedFormatters.SOURCE` shows the service name.
+> 6. **Playback:**
+>    - Add `player/debrid/DebridPreflight` wired into `PlaybackStartGate.firstPlayable`, `PlayerStreamGate` and `ExternalStreamUrls.prepare`.
+>    - Add `PlaybackDataSources` routing for `seastreams-debrid://` → resolved HTTPS on the existing HTTP / parallel-range path.
+>    - External players get the HTTPS link.
+>    - LAST USED stores the `seastreams-debrid://` URL.
+> 7. **Tests:**
+>    - each client against JSON fixtures (listing, pagination, unfinished items skipped, `files`, `resolve`, non-HTTPS refused);
+>    - a guard test that no client ever requests a hash / magnet / cache-check / add endpoint;
+>    - matcher fixtures (movies ± year, episodes, multi-episode, season packs, nested folders, IMDb tags, samples, non-video);
+>    - cache TTL / single-flight;
+>    - search ordering and timeout;
+>    - Debrid card only when listed and placed at the entry's position, per-profile switch-off;
+>    - filters / sort / formatter on Debrid streams;
+>    - preflight skip on deleted file / revoked key with failover on and off;
+>    - LAST USED match across searches;
+>    - Clear empties caches and registry links.
+>
+> Run `./gradlew testDebugUnitTest` and `./gradlew assembleDebug`.
+
+**Acceptance Criteria:**
+- A movie or episode the user has in any enabled Debrid account lists under a `Debrid` card (service name shown per stream), placed where the profile's `Debrid` entry sits. Titles not in the account show no Debrid results, and no request ever sends a hash or magnet.
+- Season packs play the correct episode file. Samples and non-video files never appear.
+- Per-profile filters, sorting, result limits and the formatter apply to Debrid streams exactly as to Stremio and Usenet streams. One profile switching the entry off never affects another.
+- Debrid streams play in ExoPlayer and in Just Player / Vimu / Kodi. A file deleted from the account is skipped silently and failover moves on (or the Streams overlay opens with failover off).
+- Auto-play, `Preferred auto-play addon`, LAST USED and `Auto-play next episode` work for Debrid streams.
 
 ---
 

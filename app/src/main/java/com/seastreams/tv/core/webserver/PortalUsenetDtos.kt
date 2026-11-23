@@ -104,4 +104,6 @@ data class UsenetPortalState(
     val downloadHeaders: String,
     val headersCheckedAtMillis: Long?,
     val performance: UsenetPerformance,
+    /** `Enable Usenet`. */
+    val enabled: Boolean = false,
 )

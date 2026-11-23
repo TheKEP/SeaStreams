@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.seastreams.tv.core.datastore.UsenetSettingsStore
 import com.seastreams.tv.data.UserFacingException
+import com.seastreams.tv.data.sources.UsenetSettingsClear
 import com.seastreams.tv.data.usenet.NewznabIndexer
 import com.seastreams.tv.data.usenet.UsenetProvider
 import com.seastreams.tv.data.usenet.UsenetSourcesRepository
@@ -36,6 +37,10 @@ data class SourcesUiState(
     val performance: UsenetPerformance = UsenetPerformance(),
     val headers: RequestHeaderSettings = RequestHeaderSettings(),
     val updatingHeaders: Boolean = false,
+    /** `Enable Usenet`. */
+    val enabled: Boolean = false,
+    /** When a pending `Clear Usenet settings` commits (epoch ms); `null` when none is pending. */
+    val clearDeadlineMillis: Long? = null,
 )
 
 /** Settings `Sources` tab. Providers/indexers are added in the Web Portal; the TV toggles, reorders and removes them. */
@@ -46,6 +51,7 @@ class SourcesViewModel @Inject constructor(
     private val updater: HeaderVersionUpdater,
     private val tester: NntpConnectionTester,
     private val newznab: NewznabClient,
+    private val clear: UsenetSettingsClear,
 ) : ViewModel() {
 
     private var testJob: Job? = null
@@ -54,14 +60,27 @@ class SourcesViewModel @Inject constructor(
     val messages: Flow<String> = _messages.receiveAsFlow()
 
     val state: StateFlow<SourcesUiState> = combine(
-        repository.providers,
-        repository.indexers,
-        store.performance,
-        store.headers,
-        updater.updating,
-    ) { providers, indexers, performance, headers, updating ->
-        SourcesUiState(providers, indexers, performance, headers, updating)
-    }.stateIn(viewModelScope, WhileUiSubscribed, SourcesUiState())
+        combine(
+            repository.providers,
+            repository.indexers,
+            store.performance,
+            store.headers,
+            updater.updating,
+        ) { providers, indexers, performance, headers, updating ->
+            SourcesUiState(providers, indexers, performance, headers, updating)
+        },
+        store.enabled,
+        clear.deadline,
+    ) { base, enabled, deadline -> base.copy(enabled = enabled, clearDeadlineMillis = deadline) }
+        .stateIn(viewModelScope, WhileUiSubscribed, SourcesUiState())
+
+    /** `Enable Usenet`: providers, indexers and settings are kept either way. */
+    fun setEnabled(enabled: Boolean) = act { store.setEnabled(enabled) }
+
+    /** `Clear Usenet settings`: starts the 5-second Undo window; nothing is deleted until it passes. */
+    fun clearAll() = act { clear.schedule() }
+
+    fun undoClear() = act { if (clear.undo()) _messages.send("Usenet settings kept") }
 
     fun setProviderEnabled(id: Long, enabled: Boolean) = act { repository.setProviderEnabled(id, enabled) }
 

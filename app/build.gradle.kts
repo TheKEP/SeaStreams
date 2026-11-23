@@ -22,14 +22,17 @@ android {
         versionCode = 2
         versionName = "1.1"
 
-        // Developer TMDB key from local.properties (never committed); "" when absent.
-        val tmdbApiKey = rootProject.file("local.properties")
+        // Developer values from local.properties (never committed); "" when absent.
+        val localProperties = rootProject.file("local.properties")
             .takeIf { it.isFile }
             ?.let { file -> Properties().apply { file.inputStream().use(::load) } }
-            ?.getProperty("TMDB_API_KEY")
-            ?.trim()
-            .orEmpty()
-        buildConfigField("String", "TMDB_API_KEY", "\"${tmdbApiKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+        fun localString(name: String): String =
+            localProperties?.getProperty(name)?.trim().orEmpty().replace("\\", "\\\\").replace("\"", "\\\"")
+        buildConfigField("String", "TMDB_API_KEY", "\"${localString("TMDB_API_KEY")}\"")
+        // OAuth client IDs for Debrid-Link device sign-in and put.io OAuth-code sign-in (PRD §14). While blank, the
+        // portal offers key / token paste only for those two services.
+        buildConfigField("String", "DEBRID_LINK_CLIENT_ID", "\"${localString("DEBRID_LINK_CLIENT_ID")}\"")
+        buildConfigField("String", "PUTIO_CLIENT_ID", "\"${localString("PUTIO_CLIENT_ID")}\"")
     }
 
     buildTypes {

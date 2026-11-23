@@ -97,6 +97,7 @@ function setupUsenet() {
   byId('sources').append(
     h('h2', null, 'Usenet sources'),
     h('p', { class: 'hint' }, 'Shared by every profile. Passwords and API keys are stored encrypted on the TV and are never shown again; leave them blank when editing to keep them.'),
+    check('Enable Usenet (search Usenet for streams; providers and settings are kept while off)', checkbox('u-enabled')),
     h('div', { class: 'row' }, h('h3', null, 'Providers'), h('button', { type: 'button', id: 'up-new', onclick: () => openForm('providers', null) }, '+ Add provider')),
     h('ul', { class: 'list', id: 'up-list' }),
     h('form', { id: 'up-form', autocomplete: 'off', style: 'margin-top:12px' },
@@ -165,6 +166,7 @@ function setupUsenet() {
     };
     if (await uApi('/usenet/indexers', body, submitButton(e))) editIndexer(null);
   });
+  byId('u-enabled').addEventListener('change', (e) => uApi('/sources/toggles', { usenet: e.target.checked }, null));
   editProvider(null);
   editIndexer(null);
 }
@@ -230,6 +232,7 @@ function keepEditing(current, list) {
 
 function renderUsenet() {
   const st = U.st;
+  byId('u-enabled').checked = !!st.enabled;
   const provider = keepEditing(U.provider, st.providers);
   if (provider === undefined) editProvider(null); else if (provider) U.provider = provider;
   const indexer = keepEditing(U.indexer, st.indexers);

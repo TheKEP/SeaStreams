@@ -22,9 +22,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Search
 import com.seastreams.tv.core.util.MILLIS_PER_SECOND
 import com.seastreams.tv.data.usenet.headers.HeaderUse
 import com.seastreams.tv.ui.screens.settings.sources.HEADERS_DOWNLOAD_ROW_KEY
@@ -32,14 +29,11 @@ import com.seastreams.tv.ui.screens.settings.sources.HEADERS_SEARCH_ROW_KEY
 import com.seastreams.tv.ui.screens.settings.sources.INDEXERS_ROW_KEY
 import com.seastreams.tv.ui.screens.settings.sources.PERFORMANCE_ROW_KEY
 import com.seastreams.tv.ui.screens.settings.sources.PROVIDERS_ROW_KEY
-import com.seastreams.tv.ui.screens.settings.sources.SourceListPanel
-import com.seastreams.tv.ui.screens.settings.sources.SourceRow
+import com.seastreams.tv.ui.screens.settings.sources.DEBRID_PROVIDERS_ROW_KEY
+import com.seastreams.tv.ui.screens.settings.sources.DebridSourcesViewModel
+import com.seastreams.tv.ui.screens.settings.sources.SourcesActions
+import com.seastreams.tv.ui.screens.settings.sources.SourcesPanelHost
 import com.seastreams.tv.ui.screens.settings.sources.SourcesViewModel
-import com.seastreams.tv.ui.screens.settings.sources.UsenetPerformancePanel
-import com.seastreams.tv.ui.screens.settings.sources.headerChoiceSpec
-import com.seastreams.tv.ui.screens.settings.sources.indexerSubtitle
-import com.seastreams.tv.ui.screens.settings.sources.performanceItems
-import com.seastreams.tv.ui.screens.settings.sources.providerSubtitle
 import com.seastreams.tv.ui.screens.settings.streams.STREAM_FILTERS_ROW_KEY
 import com.seastreams.tv.ui.screens.settings.streams.STREAM_FORMATTER_ROW_KEY
 import com.seastreams.tv.ui.screens.settings.streams.STREAM_SORT_ROW_KEY
@@ -69,11 +63,13 @@ fun SettingsScreen(
     viewModel: SettingsViewModel,
     appearance: AppearanceViewModel,
     sources: SourcesViewModel,
+    debrid: DebridSourcesViewModel,
     streams: StreamProcessingViewModel,
     onOpenProfiles: () -> Unit,
 ) {
     val state by viewModel.state.collectAsState()
     val sourcesState by sources.state.collectAsState()
+    val debridState by debrid.state.collectAsState()
     val streamState by streams.state.collectAsState()
     val savedBackground by appearance.saved.collectAsState()
     val cacheBytes by viewModel.cacheBytes.collectAsState()
@@ -99,6 +95,7 @@ fun SettingsScreen(
     }
     LaunchedEffect(viewModel) { viewModel.messages.collect { messages?.show(it) } }
     LaunchedEffect(sources) { sources.messages.collect { messages?.show(it) } }
+    LaunchedEffect(debrid) { debrid.messages.collect { messages?.show(it) } }
     // Opening the Sources tab runs the daily header-version check when it's due (PRD §12).
     LaunchedEffect(category) { if (category == SettingsCategory.SOURCES) sources.checkHeadersIfDue() }
     LaunchedEffect(Unit) { pillRequesters[SettingsCategory.HOME.ordinal].requestFocusAfterFrame() }
@@ -131,6 +128,14 @@ fun SettingsScreen(
             delay(TICK_MILLIS)
         }
     }
+    // Ticks while a `Clear Usenet / Debrid settings` can still be undone, so its row counts down.
+    val sourceDeadlines = listOfNotNull(sourcesState.clearDeadlineMillis, debridState.clearDeadlineMillis)
+    val sourcesNow by produceState(System.currentTimeMillis(), sourceDeadlines) {
+        do {
+            value = System.currentTimeMillis()
+            if (sourceDeadlines.isNotEmpty()) delay(TICK_MILLIS)
+        } while (sourceDeadlines.isNotEmpty())
+    }
     val items = settingsItems(
         category = category,
         state = state,
@@ -151,9 +156,19 @@ fun SettingsScreen(
                 onOpenProfiles()
             },
             updateHeaders = sources::updateHeadersNow,
+            sources = SourcesActions(
+                setUsenetEnabled = { sources.setEnabled(it) },
+                clearUsenet = { sources.clearAll() },
+                undoClearUsenet = { sources.undoClear() },
+                setDebridEnabled = { debrid.setEnabled(it) },
+                clearDebrid = { debrid.clearAll() },
+                undoClearDebrid = { debrid.undoClear() },
+            ),
         ),
         sources = sourcesState,
+        debrid = debridState,
         streams = streamState,
+        nowMillis = sourcesNow,
     )
 
     Column(
@@ -214,36 +229,6 @@ fun SettingsScreen(
                     onOpenPortal = { panel = SettingsPanel.Portal },
                 )
                 SettingsPanel.Portal -> PortalPanel(state.portal) { panel = SettingsPanel.Main }
-                SettingsPanel.UsenetProviders -> SourceListPanel(
-                    title = "Usenet providers",
-                    icon = Icons.Filled.Lock,
-                    rows = sourcesState.providers.map { SourceRow(it.id, it.name, providerSubtitle(it), it.enabled) },
-                    addTitle = "Add a provider",
-                    addHint = "Enter the server and login in the Web Portal",
-                    onToggle = { sources.setProviderEnabled(it.id, !it.enabled) },
-                    onMove = { row, offset -> sources.moveProvider(row.id, offset) },
-                    onRemove = { sources.removeProvider(it.id) },
-                    onAdd = { panel = SettingsPanel.Portal },
-                    onTest = { sources.testProvider(it.id) },
-                )
-                SettingsPanel.UsenetIndexers -> SourceListPanel(
-                    title = "Indexers",
-                    icon = Icons.Filled.Search,
-                    rows = sourcesState.indexers.map { SourceRow(it.id, it.name, indexerSubtitle(it), it.enabled) },
-                    addTitle = "Add an indexer",
-                    addHint = "Enter the indexer address and API key in the Web Portal",
-                    onToggle = { sources.setIndexerEnabled(it.id, !it.enabled) },
-                    onMove = { row, offset -> sources.moveIndexer(row.id, offset) },
-                    onRemove = { sources.removeIndexer(it.id) },
-                    onAdd = { panel = SettingsPanel.Portal },
-                    onTest = { sources.testIndexer(it.id) },
-                )
-                SettingsPanel.UsenetPerformance -> UsenetPerformancePanel(
-                    performanceItems(sourcesState.performance, sources::setProfile, sources::editPerformance),
-                )
-                is SettingsPanel.Headers -> ChoicePanel(headerChoiceSpec(current.use, sourcesState, sources::setHeaderPreset)) {
-                    panel = SettingsPanel.Main
-                }
                 is SettingsPanel.Stream -> StreamPanelHost(
                     panel = current,
                     settings = streamState,
@@ -252,6 +237,20 @@ fun SettingsScreen(
                     openPortal = { panel = SettingsPanel.Portal },
                     close = { panel = SettingsPanel.Main },
                     nowMillis = System.currentTimeMillis(),
+                )
+                SettingsPanel.UsenetProviders,
+                SettingsPanel.UsenetIndexers,
+                SettingsPanel.UsenetPerformance,
+                SettingsPanel.DebridProviders,
+                is SettingsPanel.Headers,
+                -> SourcesPanelHost(
+                    panel = current,
+                    usenetState = sourcesState,
+                    usenet = sources,
+                    debridState = debridState,
+                    debrid = debrid,
+                    openPortal = { panel = SettingsPanel.Portal },
+                    close = { panel = SettingsPanel.Main },
                 )
                 SettingsPanel.SubtitleStyle -> SubtitleStyleScreen(state.settings.subtitles.style) { transform ->
                     viewModel.updateSubtitles { it.copy(style = transform(it.style)) }
@@ -269,6 +268,7 @@ private fun keyFor(panel: SettingsPanel): String = when (panel) {
     SettingsPanel.UsenetProviders -> PROVIDERS_ROW_KEY
     SettingsPanel.UsenetIndexers -> INDEXERS_ROW_KEY
     SettingsPanel.UsenetPerformance -> PERFORMANCE_ROW_KEY
+    SettingsPanel.DebridProviders -> DEBRID_PROVIDERS_ROW_KEY
     is SettingsPanel.Headers -> if (panel.use == HeaderUse.SEARCH) HEADERS_SEARCH_ROW_KEY else HEADERS_DOWNLOAD_ROW_KEY
     SettingsPanel.Stream.Sort -> STREAM_SORT_ROW_KEY
     SettingsPanel.Stream.Formatter -> STREAM_FORMATTER_ROW_KEY

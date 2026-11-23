@@ -17,6 +17,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import com.seastreams.tv.testutil.usenetSettings
 
 /** Streams and subtitles come only from the requesting profile's own enabled addons. */
 class ResolveStreamsProfileScopeTest {
@@ -45,7 +46,7 @@ class ResolveStreamsProfileScopeTest {
             listOf(StremioStream("https://cdn/${firstArg<String>().length}.mkv", "S", "", emptyMap()))
         }
         coEvery { client.fetchSubtitles(any(), any(), any()) } returns listOf(StremioSubtitle("1", "https://s/1.srt", "eng"))
-        val useCase = ResolveStreamsUseCase(dao, Lazy { client }, unconfiguredUsenet(), UsenetStreamRegistry(), noStreamProcessing())
+        val useCase = ResolveStreamsUseCase(dao, Lazy { client }, unconfiguredUsenet(), UsenetStreamRegistry(), noStreamProcessing(), usenetSettings())
 
         val result = useCase(StreamQuery(1, MediaRef(603, MediaType.MOVIE), imdbId = "tt0133093", episode = null))
 
