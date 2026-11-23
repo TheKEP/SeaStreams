@@ -27,6 +27,9 @@ data class StreamPortalState(
     val filters: StreamFilters,
     val sort: StreamSort,
     val formatter: StreamFormatterChoice,
+    val filteringEnabled: Boolean,
+    val sortingEnabled: Boolean,
+    val formattingEnabled: Boolean,
     val resolutions: List<String>,
     val attributes: List<StreamAttributeDto>,
     val sortKeys: List<StreamOptionDto>,
@@ -43,14 +46,18 @@ data class StreamOptionDto(val id: String, val label: String)
 @Serializable
 data class FormatterTemplateDto(val name: String, val description: String)
 
+/**
+ * The save requests take the rules and/or the stage's master toggle; `null` leaves that part as stored, so a portal
+ * checkbox posts only its flag. A request with neither is refused.
+ */
 @Serializable
-data class StreamFiltersRequest(val profileId: Long, val filters: StreamFilters)
+data class StreamFiltersRequest(val profileId: Long, val filters: StreamFilters? = null, val filteringEnabled: Boolean? = null)
 
 @Serializable
-data class StreamSortRequest(val profileId: Long, val sort: StreamSort)
+data class StreamSortRequest(val profileId: Long, val sort: StreamSort? = null, val sortingEnabled: Boolean? = null)
 
 @Serializable
-data class StreamFormatterRequest(val profileId: Long, val formatter: StreamFormatterChoice)
+data class StreamFormatterRequest(val profileId: Long, val formatter: StreamFormatterChoice? = null, val formattingEnabled: Boolean? = null)
 
 /** `POST /api/streams/format-preview`: templates to try, optionally on the user's own release name. */
 @Serializable
@@ -78,6 +85,9 @@ class PortalStreamController @Inject constructor(
             filters = settings.filters,
             sort = settings.sort,
             formatter = settings.formatter,
+            filteringEnabled = settings.filteringEnabled,
+            sortingEnabled = settings.sortingEnabled,
+            formattingEnabled = settings.formattingEnabled,
             resolutions = ReleaseRegexTables.RESOLUTION_NAMES,
             attributes = FilterAttribute.entries.map { StreamAttributeDto(it.name, it.label, it.options) },
             sortKeys = SortKey.entries.map { StreamOptionDto(it.name, it.label) },
@@ -89,31 +99,37 @@ class PortalStreamController @Inject constructor(
     }
 
     suspend fun saveFilters(request: StreamFiltersRequest): String {
+        val filters = request.filters
+        requireChange(filters, request.filteringEnabled)
         val name = requireProfile(request.profileId)
-        val regex = request.filters.regex
-        (regex.required + regex.excluded + regex.included + regex.preferred.map { it.pattern })
-            .firstOrNull { it.isNotBlank() && !KeywordMatcher.isValid(it) }
-            ?.let { throw UserFacingException("Not a valid regex: $it") }
-        store.updateFilters(request.profileId) { request.filters }
-        return "Stream filters saved for $name"
+        filters?.regex?.let { regex ->
+            (regex.required + regex.excluded + regex.included + regex.preferred.map { it.pattern })
+                .firstOrNull { it.isNotBlank() && !KeywordMatcher.isValid(it) }
+                ?.let { throw UserFacingException("Not a valid regex: $it") }
+        }
+        store.updateFilters(request.profileId, request.filteringEnabled) { filters ?: it }
+        return if (filters == null) toggled("Stream filtering", request.filteringEnabled, name) else "Stream filters saved for $name"
     }
 
     suspend fun saveSort(request: StreamSortRequest): String {
+        val sort = request.sort
+        requireChange(sort, request.sortingEnabled)
         val name = requireProfile(request.profileId)
-        store.updateSort(request.profileId) { request.sort }
-        return "Stream sorting saved for $name"
+        store.updateSort(request.profileId, request.sortingEnabled) { sort ?: it }
+        return if (sort == null) toggled("Stream sorting", request.sortingEnabled, name) else "Stream sorting saved for $name"
     }
 
     suspend fun saveFormatter(request: StreamFormatterRequest): String {
-        val name = requireProfile(request.profileId)
         val formatter = request.formatter
-        if ((formatter.customName?.length ?: 0) > StreamProcessingStore.MAX_TEMPLATE_CHARS ||
-            (formatter.customDescription?.length ?: 0) > StreamProcessingStore.MAX_TEMPLATE_CHARS
+        requireChange(formatter, request.formattingEnabled)
+        val name = requireProfile(request.profileId)
+        if ((formatter?.customName?.length ?: 0) > StreamProcessingStore.MAX_TEMPLATE_CHARS ||
+            (formatter?.customDescription?.length ?: 0) > StreamProcessingStore.MAX_TEMPLATE_CHARS
         ) {
             throw UserFacingException("Templates are limited to ${StreamProcessingStore.MAX_TEMPLATE_CHARS} characters")
         }
-        store.updateFormatter(request.profileId) { formatter }
-        return "Stream formatter saved for $name"
+        store.updateFormatter(request.profileId, request.formattingEnabled) { formatter ?: it }
+        return if (formatter == null) toggled("Stream formatting", request.formattingEnabled, name) else "Stream formatter saved for $name"
     }
 
     /** The sample release (or [FormatPreviewRequest.filename]) rendered with the request's templates. */
@@ -122,6 +138,13 @@ class PortalStreamController @Inject constructor(
         val display = FormatterPreview.render(templates, clock.millis(), request.filename?.take(MAX_FILENAME_CHARS))
         return FormatPreviewResponse(display.name, display.description)
     }
+
+    private fun requireChange(rules: Any?, enabled: Boolean?) {
+        if (rules == null && enabled == null) throw UserFacingException("Nothing to save")
+    }
+
+    private fun toggled(stage: String, enabled: Boolean?, profile: String): String =
+        "$stage turned ${if (enabled == true) "on" else "off"} for $profile"
 
     private suspend fun requireProfile(profileId: Long): String =
         profiles.observeProfiles().first().firstOrNull { it.id == profileId }?.name ?: throw UserFacingException("That profile no longer exists")

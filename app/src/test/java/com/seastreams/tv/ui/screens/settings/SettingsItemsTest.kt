@@ -1,7 +1,10 @@
 package com.seastreams.tv.ui.screens.settings
 
+import com.seastreams.tv.ui.screens.settings.streams.STREAM_FILTERING_TOGGLE_KEY
 import com.seastreams.tv.ui.screens.settings.streams.STREAM_FILTERS_ROW_KEY
 import com.seastreams.tv.ui.screens.settings.streams.STREAM_FORMATTER_ROW_KEY
+import com.seastreams.tv.ui.screens.settings.streams.STREAM_FORMATTING_TOGGLE_KEY
+import com.seastreams.tv.ui.screens.settings.streams.STREAM_SORTING_TOGGLE_KEY
 import com.seastreams.tv.ui.screens.settings.streams.STREAM_SORT_ROW_KEY
 import com.seastreams.tv.core.datastore.AppSettings
 import com.seastreams.tv.core.datastore.PlayerSettings
@@ -22,7 +25,8 @@ class SettingsItemsTest {
             SettingsCategory.HOME to listOf("Profiles", "Manage addons", "Web portal"),
             SettingsCategory.UI to listOf(
                 "Background color", "Blur unwatched episode thumbnails", "Auto-play trailers",
-                "Mute auto-play trailers", "Trailer auto-play delay", "Stream filters", "Stream sorting", "Stream formatter",
+                "Mute auto-play trailers", "Trailer auto-play delay", "Enable stream filtering", "Stream filters",
+                "Enable stream sorting", "Stream sorting", "Enable stream formatting", "Stream formatter",
             ),
             SettingsCategory.PLAYBACK to listOf(
                 "Player", "Auto-play top stream", "Preferred auto-play addon", "Auto-play next episode",
@@ -51,7 +55,10 @@ class SettingsItemsTest {
     @Test
     fun `only the conditional sub-settings are indented`() {
         val indented = SettingsCategory.entries.flatMap { buildItems(it).entries() }.filter { it.indented }.map { it.key }
-        assertEquals(listOf(TRAILERS_MUTE_ROW_KEY, TRAILERS_DELAY_ROW_KEY, FALLBACK_ROW_KEY), indented)
+        assertEquals(
+            listOf(TRAILERS_MUTE_ROW_KEY, TRAILERS_DELAY_ROW_KEY, STREAM_FILTERS_ROW_KEY, STREAM_SORT_ROW_KEY, STREAM_FORMATTER_ROW_KEY, FALLBACK_ROW_KEY),
+            indented,
+        )
     }
 
     @Test
@@ -69,21 +76,25 @@ class SettingsItemsTest {
 
     @Test
     fun `trailer sub-settings follow Auto-play trailers, with the stream rows always last in UI`() {
-        val streamRows = listOf(STREAM_FILTERS_ROW_KEY, STREAM_SORT_ROW_KEY, STREAM_FORMATTER_ROW_KEY)
+        val streamRows = listOf(
+            STREAM_FILTERING_TOGGLE_KEY, STREAM_FILTERS_ROW_KEY, STREAM_SORTING_TOGGLE_KEY, STREAM_SORT_ROW_KEY,
+            STREAM_FORMATTING_TOGGLE_KEY, STREAM_FORMATTER_ROW_KEY,
+        )
         val on = buildItems(SettingsCategory.UI)
-        assertEquals(listOf(TRAILERS_ROW_KEY, TRAILERS_MUTE_ROW_KEY, TRAILERS_DELAY_ROW_KEY) + streamRows, on.keys().takeLast(6))
+        assertEquals(listOf(TRAILERS_ROW_KEY, TRAILERS_MUTE_ROW_KEY, TRAILERS_DELAY_ROW_KEY) + streamRows, on.keys().takeLast(9))
         assertEquals(STREAM_FORMATTER_ROW_KEY, lastEntryKey(on))
 
         val off = buildItems(SettingsCategory.UI, player = PlayerSettings(autoPlayTrailers = false))
         assertFalse(TRAILERS_MUTE_ROW_KEY in off.keys())
         assertFalse(TRAILERS_DELAY_ROW_KEY in off.keys())
-        assertEquals(listOf(TRAILERS_ROW_KEY) + streamRows, off.keys().takeLast(4))
+        assertEquals(listOf(TRAILERS_ROW_KEY) + streamRows, off.keys().takeLast(7))
     }
 
     @Test
     fun `the UI stream rows open their panels, whose Back returns to the UI list`() {
         val panels = mutableListOf<SettingsPanel>()
-        buildItems(SettingsCategory.UI, open = { panels += it }).entries().takeLast(3).forEach { it.onClick() }
+        val panelRows = listOf(STREAM_FILTERS_ROW_KEY, STREAM_SORT_ROW_KEY, STREAM_FORMATTER_ROW_KEY)
+        buildItems(SettingsCategory.UI, open = { panels += it }).entries().filter { it.key in panelRows }.forEach { it.onClick() }
         assertEquals(listOf(SettingsPanel.Stream.Filters, SettingsPanel.Stream.Sort, SettingsPanel.Stream.Formatter), panels)
         panels.forEach { assertEquals(SettingsPanel.Main, it.parent()) }
         assertFalse(buildItems(SettingsCategory.SOURCES).keys().any { it.startsWith("stream-") })

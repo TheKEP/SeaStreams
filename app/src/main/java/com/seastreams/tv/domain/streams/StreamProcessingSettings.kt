@@ -7,13 +7,30 @@ import kotlinx.serialization.Serializable
 /**
  * One profile's stream processing (PRD §13), stored as three JSON ScopedKeys (`stream_filters`, `stream_sort`,
  * `stream_formatter`). Every default means "no change": no filter, no sorting, the addon's own text.
+ *
+ * The master toggles ([filteringEnabled], [sortingEnabled], [formattingEnabled], default `true`) bypass one stage while
+ * keeping its stored rules; [effective] is what the pipeline actually applies.
  */
 data class StreamProcessingSettings(
     val filters: StreamFilters = StreamFilters(),
     val sort: StreamSort = StreamSort(),
     val formatter: StreamFormatterChoice = StreamFormatterChoice(),
+    val filteringEnabled: Boolean = true,
+    val sortingEnabled: Boolean = true,
+    val formattingEnabled: Boolean = true,
 ) {
+    /** Nothing stored and every toggle on. */
     val isDefault: Boolean get() = this == StreamProcessingSettings()
+
+    /**
+     * The rules the pipeline applies: a bypassed stage's rules become its defaults. Filtering off also empties the
+     * *Preferred* lists the sorter and formatter read, since they live with the filters (PRD §13 *Master toggles*).
+     */
+    fun effective(): StreamProcessingSettings = StreamProcessingSettings(
+        filters = if (filteringEnabled) filters else StreamFilters(),
+        sort = if (sortingEnabled) sort else StreamSort(),
+        formatter = if (formattingEnabled) formatter else StreamFormatterChoice(),
+    )
 }
 
 /**

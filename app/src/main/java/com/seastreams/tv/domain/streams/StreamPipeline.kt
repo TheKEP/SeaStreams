@@ -29,17 +29,23 @@ data class StreamContext(
  */
 object StreamPipeline {
 
+    /**
+     * Stages switched off by their master toggle are skipped ([StreamProcessingSettings.effective]); with nothing left
+     * to do the list comes back untouched, without parsing.
+     */
     fun process(streams: List<StreamSource>, settings: StreamProcessingSettings, context: StreamContext, nowMillis: Long): List<StreamSource> {
-        if (settings.isDefault || streams.isEmpty()) return streams
+        val active = settings.effective()
+        if (active.isDefault || streams.isEmpty()) return streams
         val durationMs = context.runtimeMinutes?.takeIf { it > 0 }?.let { it * MILLIS_PER_MINUTE }
         val parsed = streams.map { StreamCandidate(it, StreamFacts.parse(it, durationMs, nowMillis, UsenetStreamSearch.USENET_ADDON_URL)) }
-        val filters = settings.filters
-        val filtered = StreamFilterEngine(filters, context.kind).filter(parsed)
-        val annotated = annotatePreferred(filtered, filters)
-        val unique = StreamDeduplicator.deduplicate(annotated, filters.dedup)
-        val sorted = StreamSorter(settings.sort, filters, context.addonOrder).sort(unique, context.kind)
-        val limited = ResultLimiter.limit(sorted, filters.limits)
-        val choice = settings.formatter
+        val filters = active.filters
+        val filtering = filters != StreamFilters()
+        val filtered = if (filtering) StreamFilterEngine(filters, context.kind).filter(parsed) else parsed
+        val annotated = if (filtering) annotatePreferred(filtered, filters) else filtered
+        val unique = if (filtering) StreamDeduplicator.deduplicate(annotated, filters.dedup) else annotated
+        val sorted = if (active.sort != StreamSort()) StreamSorter(active.sort, filters, context.addonOrder).sort(unique, context.kind) else unique
+        val limited = if (filtering) ResultLimiter.limit(sorted, filters.limits) else sorted
+        val choice = active.formatter
         val formatter = PredefinedFormatters.templates(choice.id, choice.customName, choice.customDescription)?.let(::StreamFormatter)
         return limited.map { candidate ->
             val display = formatter?.let { format(it, candidate, context, filters) }

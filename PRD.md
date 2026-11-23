@@ -279,7 +279,7 @@
   - **Settings Category Tab Bar:** A centred, dark translucent rounded pill container holding seven category tabs, left to right: `Home`, `UI`, `Playback`, `Audio`, `Subtitles`, `Sources`, `Other`. All seven fit on one row of a 960×540 dp screen inside the 56 dp page gutters. The active tab renders as a high-contrast light pill (`#E5E9F0`) with dark bold text (`#0B0D12`); inactive tabs use muted light text (`#A0A8B8`, white `#FFFFFF` while focused). Moving D-pad focus `Left`/`Right` across the bar immediately switches the active category and the settings list below it.
   - **Category header & card:** Below the bar, a compact uppercase category label with a small leading icon (e.g. `PLAYBACK`), then the category's settings rows inside one dark rounded card (`#161A23`) with subtle dividers between rows. Each row shows a left icon, a sentence-case title, a muted subtitle with the current value, and a right chevron `>` (sub-menus/pickers), toggle switch, or `‹ value ›` stepper. The focused row inverts to a high-contrast light pill (`#E5E9F0`) with dark text/icons.
   - **Sentence case:** Every label capitalizes only its first word and proper nouns/acronyms (`HDR`, `Dolby Vision`, `SDH`).
-  - **Indented conditional sub-settings:** `Mute auto-play trailers` and `Trailer auto-play delay` (under `Auto-play trailers`) and `Failover timeout duration` (under `Automatic stream failover`) appear only while their parent toggle is `ON`, directly beneath it, with a start indent and a thin vertical connector line so they read as belonging to the parent. Their stored values are kept while hidden.
+  - **Indented conditional sub-settings:** `Mute auto-play trailers` and `Trailer auto-play delay` (under `Auto-play trailers`), `Stream filters` / `Stream sorting` / `Stream formatter` (under `Enable stream filtering` / `Enable stream sorting` / `Enable stream formatting`) and `Failover timeout duration` (under `Automatic stream failover`) appear only while their parent toggle is `ON`, directly beneath it, with a start indent and a thin vertical connector line so they read as belonging to the parent. Their stored values are kept while hidden.
 - **D-Pad Focus & Navigation:**
   - **Initial entry:** Opening Settings focuses the `Home` tab and shows the `Home` list.
   - **Tab bar wrap (two-way, §1 rule):** A fresh `Left` (`repeatCount == 0`) on `Home` wraps to `Other`; a fresh `Right` on `Other` wraps to `Home`. Holding `Left`/`Right` (`repeatCount > 0`) stops on the edge tab and never wraps.
@@ -308,9 +308,13 @@
     3. `Auto-play trailers` toggle (default `ON`).
     4. `Mute auto-play trailers` toggle (default `ON`): indented sub-setting, shown only while `Auto-play trailers` is `ON`.
     5. `Trailer auto-play delay` (`1s` to `7s` in `1s` steps, default `2s`): indented sub-setting, shown only while `Auto-play trailers` is `ON`.
-    6. `Stream filters`: value `Off — every stream is shown` or `N filters on`. Opens the filter panels (§13).
-    7. `Stream sorting`: value `Off — addon order` or the Global criteria. Opens the sort panel (§13).
-    8. `Stream formatter`: value = the chosen formatter. Opens the formatter picker with its live preview (§13). `Back` from any of the three panels returns to its row in `UI`.
+    6. `Enable stream filtering` toggle (per profile, default `ON`; subtitle `On: your stream filters are applied` / `Off: every stream is shown — your filters are kept`; §13 *Master toggles*).
+       - `Stream filters`: indented sub-setting, shown only while `Enable stream filtering` is `ON`. Value `Off — every stream is shown` or `N filters on`. Opens the filter panels (§13).
+    7. `Enable stream sorting` toggle (per profile, default `ON`; subtitle `On: streams are sorted by your criteria` / `Off: addon order — your sort criteria are kept`).
+       - `Stream sorting`: indented sub-setting, shown only while `Enable stream sorting` is `ON`. Value `Off — addon order` or the Global criteria. Opens the sort panel (§13).
+    8. `Enable stream formatting` toggle (per profile, default `ON`; subtitle `On: streams use your chosen formatter` / `Off: the addon's own text — your formatter is kept`).
+       - `Stream formatter`: indented sub-setting, shown only while `Enable stream formatting` is `ON`. Value = the chosen formatter. Opens the formatter picker with its live preview (§13). `Back` from any of the three panels returns to its row in `UI` (or to its toggle if the row was hidden meanwhile, e.g. switched off from the Web Portal).
+       - The one-way bottom-to-top wrap edge of `UI` is `Stream formatter` while formatting is `ON` and `Enable stream formatting` while it is `OFF`.
   - **`Playback`:**
     1. `Player` selector (ExoPlayer default, detected installed `video/*` players including Just Player, MX Player, Vimu, VLC, Kodi, or **Other / System App Chooser**).
     2. `Auto-play top stream` toggle (default `ON`; its subtitle explains how to reach the stream results: `Press and hold Play to view stream results` when enabled, `Press Play to view stream results` when disabled).
@@ -446,6 +450,13 @@ SeaStreams streams Usenet releases natively: Newznab indexer search → NZB → 
 
 ## 13. Stream Filtering, Sorting & Formatter (Milestone 10)
 Per profile (`p{id}/` keys), edited from `Settings → UI` (`Stream filters`, `Stream sorting`, `Stream formatter`) and the Web Portal. Applied to every resolved stream list (Stremio addons, Usenet and, from Milestone 12, the Debrid library, §14) in this order: parse → filter → deduplicate → sort → result limits → format. Auto-play, failover order, LAST USED and the Addons column counts all use the processed list. The defaults are no filters, no sorting and the original addon text, so behaviour only changes once the user opts in.
+
+- **Master toggles:** `Enable stream filtering`, `Enable stream sorting` and `Enable stream formatting`, per profile, each default `ON` (so upgraded profiles behave exactly as before). Turning one `OFF` bypasses only that stage and keeps every stored filter, sort criterion and formatter (preset or custom templates), so turning it back `ON` restores the same results:
+  - Filtering `OFF`: no Required/Excluded/Included filters, no deduplicator, no result limits, and the *Preferred* lists (attribute lists, regexes, keywords) are ignored too, so preference-based sort criteria rank nothing.
+  - Sorting `OFF`: the addon/source order is kept.
+  - Formatting `OFF`: stream cards show the addon's own name and description.
+  - Releases are parsed only when an enabled stage has something to do; with all three `OFF` the list is returned untouched.
+  - Edited on the TV (`Settings → UI`) and in the Web Portal (a checkbox at the top of the Filters, Sorting and Formatter sections, saved as soon as it is ticked).
 
 - **Filters** (`aio-filters.png`):
   - Groups: Stream type, Seeders, Age, Resolution, Quality, Encode, Visual tag, Audio tag, Audio channel, Language, Subtitle, Size, Bitrate, Keyword, Release group, Regex, Result limits, Deduplicator.

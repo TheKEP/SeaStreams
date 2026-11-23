@@ -15,7 +15,8 @@ import kotlinx.serialization.serializer
  * Stream filtering, sorting and formatter endpoints under `/api` (PRD §13), with the same trusted-host and JSON
  * content-type guards as every other portal route:
  * - `GET /api/streams?profileId=…` – [StreamPortalState]
- * - `POST /api/streams/filters`, `/api/streams/sort`, `/api/streams/formatter` – save one profile's settings ([ApiMessage])
+ * - `POST /api/streams/filters`, `/api/streams/sort`, `/api/streams/formatter` – save one profile's rules and/or that
+ *   stage's master toggle (`filteringEnabled` / `sortingEnabled` / `formattingEnabled`) ([ApiMessage])
  * - `POST /api/streams/format-preview` – render templates on the sample release ([FormatPreviewResponse])
  */
 internal fun Route.streamRoutes(controller: PortalStreamController) {

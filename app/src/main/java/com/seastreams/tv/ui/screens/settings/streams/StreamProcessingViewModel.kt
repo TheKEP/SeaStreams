@@ -35,11 +35,17 @@ class StreamProcessingViewModel @Inject constructor(
         .flatMapLatest { id -> id?.let(store::settings) ?: flowOf(StreamProcessingSettings()) }
         .stateIn(viewModelScope, WhileUiSubscribed, StreamProcessingSettings())
 
-    fun updateFilters(transform: (StreamFilters) -> StreamFilters) = edit { store.updateFilters(it, transform) }
+    fun updateFilters(transform: (StreamFilters) -> StreamFilters) = edit { store.updateFilters(it, transform = transform) }
 
-    fun updateSort(transform: (StreamSort) -> StreamSort) = edit { store.updateSort(it, transform) }
+    fun updateSort(transform: (StreamSort) -> StreamSort) = edit { store.updateSort(it, transform = transform) }
 
-    fun updateFormatter(transform: (StreamFormatterChoice) -> StreamFormatterChoice) = edit { store.updateFormatter(it, transform) }
+    fun updateFormatter(transform: (StreamFormatterChoice) -> StreamFormatterChoice) = edit { store.updateFormatter(it, transform = transform) }
+
+    fun setFilteringEnabled(enabled: Boolean) = edit { store.setFilteringEnabled(it, enabled) }
+
+    fun setSortingEnabled(enabled: Boolean) = edit { store.setSortingEnabled(it, enabled) }
+
+    fun setFormattingEnabled(enabled: Boolean) = edit { store.setFormattingEnabled(it, enabled) }
 
     private fun edit(block: suspend (Long) -> Unit) {
         viewModelScope.launch {
