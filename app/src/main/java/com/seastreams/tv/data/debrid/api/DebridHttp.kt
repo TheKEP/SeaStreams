@@ -49,8 +49,11 @@ class DebridAnswer(val code: Int, val body: String) {
     val ok: Boolean get() = code in 200..299
 
     /** The body as a JSON object, or `null` when it isn't one. */
-    fun json(): JsonObject? = try {
-        lenientJson.parseToJsonElement(body) as? JsonObject
+    fun json(): JsonObject? = jsonElement() as? JsonObject
+
+    /** The body as any JSON value (object, array, string), or `null` when it isn't JSON (or is empty). */
+    fun jsonElement(): JsonElement? = try {
+        if (body.isBlank()) null else lenientJson.parseToJsonElement(body)
     } catch (e: SerializationException) {
         null
     } catch (e: IllegalArgumentException) {
@@ -74,9 +77,9 @@ private val lenientJson = Json { ignoreUnknownKeys = true; isLenient = true }
 
 /**
  * The HTTP side of every Debrid call (ARCHITECTURE §12): the shared OkHttp client without its disk cache, `no-store`
- * on every request (account data and, later, library listings and links never reach the HTTP cache), credentials in
- * `Authorization: Bearer` headers. Where a service insists on a query parameter (Premiumize `apikey`), the URL is
- * never logged, persisted or returned. Calls run on [io] and are interruptible.
+ * on every request (account data, library listings and links never reach the HTTP cache), credentials in
+ * `Authorization: Bearer` headers. Where a service insists on a query parameter (Premiumize `apikey`, TorBox
+ * `requestdl` `token`), the URL is never logged, persisted or returned. Calls run on [io] and are interruptible.
  */
 @Singleton
 class DebridHttp internal constructor(

@@ -31,8 +31,7 @@ import com.seastreams.tv.domain.usecase.ResolveContinueWatchingTargetUseCase
 import com.seastreams.tv.domain.usecase.ResolveTrailerStreamUseCase
 import com.seastreams.tv.player.external.ExternalLaunchSpec
 import com.seastreams.tv.player.external.ExternalStreamUrls
-import com.seastreams.tv.player.usenet.UsenetPreflight
-import com.seastreams.tv.usenet.session.UsenetStreamRegistry
+import com.seastreams.tv.player.StreamPreflight
 import dagger.Lazy
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -106,7 +105,7 @@ class PlaybackViewModel @Inject constructor(
     private val resolveTrailer: ResolveTrailerStreamUseCase,
     private val resolveContinueWatching: ResolveContinueWatchingTargetUseCase,
     private val externalUrls: Lazy<ExternalStreamUrls>,
-    private val preflight: UsenetPreflight,
+    private val preflight: StreamPreflight,
     private val clock: Clock,
 ) : ViewModel() {
 
@@ -256,8 +255,9 @@ class PlaybackViewModel @Inject constructor(
         val target = resolved.target
         val resolution = resolved.resolution
         if (resolution.streams.getOrNull(requested) == null) return _state.update { it.copy(loading = null, loadingStatus = null) }
-        // Usenet releases are opened before any player exists; refused ones are skipped silently (PRD §12 Playback).
-        if (UsenetStreamRegistry.isUsenet(resolution.streams[requested].url)) {
+        // Usenet releases are opened and Debrid links resolved before any player exists; refused ones are skipped
+        // silently (PRD §12, §14 Playback).
+        if (preflight.handles(resolution.streams[requested].url)) {
             _state.update { it.copy(picker = null, loading = it.loading ?: target.details.media.playbackArtwork()) }
         }
         val failover = current.player.autoStreamFailover
@@ -275,7 +275,8 @@ class PlaybackViewModel @Inject constructor(
             _state.update { it.copy(picker = null, player = request, loading = null, loadingStatus = null) }
             return
         }
-        // Usenet: open the release and rewrite it to the loopback proxy; one that can't stream fails over here.
+        // Usenet: open the release and rewrite it to the loopback proxy; Debrid: the resolved HTTPS link. One that can't
+        // stream fails over here.
         val launchStream = try {
             externalUrls.get().prepare(stream, target.title())
         } catch (e: IOException) {

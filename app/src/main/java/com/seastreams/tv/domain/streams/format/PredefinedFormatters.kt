@@ -63,9 +63,11 @@ object PredefinedFormatters {
     ))
     /**
      * Where a stream came from, for the templates' `{addon.name}`: a built-in `Usenet` stream shows its indexer
-     * (`NZBgeek`, `DrunkenSlug`) instead of `Usenet` (the Addons column still groups them under one `Usenet` card).
+     * (`NZBgeek`, `DrunkenSlug`) and a built-in `Debrid` stream its service (`Real-Debrid`, `TorBox`) instead of
+     * `Usenet` / `Debrid` (the Addons column still groups them under one card each). Conditions read left to right:
+     * (Usenet or Debrid) and an indexer is known.
      */
-    const val SOURCE = """{addon.name::=Usenet::and::stream.indexer::exists["{stream.indexer}"||"{addon.name}"]}"""
+    const val SOURCE = """{addon.name::=Usenet::or::addon.name::=Debrid::and::stream.indexer::exists["{stream.indexer}"||"{addon.name}"]}"""
 
     /** AIOStreams' templates with each `{addon.name}` replaced by [SOURCE]. */
     private fun withSource(templates: FormatterTemplates) = FormatterTemplates(
@@ -76,7 +78,8 @@ object PredefinedFormatters {
     private const val ADDON_NAME = "{addon.name}"
 
     /**
-     * The template shown in `aio-formatter.png`. Its last line names the source: the indexer for a Usenet stream, else
+     * The template shown in `aio-formatter.png`. Its last line names the source: the indexer for a Usenet stream (the
+     * service for a Debrid one), else
      * the addon followed by the indexer when the addon states one (`Torrentio · ThePirateBay`).
      */
     val CUSTOM_DEFAULT = FormatterTemplates(
@@ -84,7 +87,7 @@ object PredefinedFormatters {
         description = """{stream.filename}
 {stream.quality::exists["🎥 {stream.quality} "||""]}{stream.encode::exists["🎞️ {stream.encode} "||""]}{stream.visualTags::exists["🔆 {stream.visualTags::join(' | ')} "||""]}
 {stream.audioTags::exists["🎧 {stream.audioTags::join(' | ')} "||""]}{stream.audioChannels::exists["🔊 {stream.audioChannels::join(' | ')}"||""]} {stream.size::>0["📦 {stream.size::rbytes} "||""]}{stream.duration::>0["⏱️ {stream.duration::time} "||""]}{stream.age::exists["📅 {stream.age} "||""]}
-{stream.languages::exists["🗣️ {stream.languageEmojis} "||""]}{stream.network::exists["📡 {stream.network} "||""]}| {addon.name::=Usenet::and::stream.indexer::exists["{stream.indexer}"||"{addon.name}{stream.indexer::exists[" · {stream.indexer}"||""]}"]}""",
+{stream.languages::exists["🗣️ {stream.languageEmojis} "||""]}{stream.network::exists["📡 {stream.network} "||""]}| {addon.name::=Usenet::or::addon.name::=Debrid::and::stream.indexer::exists["{stream.indexer}"||"{addon.name}{stream.indexer::exists[" · {stream.indexer}"||""]}"]}""",
     )
 
     /** [id]'s templates; `null` for [FormatterId.ORIGINAL] (the addon's own text). Custom falls back to [CUSTOM_DEFAULT]. */

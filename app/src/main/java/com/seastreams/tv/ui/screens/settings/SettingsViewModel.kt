@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.seastreams.tv.core.cache.CacheManager
 import com.seastreams.tv.core.database.dao.AddonDao
+import com.seastreams.tv.data.addon.DebridAddonState
 import com.seastreams.tv.data.addon.UsenetAddonState
 import com.seastreams.tv.data.addon.BuiltInAddons
 import com.seastreams.tv.core.database.entity.AddonEntity
@@ -63,6 +64,7 @@ class SettingsViewModel @Inject constructor(
     portalLinks: PortalLinkProvider,
     private val cacheManager: CacheManager,
     usenetAddon: UsenetAddonState,
+    debridAddon: DebridAddonState,
 ) : ViewModel() {
 
     private val _cacheBytes = MutableStateFlow<Long?>(null)
@@ -79,13 +81,13 @@ class SettingsViewModel @Inject constructor(
     val state: StateFlow<SettingsUiState> = combine(
         settingsStore.settings,
         // Only the active profile's addons (Manage Addons + Preferred Auto-Play Addon).
-        // The built-in Usenet entry is listed only while Usenet streaming is configured (PRD §12).
+        // The built-in Usenet / Debrid entries are listed only while their source is configured (PRD §12, §14).
         settingsStore.activeProfileId.flatMapLatest { id ->
             if (id == null) {
                 flowOf(emptyList())
             } else {
-                combine(addonDao.observeAll(id), usenetAddon.configured) { addons, configured ->
-                    addons.filter { BuiltInAddons.isListed(it.manifestUrl, configured) }
+                combine(addonDao.observeAll(id), usenetAddon.configured, debridAddon.listed) { addons, usenetOn, debridOn ->
+                    addons.filter { BuiltInAddons.isListed(it.manifestUrl, usenetOn, debridOn) }
                 }
             }
         },

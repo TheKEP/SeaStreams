@@ -57,5 +57,4 @@ internal fun epochToMillis(value: Long): Long? = when {
     else -> value
 }
 
-private const val MILLIS_PER_SECOND = 1_000L
 private const val EPOCH_MILLIS_THRESHOLD = 100_000_000_000L

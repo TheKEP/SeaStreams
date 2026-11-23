@@ -1,5 +1,8 @@
 package com.seastreams.tv.data.sources
 
+import io.mockk.mockk
+import com.seastreams.tv.data.debrid.stream.DebridStreamRegistry
+import com.seastreams.tv.data.debrid.library.DebridLibraryCache
 import com.seastreams.tv.core.datastore.DebridSettingsStore
 import com.seastreams.tv.core.datastore.UsenetSettingsStore
 import com.seastreams.tv.data.debrid.DebridServiceKind
@@ -63,7 +66,7 @@ class SourceClearsTest {
         val sessions = DeviceAuthSessions(DeviceFlowProvider { if (it == torBox.kind) torBox else null }, debrid, backgroundScope, clock)
         return Clears(
             UsenetSettingsClear(usenet, usenetStore, Lazy { engine }, backgroundScope, clock, Dispatchers.Unconfined),
-            DebridSettingsClear(debrid, debridStore, sessions, backgroundScope, clock),
+            DebridSettingsClear(debrid, debridStore, sessions, DebridLibraryCache(clock), mockk(relaxed = true), DebridStreamRegistry(), backgroundScope, clock),
             sessions,
         )
     }

@@ -1,6 +1,6 @@
 package com.seastreams.tv.ui.screens.playback
 
-import com.seastreams.tv.testutil.noUsenetPreflight
+import com.seastreams.tv.testutil.noStreamPreflight
 import com.seastreams.tv.testutil.passThroughExternalUrls
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.seastreams.tv.core.database.entity.WatchProgressEntity
@@ -93,7 +93,7 @@ class PlaybackContinueWatchingTest {
         resolveTrailer = mockk(),
         resolveContinueWatching = resolveCard,
         externalUrls = passThroughExternalUrls(),
-        preflight = noUsenetPreflight(),
+        preflight = noStreamPreflight(),
         clock = Clock.systemUTC(),
     )
 

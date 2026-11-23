@@ -1,5 +1,6 @@
 package com.seastreams.tv.domain.usecase
 
+import com.seastreams.tv.testutil.unconfiguredDebrid
 import com.seastreams.tv.core.database.entity.AddonEntity
 import com.seastreams.tv.core.network.StremioAddonClient
 import com.seastreams.tv.core.network.StremioStream
@@ -48,7 +49,7 @@ class ResolveStreamsUsenetOrderTest {
     }
 
     private fun useCase(rows: List<AddonEntity>, process: ProcessStreamsUseCase = noStreamProcessing()) =
-        ResolveStreamsUseCase(FakeAddonDao(rows), Lazy { client }, Lazy { search }, UsenetStreamRegistry(), process, usenetSettings())
+        ResolveStreamsUseCase(FakeAddonDao(rows), Lazy { client }, Lazy { search }, UsenetStreamRegistry(), process, usenetSettings(), unconfiguredDebrid())
 
     @Test
     fun `Usenet moved between two addons sits between them, card and results`() = runTest {

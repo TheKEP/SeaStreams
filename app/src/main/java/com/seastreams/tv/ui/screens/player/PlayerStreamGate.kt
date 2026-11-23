@@ -3,13 +3,12 @@ package com.seastreams.tv.ui.screens.player
 import androidx.lifecycle.viewModelScope
 import com.seastreams.tv.domain.model.StreamSource
 import com.seastreams.tv.player.SeaStreamsPlayerManager
+import com.seastreams.tv.player.StreamPreflight
 import com.seastreams.tv.player.usenet.PreflightResult
-import com.seastreams.tv.player.usenet.UsenetPreflight
 import com.seastreams.tv.ui.screens.playback.NONE_WOULD_PLAY
 import com.seastreams.tv.ui.screens.playback.StartPick
 import com.seastreams.tv.ui.screens.playback.firstPlayable
 import com.seastreams.tv.ui.screens.playback.skipStatus
-import com.seastreams.tv.usenet.session.UsenetStreamRegistry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.update
@@ -17,14 +16,19 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * The open player's stream gate (PRD §9, §12 Playback): a Usenet release reached by a fallback advance, a Streams
- * overlay pick or an episode switch is opened by [UsenetPreflight] *before* ExoPlayer is given it. Refused releases
- * never reach the player, so there is no playback error, re-init or audio-focus change for them:
+ * The open player's stream gate (PRD §9, §12, §14 Playback): a Usenet release or Debrid library file reached by a
+ * fallback advance, a Streams overlay pick or an episode switch is checked by [StreamPreflight] *before* ExoPlayer is
+ * given it (release opened / fresh link resolved). Refused streams never reach the player, so there is no playback
+ * error, re-init or audio-focus change for them:
  * - failover on → the next stream is tried at once ([onSkip]), and [onExhausted] when none is left;
  * - failover off → [onStopped] (the Streams overlay opens, as for any failed stream).
  * Other streams go straight to [onPlay]; the fallback timer judges them as usual.
  */
-class PlayerStreamGate @Inject constructor(private val preflight: UsenetPreflight) {
+class PlayerStreamGate @Inject constructor(private val preflight: StreamPreflight) {
+
+    /** Whether [url] must go through the gate (Usenet / Debrid) rather than straight to ExoPlayer. */
+    fun handles(url: String): Boolean = preflight.handles(url)
+
     private var job: Job? = null
 
     fun open(
@@ -41,7 +45,7 @@ class PlayerStreamGate @Inject constructor(private val preflight: UsenetPrefligh
         val first = streams.getOrNull(index) ?: return
         job = scope.launch {
             if (!failover) {
-                val refused = UsenetStreamRegistry.isUsenet(first.url) && preflight.check(first) is PreflightResult.Skip
+                val refused = preflight.handles(first.url) && preflight.check(first) is PreflightResult.Skip
                 return@launch if (refused) onStopped(index) else onPlay(index)
             }
             when (val pick = firstPlayable(streams, index, failover = true, preflight, onSkip)) {
@@ -65,7 +69,10 @@ internal fun PlayerViewModel.handOff(manager: SeaStreamsPlayerManager, index: In
     fallback.onStreamStarted(index, streams.size)
 }
 
-/** [PlayerViewModel.playIndex] for a Usenet release (opened first, so a refused one never reaches ExoPlayer): through the gate, then [handOff] to ExoPlayer. */
+/**
+ * [PlayerViewModel.playIndex] for a Usenet release or Debrid file (checked first, so a refused one never reaches
+ * ExoPlayer): through the gate, then [handOff] to ExoPlayer.
+ */
 internal fun PlayerViewModel.openThroughGate(manager: SeaStreamsPlayerManager, index: Int, positionMs: Long) {
     // The previous stream's timer or a late error must not advance while the release opens.
     fallback.cancel()

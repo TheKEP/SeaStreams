@@ -9,6 +9,7 @@ import com.seastreams.tv.core.network.StremioAddonClient
 import com.seastreams.tv.core.network.StremioManifest
 import com.seastreams.tv.core.network.StremioManifestParser
 import com.seastreams.tv.core.network.StremioStream
+import com.seastreams.tv.data.debrid.library.DebridLibrarySearch
 import com.seastreams.tv.data.usenet.newznab.NzbRequest
 import com.seastreams.tv.data.usenet.newznab.UsenetSearchTarget
 import com.seastreams.tv.data.usenet.newznab.UsenetStreamSearch
@@ -84,9 +85,10 @@ data class StreamQuery(
 
 /**
  * Queries every Stremio addon the profile has enabled that serves `stream` or `subtitles` for the title's type, all in
- * parallel with a per-addon timeout, so one slow addon never holds up the list. The built-in `Usenet` addon (PRD §12)
- * is searched alongside and listed after the Stremio addons, only while at least one provider and one indexer are
- * enabled. Addon streams carrying an `nzbUrl` become opaque `seastreams-nntp://` streams, like the built-in ones.
+ * parallel with a per-addon timeout, so one slow addon never holds up the list. The built-in `Usenet` (PRD §12) and
+ * `Debrid` (PRD §14) sources are searched alongside, each only while it is configured and the profile hasn't switched
+ * its entry off, and listed at their entries' places ([BuiltInSlot]). Addon streams carrying an `nzbUrl` become opaque
+ * `seastreams-nntp://` streams, like the built-in ones.
  */
 class ResolveStreamsUseCase @Inject constructor(
     private val addonDao: AddonDao,
@@ -96,6 +98,7 @@ class ResolveStreamsUseCase @Inject constructor(
     private val usenetStreams: UsenetStreamRegistry,
     private val process: ProcessStreamsUseCase,
     private val usenetSettings: UsenetSettingsStore,
+    private val debrid: Lazy<DebridLibrarySearch>,
 ) {
     suspend operator fun invoke(query: StreamQuery): StreamResolution = withContext(Dispatchers.IO) {
         val type = query.ref.mediaType.stremioType
@@ -103,80 +106,71 @@ class ResolveStreamsUseCase @Inject constructor(
         val addons = enabled.mapNotNull { entity -> entity.parsed()?.let { entity to it } }
         // While `Enable Usenet` is OFF, addon `nzbUrl` streams that need the user's providers are dropped (PRD §12).
         val usenetOn = usenetSettings.enabled.first()
-        val usenet = UsenetSlot.of(enabled, addons.map { it.first }, disabled = enabled.none { it.manifestUrl == BuiltInAddons.USENET_URL } &&
-            addonDao.getByUrl(query.profileId, BuiltInAddons.USENET_URL) != null)
-        val (results, builtIn) = coroutineScope {
-            val builtIn = async { if (usenet.disabled) null else queryUsenet(query) }
-            addons.map { (entity, manifest) -> async { queryAddon(entity, manifest, type, query, usenetOn) } }.awaitAll() to builtIn.await()
+        val usenetSlot = slot(query, enabled, BuiltInAddons.USENET_URL, UsenetStreamSearch.USENET_ADDON_NAME)
+        val debridSlot = slot(query, enabled, BuiltInAddons.DEBRID_URL, DebridLibrarySearch.DEBRID_ADDON_NAME)
+        val (results, builtIns) = coroutineScope {
+            val usenetResult = async { if (usenetSlot.disabled) null else queryUsenet(query, usenetSlot.name) }
+            val debridResult = async { if (debridSlot.disabled) null else queryDebrid(query, debridSlot.name) }
+            val stremio = addons.map { (entity, manifest) -> async { entity.manifestUrl to queryAddon(entity, manifest, type, query, usenetOn) } }
+            stremio.awaitAll() to listOfNotNull(
+                usenetResult.await()?.let { usenetSlot to it },
+                debridResult.await()?.let { debridSlot to it },
+            )
         }
-        // Usenet results take the built-in entry's place in the profile's addon order (the bottom when it has none yet).
-        val all = results.toMutableList().apply { builtIn?.let { add(usenet.index.coerceAtMost(size), it) } }
-        val cards = addons
+        // Built-in results take their entry's place in the profile's addon order (the bottom when it has none yet).
+        val order = streamOrder(enabled, builtIns.map { it.first })
+        val byUrl = results.toMap() + builtIns.associate { (slot, result) -> slot.url to result }
+        val all = order.mapNotNull { byUrl[it] }
+        val cardsByUrl = addons
             .filter { (_, manifest) -> stremioId(manifest, STREAM, type, query) != null }
-            .map { (entity, _) -> StreamAddon(entity.manifestUrl, entity.displayName()) }
-        val usenetCard = builtIn?.let { StreamAddon(UsenetStreamSearch.USENET_ADDON_URL, usenet.name) }
+            .associate { (entity, _) -> entity.manifestUrl to StreamAddon(entity.manifestUrl, entity.displayName()) } +
+            builtIns.associate { (slot, _) -> slot.url to StreamAddon(slot.url, slot.name) }
         val context = StreamContext(
             kind = query.contentKind,
             runtimeMinutes = query.runtimeMinutes,
             title = query.title,
             year = query.year,
-            addonOrder = usenet.addonOrder,
+            addonOrder = order,
         )
         StreamResolution(
             // Filters, dedup, sort, limits and formatter (PRD §13) run here, so every consumer sees the processed list.
             streams = process(query.profileId, all.flatMap { it.streams }, context),
-            subtitles = results.flatMap { it.subtitles },
+            subtitles = results.flatMap { it.second.subtitles },
             failedAddons = all.filter { it.failed }.map { it.addonName },
-            streamAddons = cards.toMutableList().apply {
-                usenetCard?.let { add(usenet.cardIndex(addons.map { it.first }, cards).coerceAtMost(size), it) }
-            },
+            streamAddons = order.mapNotNull { cardsByUrl[it] },
         )
     }
 
-    /**
-     * Where the built-in `Usenet` entry sits among [enabled] addons: [index] counts the queried Stremio addons before
-     * it, [addonOrder] is every enabled addon URL in order (Usenet last when the profile has no entry yet), and
-     * [disabled] means the profile switched Usenet off (it isn't searched).
-     */
-    private class UsenetSlot(val index: Int, val addonOrder: List<String>, val name: String, val disabled: Boolean, private val row: Int) {
+    /** [url]'s place and name on this profile; a disabled row means the profile switched that source off. */
+    private suspend fun slot(query: StreamQuery, enabled: List<AddonEntity>, url: String, name: String): BuiltInSlot =
+        BuiltInSlot.of(url, name, enabled, exists = enabled.any { it.manifestUrl == url } || addonDao.getByUrl(query.profileId, url) != null)
 
-        /** The card's position among the stream-capable addon [cards]. */
-        fun cardIndex(queried: List<AddonEntity>, cards: List<StreamAddon>): Int =
-            if (row < 0) cards.size else queried.take(index).count { entity -> cards.any { it.url == entity.manifestUrl } }
-
-        companion object {
-            fun of(enabled: List<AddonEntity>, queried: List<AddonEntity>, disabled: Boolean): UsenetSlot {
-                val row = enabled.indexOfFirst { it.manifestUrl == BuiltInAddons.USENET_URL }
-                val before = if (row < 0) queried.size else enabled.take(row).count { it in queried }
-                val urls = enabled.map { it.manifestUrl }
-                return UsenetSlot(
-                    index = before,
-                    addonOrder = if (row < 0) urls + BuiltInAddons.USENET_URL else urls,
-                    name = enabled.getOrNull(row)?.let { it.customName ?: it.name } ?: UsenetStreamSearch.USENET_ADDON_NAME,
-                    disabled = disabled,
-                    row = row,
-                )
-            }
+    /** The built-in `Debrid` addon (PRD §14), or `null` (no card) when Debrid is off or no provider is usable. */
+    private suspend fun queryDebrid(query: StreamQuery, name: String): AddonResult? =
+        queryBuiltIn(name, DEBRID_TIMEOUT_MILLIS, { debrid.get().configured() }) {
+            debrid.get().search(query.usenetTarget).let { AddonResult(name, streams = it.streams, failed = it.failed) }
         }
-    }
 
-    /** The built-in `Usenet` addon, or `null` (no card) when no provider or no indexer is enabled. */
-    private suspend fun queryUsenet(query: StreamQuery): AddonResult? {
-        val name = UsenetStreamSearch.USENET_ADDON_NAME
-        return try {
-            val search = usenet.get()
-            if (!search.configured()) return null
-            withTimeout(USENET_TIMEOUT_MILLIS) {
-                val result = search.search(query.usenetTarget)
-                AddonResult(name, streams = result.streams, failed = result.failed)
-            }
-        } catch (e: TimeoutCancellationException) {
-            AddonResult(name, failed = true)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            AddonResult(name, failed = true)
+    /** The built-in `Usenet` addon (PRD §12), or `null` (no card) when no provider or no indexer is enabled. */
+    private suspend fun queryUsenet(query: StreamQuery, name: String): AddonResult? =
+        queryBuiltIn(name, USENET_TIMEOUT_MILLIS, { usenet.get().configured() }) {
+            usenet.get().search(query.usenetTarget).let { AddonResult(name, streams = it.streams, failed = it.failed) }
         }
+
+    /** A built-in source: `null` while not [configured]; a timeout or failure is a failed card, never a thrown error. */
+    private suspend fun queryBuiltIn(
+        name: String,
+        timeoutMillis: Long,
+        configured: suspend () -> Boolean,
+        search: suspend () -> AddonResult,
+    ): AddonResult? = try {
+        if (!configured()) null else withTimeout(timeoutMillis) { search() }
+    } catch (e: TimeoutCancellationException) {
+        AddonResult(name, failed = true)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        AddonResult(name, failed = true)
     }
 
     /** An `nzbUrl` stream without its own `servers`: it would play through the user's providers. */
@@ -266,6 +260,9 @@ class ResolveStreamsUseCase @Inject constructor(
 
         /** Caps, an id search and maybe a `q=` fallback per indexer: a little longer than one addon call. */
         const val USENET_TIMEOUT_MILLIS = 20_000L
+
+        /** Each provider has [DebridLibrarySearch.TIMEOUT_MILLIS]; this only bounds a search that hangs as a whole. */
+        const val DEBRID_TIMEOUT_MILLIS = DebridLibrarySearch.TIMEOUT_MILLIS + 5_000L
         private const val STREAM = "stream"
         private const val SUBTITLES = "subtitles"
     }

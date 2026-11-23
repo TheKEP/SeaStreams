@@ -13,8 +13,8 @@ Perform a strict codebase audit. Check for:
 1. Any Kotlin file exceeding 350 lines that should be split,
 2. Duplicated logic,
 3. Any network, socket, or disk I/O running on the Main thread,
-4. Resource and lifecycle leaks: unclosed sockets/NIO channels, leaked worker threads/coroutines (including `DeviceAuthSessions` polling jobs), unreturned pooled buffers (`SegmentBufferPool`/`SegmentArena`), unbounded in-memory caches (`DebridLibraryCache`, `DebridStreamRegistry`), or missing cancellation/cleanup in `NntpEngine`, `WarmConnections`, `ParallelRangeReader`, `SubtitleAutoSync`, `DebridTokenRefresher`, ExoPlayer, or Ktor server lifecycles,
-5. Secret/security hygiene (no plain-text passwords, API keys, OAuth/refresh tokens, client secrets, or token-bearing resolved Debrid URLs in logs, persisted `last_used_streams`, or portal responses) and non-null `!!` assertions, and
+4. Resource and lifecycle leaks: unclosed sockets/NIO channels, leaked worker threads/coroutines (including `DeviceAuthSessions` polling jobs), unreturned pooled buffers (`SegmentBufferPool`/`SegmentArena`), unbounded in-memory caches (`DebridLibraryCache`, `DebridStreamRegistry`, `DebridLinkResolver`), or missing cancellation/cleanup in `NntpEngine`, `WarmConnections`, `ParallelRangeReader`, `SubtitleAutoSync`, `DebridTokenRefresher`, ExoPlayer, or Ktor server lifecycles,
+5. Secret/security hygiene (no plain-text passwords, API keys, OAuth/refresh tokens, client secrets, or token-bearing resolved Debrid URLs in logs, exception messages, persisted `last_used_streams`, or portal responses; Debrid requests stay library-only per `DebridLibraryOnlyGuardTest`) and non-null `!!` assertions, and
 6. Unused dependencies or dead code.
 
 Output a prioritized list of fixes, execute them, update `ARCHITECTURE.md` if any files were split or moved, and verify both `./gradlew testDebugUnitTest` and `./gradlew assembleDebug` pass with zero errors.

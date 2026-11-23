@@ -1,9 +1,8 @@
 package com.seastreams.tv.ui.screens.playback
 
 import com.seastreams.tv.domain.model.StreamSource
+import com.seastreams.tv.player.StreamPreflight
 import com.seastreams.tv.player.usenet.PreflightResult
-import com.seastreams.tv.player.usenet.UsenetPreflight
-import com.seastreams.tv.usenet.session.UsenetStreamRegistry
 
 /** Which stream auto-play / a pick should hand to the player. */
 sealed interface StartPick {
@@ -14,24 +13,25 @@ sealed interface StartPick {
 }
 
 /**
- * Silent pre-player skip (PRD §9, §12): with *Automatic stream failover* on, Usenet releases from [index] on are
- * opened by [UsenetPreflight] before any player exists, and refused ones are passed over, [onSkip] saying so
- * (`Stream 1 didn't start. Trying stream 2 of 5…`). Other streams are taken as they are: the player's own fallback
- * timer judges them. With failover off nothing is skipped here; the player's stream gate stops on a refused release
- * and opens the Streams overlay without ever preparing ExoPlayer with it.
+ * Silent pre-player skip (PRD §9, §12, §14): with *Automatic stream failover* on, Usenet releases and Debrid library
+ * files from [index] on are checked by [StreamPreflight] before any player exists (release opened / playback link
+ * resolved), and refused ones are passed over, [onSkip] saying so (`Stream 1 didn't start. Trying stream 2 of 5…`).
+ * Other streams are taken as they are: the player's own fallback timer judges them. With failover off nothing is
+ * skipped here; the player's stream gate stops on a refused stream and opens the Streams overlay without ever
+ * preparing ExoPlayer with it.
  */
 internal suspend fun firstPlayable(
     streams: List<StreamSource>,
     index: Int,
     failover: Boolean,
-    preflight: UsenetPreflight,
+    preflight: StreamPreflight,
     onSkip: (from: Int, to: Int, total: Int) -> Unit,
 ): StartPick {
     if (!failover) return StartPick.Play(index)
     var current = index
     while (current < streams.size) {
         val stream = streams[current]
-        if (!UsenetStreamRegistry.isUsenet(stream.url)) return StartPick.Play(current)
+        if (!preflight.handles(stream.url)) return StartPick.Play(current)
         when (val result = preflight.check(stream)) {
             PreflightResult.Playable -> return StartPick.Play(current)
             is PreflightResult.Skip -> {

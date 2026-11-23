@@ -1,5 +1,7 @@
 package com.seastreams.tv.domain.streams.parse
 
+import com.seastreams.tv.data.debrid.library.DebridLibrarySearch
+import com.seastreams.tv.data.debrid.stream.DebridStreamRegistry
 import com.seastreams.tv.domain.model.StreamSource
 import com.seastreams.tv.usenet.session.UsenetStreamRegistry
 import java.util.Locale
@@ -97,6 +99,8 @@ object StreamFacts {
 
     internal fun kindOf(stream: StreamSource, usenetAddonUrl: String): StreamKind = when {
         stream.addonUrl == usenetAddonUrl || UsenetStreamRegistry.isUsenet(stream.url) -> StreamKind.USENET
+        // The built-in Debrid library (PRD §14): its type comes from where it was found, not from its text.
+        stream.addonUrl == DebridLibrarySearch.DEBRID_ADDON_URL || DebridStreamRegistry.isDebrid(stream.url) -> StreamKind.DEBRID
         HLS.containsMatchIn(stream.url.substringBefore('#').substringBefore('?')) -> StreamKind.LIVE
         DEBRID.containsMatchIn(stream.label) || DEBRID.containsMatchIn(stream.description) -> StreamKind.DEBRID
         else -> StreamKind.HTTP

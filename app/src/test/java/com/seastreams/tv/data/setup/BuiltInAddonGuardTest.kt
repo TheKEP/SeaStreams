@@ -1,5 +1,6 @@
 package com.seastreams.tv.data.setup
 
+import com.seastreams.tv.testutil.debridAddonState
 import com.seastreams.tv.core.database.dao.ProfileDao
 import com.seastreams.tv.core.database.entity.ProfileEntity
 import com.seastreams.tv.data.addon.AddonRepository
@@ -25,6 +26,7 @@ class BuiltInAddonGuardTest {
         val guard = BuiltInAddonGuard(
             repository,
             mockk<UsenetAddonState> { every { configured } returns MutableStateFlow(true) },
+            debridAddonState(),
             mockk<ProfileDao> { every { observeAll() } returns profiles },
         )
 
@@ -34,6 +36,30 @@ class BuiltInAddonGuardTest {
         advanceUntilIdle()
 
         coVerify(exactly = 2) { repository.ensureUsenet() }
+        upkeep.cancel()
+    }
+
+    @Test
+    fun `Debrid entries are added while Debrid is listed, for profiles created later too`() = runTest {
+        val profiles = MutableStateFlow(listOf(profile(1)))
+        val listed = MutableStateFlow(false)
+        val repository = mockk<AddonRepository> { coEvery { ensureDebrid() } returns Unit }
+        val guard = BuiltInAddonGuard(
+            repository,
+            mockk<UsenetAddonState> { every { configured } returns MutableStateFlow(false) },
+            debridAddonState(listed),
+            mockk<ProfileDao> { every { observeAll() } returns profiles },
+        )
+
+        val upkeep = launch { guard.keepDebridEntries() }
+        advanceUntilIdle()
+        coVerify(exactly = 0) { repository.ensureDebrid() }
+        listed.value = true
+        advanceUntilIdle()
+        coVerify(exactly = 1) { repository.ensureDebrid() }
+        profiles.value = listOf(profile(1), profile(2))
+        advanceUntilIdle()
+        coVerify(exactly = 2) { repository.ensureDebrid() }
         upkeep.cancel()
     }
 

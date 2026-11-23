@@ -31,10 +31,10 @@ fun AddonEntity.displayName(): String = customName ?: name
 
 /**
  * Addons that serve streams (the only ones a preferred auto-play addon can be): enabled Stremio stream addons and the
- * built-in `Usenet` entry (listed only while Usenet is configured), in the profile's order.
+ * built-in `Usenet` / `Debrid` entries (listed only while their source is configured), in the profile's order.
  */
 fun streamAddons(addons: List<AddonEntity>): List<AddonEntity> = addons.filter { addon ->
-    addon.enabled && (addon.manifestUrl == BuiltInAddons.USENET_URL || addon.manifestUrl.startsWith("http")) && try {
+    addon.enabled && (BuiltInAddons.isBuiltInStreamSource(addon.manifestUrl) || addon.manifestUrl.startsWith("http")) && try {
         StremioManifestParser.parse(addon.manifestJson).resources.any { it.name == "stream" }
     } catch (e: InvalidManifestException) {
         false

@@ -1,5 +1,6 @@
 package com.seastreams.tv.domain.usecase
 
+import com.seastreams.tv.testutil.unconfiguredDebrid
 import com.seastreams.tv.testutil.noStreamProcessing
 import com.seastreams.tv.core.database.entity.AddonEntity
 import com.seastreams.tv.core.network.StremioAddonClient
@@ -59,7 +60,7 @@ class ResolveStreamsUsenetTest {
     )
 
     private fun useCase(usenetOn: Boolean = true) =
-        ResolveStreamsUseCase(FakeAddonDao(listOf(addon("torrentio"))), Lazy { client }, Lazy { search }, registry, noStreamProcessing(), usenetSettings(usenetOn))
+        ResolveStreamsUseCase(FakeAddonDao(listOf(addon("torrentio"))), Lazy { client }, Lazy { search }, registry, noStreamProcessing(), usenetSettings(usenetOn), unconfiguredDebrid())
 
     private fun stubAddon(streams: List<StremioStream> = listOf(StremioStream("https://cdn/a.mkv", "Torrentio", "A", emptyMap()))) {
         coEvery { client.fetchStreams(any(), any(), any()) } returns streams
