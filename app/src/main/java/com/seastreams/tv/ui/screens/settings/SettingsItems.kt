@@ -13,6 +13,8 @@ import com.seastreams.tv.domain.streams.FilterAttribute
 import com.seastreams.tv.domain.streams.FilterList
 import com.seastreams.tv.domain.streams.StreamProcessingSettings
 import com.seastreams.tv.ui.components.SeaIcons
+import com.seastreams.tv.ui.screens.settings.sources.DebridUiState
+import com.seastreams.tv.ui.screens.settings.sources.SourcesActions
 import com.seastreams.tv.ui.screens.settings.sources.SourcesUiState
 import com.seastreams.tv.ui.screens.settings.sources.sourcesItems
 import com.seastreams.tv.ui.screens.settings.streams.STREAM_FILTERS_ROW_KEY
@@ -70,6 +72,8 @@ sealed interface SettingsPanel {
 
     data object UsenetPerformance : SettingsPanel
 
+    data object DebridProviders : SettingsPanel
+
     /** Search / Download request header picker (PRD §12). */
     data class Headers(val use: HeaderUse) : SettingsPanel
 
@@ -123,6 +127,8 @@ class SettingsCallbacks(
     val openProfiles: () -> Unit,
     /** `Sources → Update header versions`. */
     val updateHeaders: () -> Unit = {},
+    /** `Sources` toggles and scoped clears. */
+    val sources: SourcesActions = SourcesActions(),
 )
 
 /**
@@ -138,6 +144,7 @@ fun settingsItems(
     cacheBytes: Long?,
     cb: SettingsCallbacks,
     sources: SourcesUiState = SourcesUiState(),
+    debrid: DebridUiState = DebridUiState(),
     streams: StreamProcessingSettings = StreamProcessingSettings(),
     nowMillis: Long = System.currentTimeMillis(),
     zone: ZoneId = ZoneId.systemDefault(),
@@ -147,7 +154,7 @@ fun settingsItems(
     SettingsCategory.PLAYBACK -> playbackItems(state, cb)
     SettingsCategory.AUDIO -> audioItems(state, cb)
     SettingsCategory.SUBTITLES -> subtitleItems(state, cb)
-    SettingsCategory.SOURCES -> sourcesItems(sources, cb, nowMillis, zone)
+    SettingsCategory.SOURCES -> sourcesItems(sources, cb, nowMillis, zone, debrid)
     SettingsCategory.OTHER -> otherItems(clearSecondsLeft, cacheBytes, cb)
 }
 

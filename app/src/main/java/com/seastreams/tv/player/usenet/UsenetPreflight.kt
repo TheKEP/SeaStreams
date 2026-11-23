@@ -1,14 +1,17 @@
 package com.seastreams.tv.player.usenet
 
+import com.seastreams.tv.core.datastore.UsenetSettingsStore
 import com.seastreams.tv.core.util.IoDispatcher
 import com.seastreams.tv.domain.model.StreamSource
 import com.seastreams.tv.usenet.archive.ArchiveRefusedException
+import com.seastreams.tv.usenet.session.UsenetGrab
 import com.seastreams.tv.usenet.session.UsenetSessionRegistry
 import com.seastreams.tv.usenet.session.UsenetStreamRegistry
 import com.seastreams.tv.usenet.verify.ReleaseHealth
 import com.seastreams.tv.usenet.verify.ReleaseHealthCache
 import dagger.Lazy
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runInterruptible
 import java.io.IOException
 import javax.inject.Inject
@@ -37,9 +40,14 @@ class UsenetPreflight @Inject constructor(
     private val sessions: Lazy<UsenetSessionRegistry>,
     private val health: ReleaseHealthCache,
     @IoDispatcher private val io: CoroutineDispatcher,
+    private val settings: UsenetSettingsStore,
+    private val grabs: UsenetStreamRegistry,
 ) {
     suspend fun check(stream: StreamSource): PreflightResult {
         val token = UsenetStreamRegistry.tokenOf(stream.url) ?: return PreflightResult.Playable
+        // `Enable Usenet` OFF: a LAST USED / overlay pick that needs the user's providers is skipped (an addon's own
+        // `servers` still play, PRD §12).
+        if (!settings.enabled.first() && needsUserProviders(grabs.get(token))) return PreflightResult.Skip(USENET_OFF)
         when (val known = health.get(token)) {
             is ReleaseHealth.Broken -> return PreflightResult.Skip(known.reason)
             is ReleaseHealth.NotStreamable -> return PreflightResult.Skip(known.reason)
@@ -62,7 +70,10 @@ class UsenetPreflight @Inject constructor(
         }
     }
 
+    private fun needsUserProviders(grab: UsenetGrab?): Boolean = grab !is UsenetGrab.FromAddon || grab.servers.isEmpty()
+
     private companion object {
+        const val USENET_OFF = "Usenet is switched off in Settings"
         const val REFUSED = "That Usenet release can't be played"
     }
 }

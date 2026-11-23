@@ -49,6 +49,7 @@ class PortalUsenetController @Inject constructor(
             downloadHeaders = headers.download.name,
             headersCheckedAtMillis = headers.checkedAtMillis,
             performance = store.performance.first(),
+            enabled = store.enabled.first(),
         )
     }
 

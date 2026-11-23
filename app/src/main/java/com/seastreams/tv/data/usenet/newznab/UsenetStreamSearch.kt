@@ -1,5 +1,6 @@
 package com.seastreams.tv.data.usenet.newznab
 
+import com.seastreams.tv.core.datastore.UsenetSettingsStore
 import com.seastreams.tv.data.usenet.UsenetSourcesRepository
 import com.seastreams.tv.domain.model.StreamHints
 import com.seastreams.tv.domain.model.StreamSource
@@ -11,6 +12,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.IOException
 import java.time.Clock
@@ -37,10 +39,12 @@ class UsenetStreamSearch @Inject constructor(
     private val health: ReleaseHealthCache,
     private val engineSetup: UsenetEngineSetup,
     private val clock: Clock,
+    private val settings: UsenetSettingsStore,
 ) {
 
-    /** Whether the `Usenet` card is shown: at least one usable provider and one usable indexer are enabled. */
-    suspend fun configured(): Boolean = repository.enabledEndpoints().isNotEmpty() && repository.enabledIndexers().isNotEmpty()
+    /** Whether the `Usenet` card is shown: `Enable Usenet` is ON and a usable provider and indexer are enabled. */
+    suspend fun configured(): Boolean = settings.enabled.first() &&
+        repository.enabledEndpoints().isNotEmpty() && repository.enabledIndexers().isNotEmpty()
 
     suspend fun search(target: UsenetSearchTarget): UsenetSearchResult = coroutineScope {
         launch { runCatching { engineSetup.warmUp() } }

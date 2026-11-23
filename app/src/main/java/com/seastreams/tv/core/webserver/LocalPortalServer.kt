@@ -49,6 +49,7 @@ class LocalPortalServer @Inject constructor(
     private val usenet: Lazy<PortalUsenetController>,
     private val proxy: Lazy<NntpProxy>,
     private val streams: Lazy<PortalStreamController>,
+    private val debrid: Lazy<PortalDebridController>,
 ) {
 
     /** Test/composition convenience for already-built controllers. */
@@ -57,13 +58,22 @@ class LocalPortalServer @Inject constructor(
         usenet: PortalUsenetController,
         proxy: NntpProxy? = null,
         streams: PortalStreamController? = null,
-    ) : this(Lazy { controller }, Lazy { usenet }, Lazy { proxy ?: error("No Usenet proxy") }, Lazy { streams ?: error("No stream controller") }) {
+        debrid: PortalDebridController? = null,
+    ) : this(
+        Lazy { controller },
+        Lazy { usenet },
+        Lazy { proxy ?: error("No Usenet proxy") },
+        Lazy { streams ?: error("No stream controller") },
+        Lazy { debrid ?: error("No Debrid controller") },
+    ) {
         proxyAvailable = proxy != null
         streamsAvailable = streams != null
+        debridAvailable = debrid != null
     }
 
     private var proxyAvailable = true
     private var streamsAvailable = true
+    private var debridAvailable = true
     private val leaseLock = Any()
     private var leases = 0
     private var uiWanted = false
@@ -116,7 +126,9 @@ class LocalPortalServer @Inject constructor(
     fun start(port: Int = DEFAULT_PORT, host: String = ALL_INTERFACES): Int? = synchronized(lock) {
         (_status.value as? PortalStatus.Running)?.let { return it.port }
         val candidate = embeddedServer(CIO, port = port, host = host) {
-            portalModule(controller.get(), usenet.get(), if (proxyAvailable) proxy.get() else null, if (streamsAvailable) streams.get() else null)
+            portalModule(controller.get(), usenet.get(), if (proxyAvailable) proxy.get() else null, if (streamsAvailable) streams.get() else null,
+                if (debridAvailable) debrid.get() else null,
+            )
         }
         return try {
             candidate.start(wait = false)

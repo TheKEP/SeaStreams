@@ -38,7 +38,7 @@ class ExternalStreamUrls @Inject constructor(
         val token = UsenetStreamRegistry.tokenOf(stream.url) ?: return stream
         val lease = portal.acquireLease()
         try {
-            val port = runInterruptible(io) { portal.start() } ?: throw IOException("SeaStreams couldn't start its local stream server")
+            val port = runInterruptible(io) { portal.start() } ?: throw IOException("seastreams couldn't start its local stream server")
             val name = runInterruptible(io) { warmUp(token) }
             // Started before the lease is recorded: if the service can't start, the catch closes a lease nobody holds.
             NntpProxyService.start(context, title)

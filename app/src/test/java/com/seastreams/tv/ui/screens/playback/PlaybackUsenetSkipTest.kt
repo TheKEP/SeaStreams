@@ -50,6 +50,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
 import java.time.Clock
+import com.seastreams.tv.testutil.usenetSettings
 
 /**
  * PRD §12 Playback: unstreamable Usenet releases (a 7z set, a passworded RAR) are opened and refused before any
@@ -93,7 +94,7 @@ class PlaybackUsenetSkipTest {
         maxSessions = 4,
         reapPeriodMs = 0,
     )
-    private val preflight = UsenetPreflight(Lazy { registry }, health, Dispatchers.Unconfined)
+    private val preflight = UsenetPreflight(Lazy { registry }, health, Dispatchers.Unconfined, usenetSettings(), UsenetStreamRegistry())
 
     private fun token(stream: StreamSource) = checkNotNull(UsenetStreamRegistry.tokenOf(stream.url))
 

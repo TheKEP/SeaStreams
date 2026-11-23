@@ -2,6 +2,7 @@ package com.seastreams.tv.domain.usecase
 
 import com.seastreams.tv.core.database.dao.AddonDao
 import com.seastreams.tv.core.database.entity.AddonEntity
+import com.seastreams.tv.core.datastore.UsenetSettingsStore
 import com.seastreams.tv.core.network.InvalidManifestException
 import com.seastreams.tv.data.addon.BuiltInAddons
 import com.seastreams.tv.core.network.StremioAddonClient
@@ -94,16 +95,19 @@ class ResolveStreamsUseCase @Inject constructor(
     private val usenet: Lazy<UsenetStreamSearch>,
     private val usenetStreams: UsenetStreamRegistry,
     private val process: ProcessStreamsUseCase,
+    private val usenetSettings: UsenetSettingsStore,
 ) {
     suspend operator fun invoke(query: StreamQuery): StreamResolution = withContext(Dispatchers.IO) {
         val type = query.ref.mediaType.stremioType
         val enabled = addonDao.observeEnabled(query.profileId).first()
         val addons = enabled.mapNotNull { entity -> entity.parsed()?.let { entity to it } }
+        // While `Enable Usenet` is OFF, addon `nzbUrl` streams that need the user's providers are dropped (PRD §12).
+        val usenetOn = usenetSettings.enabled.first()
         val usenet = UsenetSlot.of(enabled, addons.map { it.first }, disabled = enabled.none { it.manifestUrl == BuiltInAddons.USENET_URL } &&
             addonDao.getByUrl(query.profileId, BuiltInAddons.USENET_URL) != null)
         val (results, builtIn) = coroutineScope {
             val builtIn = async { if (usenet.disabled) null else queryUsenet(query) }
-            addons.map { (entity, manifest) -> async { queryAddon(entity, manifest, type, query) } }.awaitAll() to builtIn.await()
+            addons.map { (entity, manifest) -> async { queryAddon(entity, manifest, type, query, usenetOn) } }.awaitAll() to builtIn.await()
         }
         // Usenet results take the built-in entry's place in the profile's addon order (the bottom when it has none yet).
         val all = results.toMutableList().apply { builtIn?.let { add(usenet.index.coerceAtMost(size), it) } }
@@ -175,6 +179,10 @@ class ResolveStreamsUseCase @Inject constructor(
         }
     }
 
+    /** An `nzbUrl` stream without its own `servers`: it would play through the user's providers. */
+    private fun needsOwnProviders(stream: StremioStream): Boolean =
+        stream.nzbUrl != null && AddonServers.parse(stream.servers).isEmpty()
+
     /** An addon's `nzbUrl` stream, registered so its link (and any `servers` logins) stay out of the URL. */
     private fun usenetUrl(entity: AddonEntity, stream: StremioStream): String {
         val nzbUrl = stream.nzbUrl ?: return stream.url
@@ -189,7 +197,13 @@ class ResolveStreamsUseCase @Inject constructor(
         )
     }
 
-    private suspend fun queryAddon(entity: AddonEntity, manifest: StremioManifest, type: String, query: StreamQuery): AddonResult {
+    private suspend fun queryAddon(
+        entity: AddonEntity,
+        manifest: StremioManifest,
+        type: String,
+        query: StreamQuery,
+        usenetOn: Boolean,
+    ): AddonResult {
         val name = entity.displayName()
         val streamId = stremioId(manifest, STREAM, type, query)
         val subtitleId = stremioId(manifest, SUBTITLES, type, query)
@@ -205,7 +219,7 @@ class ResolveStreamsUseCase @Inject constructor(
                     }
                     AddonResult(
                         addonName = name,
-                        streams = streams.await().map { stream ->
+                        streams = streams.await().filter { usenetOn || !needsOwnProviders(it) }.map { stream ->
                             StreamSource(
                                 addonUrl = entity.manifestUrl,
                                 addonName = name,

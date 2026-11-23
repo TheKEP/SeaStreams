@@ -32,6 +32,7 @@ import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
 import java.time.Clock
+import com.seastreams.tv.testutil.usenetSettings
 
 class NewznabHttpTest {
     @TempDir
@@ -114,7 +115,7 @@ class NewznabHttpTest {
     private fun search(indexers: List<NewznabIndexerEntity>, health: ReleaseHealthCache = ReleaseHealthCache()): UsenetStreamSearch {
         val dao = FakeNewznabIndexerDao().apply { runBlocking { indexers.forEach { insert(it) } } }
         val repository = UsenetSourcesRepository(FakeUsenetProviderDao(), dao, FakeSecretCipher(), Dispatchers.IO)
-        return UsenetStreamSearch(repository, client, UsenetStreamRegistry(), health, mockk<UsenetEngineSetup>(relaxed = true), Clock.systemUTC())
+        return UsenetStreamSearch(repository, client, UsenetStreamRegistry(), health, mockk<UsenetEngineSetup>(relaxed = true), Clock.systemUTC(), usenetSettings())
     }
 
     private fun row(name: String, priority: Int, backupOnly: Boolean = false, sortOrder: Int = 0) = NewznabIndexerEntity(

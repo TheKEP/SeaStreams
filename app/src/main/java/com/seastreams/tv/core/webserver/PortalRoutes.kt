@@ -37,6 +37,7 @@ private const val TAG = "LocalPortal"
  * - `GET /api/state` – [PortalState]
  * - `POST /api/…` – JSON mutations, each answering [ApiMessage]
  * - `/api/usenet…` – app-wide Usenet Sources ([usenetRoutes])
+ * - `/api/debrid…`, `/api/sources/toggles` – app-wide Debrid accounts and the source toggles ([debridRoutes])
  * - `/api/streams…` – per-profile stream filters, sorting and formatter ([streamRoutes])
  * - `GET/HEAD /nntp/{token}/{name}` – the loopback-only Usenet proxy for external players ([nntpProxyRoutes])
  *
@@ -49,6 +50,7 @@ fun Application.portalModule(
     usenet: PortalUsenetController,
     proxy: NntpProxy? = null,
     streams: PortalStreamController? = null,
+    debrid: PortalDebridController? = null,
 ) {
     routing {
         proxy?.let { nntpProxyRoutes(it) }
@@ -82,6 +84,7 @@ fun Application.portalModule(
             post("/library/import") { call.mutate<LibraryImportRequest>(controller::importToLibrary) }
             usenetRoutes(usenet)
             streams?.let { streamRoutes(it) }
+            debrid?.let { debridRoutes(it) }
         }
     }
 }

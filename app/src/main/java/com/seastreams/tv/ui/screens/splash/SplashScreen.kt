@@ -195,7 +195,7 @@ fun SeaStreamsSplashScreen(
         ) {
             Image(
                 painter = painterResource(id = R.drawable.ic_seastreams_icon),
-                contentDescription = "SeaStreams Logo",
+                contentDescription = "seastreams logo",
                 modifier = Modifier.size(ICON_SIZE).offset(y = ICON_OFFSET_Y),
             )
             Row(verticalAlignment = Alignment.CenterVertically) {

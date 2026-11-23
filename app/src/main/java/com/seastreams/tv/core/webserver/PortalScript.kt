@@ -45,7 +45,7 @@ async function refresh() {
     if (!S.formReady) { S.formReady = true; setupProfileForm(); }
     render();
   } catch (e) {
-    toast('Lost connection to the TV. Is SeaStreams open?', false);
+    toast('Lost connection to the TV. Is seastreams open?', false);
   }
 }
 

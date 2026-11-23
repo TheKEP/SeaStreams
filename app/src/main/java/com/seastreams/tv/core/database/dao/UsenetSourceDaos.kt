@@ -45,6 +45,10 @@ interface UsenetProviderDao {
 
     @Query("DELETE FROM usenet_providers WHERE id = :id")
     suspend fun delete(id: Long)
+
+    /** `Clear Usenet settings`. */
+    @Query("DELETE FROM usenet_providers")
+    suspend fun deleteAll()
 }
 
 /** App-wide Newznab indexers, in list order. */
@@ -82,4 +86,8 @@ interface NewznabIndexerDao {
 
     @Query("DELETE FROM newznab_indexers WHERE id = :id")
     suspend fun delete(id: Long)
+
+    /** `Clear Usenet settings`. */
+    @Query("DELETE FROM newznab_indexers")
+    suspend fun deleteAll()
 }

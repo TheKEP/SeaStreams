@@ -25,7 +25,7 @@ enum class HeaderPreset(
     RADARR("Radarr", "Radarr/Radarr", "7.0.3.10918", "Radarr/{v} $ALPINE", RSS_ACCEPT),
     SABNZBD("SABnzbd", "sabnzbd/sabnzbd", "5.1.3", "SABnzbd/{v}", ANY_ACCEPT),
     NZBGET("NZBGet", "nzbgetcom/nzbget", "26.3", "nzbget/{v}", ANY_ACCEPT),
-    SEASTREAMS("SeaStreams", null, BuildConfig.VERSION_NAME, "SeaStreams/{v}", ANY_ACCEPT),
+    SEASTREAMS("seastreams", null, BuildConfig.VERSION_NAME, "SeaStreams/{v}", ANY_ACCEPT),
     ;
 
     /** The version sent for this preset: a fetched one when known, else the built-in fallback. */

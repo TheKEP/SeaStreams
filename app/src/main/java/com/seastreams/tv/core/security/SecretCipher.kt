@@ -17,9 +17,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Encrypts Usenet provider passwords and indexer API keys before they reach Room (PRD §12). Output
- * is `v1:` + Base64(IV ‖ ciphertext). [decrypt] returns `null` for anything it can't open (e.g. the
- * Keystore key is gone after a restore to another device), which the UI shows as *Password needed*.
+ * Encrypts Usenet provider passwords, indexer API keys and Debrid keys/tokens before they reach Room (PRD §12, §14).
+ * Output is `v1:` + Base64(IV ‖ ciphertext). [decrypt] returns `null` for anything it can't open (e.g. the Keystore
+ * key is gone after a restore to another device), which the UI shows as *Password needed* / *Sign-in needed*.
  * Calls may touch the Keystore, so run them off the main thread.
  */
 interface SecretCipher {
@@ -28,9 +28,8 @@ interface SecretCipher {
     fun decrypt(stored: String): String?
 }
 
-/** Android Keystore AES-256-GCM, key alias [KEY_ALIAS]; the key never leaves secure hardware/software keystore. */
-@Singleton
-class KeystoreSecretCipher @Inject constructor() : SecretCipher {
+/** AES-GCM sealing with the key [key] supplies: a fresh 96-bit IV per call and a 128-bit tag, so tampering fails. */
+open class AesGcmSecretCipher(private val key: () -> SecretKey) : SecretCipher {
 
     override fun encrypt(plain: String): String {
         val cipher = Cipher.getInstance(TRANSFORMATION)
@@ -54,8 +53,25 @@ class KeystoreSecretCipher @Inject constructor() : SecretCipher {
         }
     }
 
+    private companion object {
+        const val TRANSFORMATION = "AES/GCM/NoPadding"
+        const val PREFIX = "v1:"
+        const val IV_BYTES = 12
+        const val TAG_BITS = 128
+    }
+}
+
+/** Android Keystore AES-256-GCM, key alias `seastreams_sources`; the key never leaves the keystore. */
+@Singleton
+class KeystoreSecretCipher @Inject constructor() : AesGcmSecretCipher(KeystoreKey::get)
+
+private object KeystoreKey {
+    private const val KEYSTORE = "AndroidKeyStore"
+    private const val KEY_ALIAS = "seastreams_sources"
+    private const val KEY_BITS = 256
+
     @Synchronized
-    private fun key(): SecretKey {
+    fun get(): SecretKey {
         val keyStore = KeyStore.getInstance(KEYSTORE).apply { load(null) }
         (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
         val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE)
@@ -67,16 +83,6 @@ class KeystoreSecretCipher @Inject constructor() : SecretCipher {
                 .build(),
         )
         return generator.generateKey()
-    }
-
-    private companion object {
-        const val KEYSTORE = "AndroidKeyStore"
-        const val KEY_ALIAS = "seastreams_sources"
-        const val TRANSFORMATION = "AES/GCM/NoPadding"
-        const val PREFIX = "v1:"
-        const val IV_BYTES = 12
-        const val TAG_BITS = 128
-        const val KEY_BITS = 256
     }
 }
 

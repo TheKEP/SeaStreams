@@ -29,6 +29,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import com.seastreams.tv.testutil.usenetSettings
 
 /** PRD §12 Playback: the built-in `Usenet` card, addon `nzbUrl` streams, and LAST USED on Usenet releases. */
 class ResolveStreamsUsenetTest {
@@ -56,7 +57,8 @@ class ResolveStreamsUsenetTest {
         ), "Usenet · 1080p", "$title\n4.0 GB · Idx", emptyMap(),
     )
 
-    private fun useCase() = ResolveStreamsUseCase(FakeAddonDao(listOf(addon("torrentio"))), Lazy { client }, Lazy { search }, registry, noStreamProcessing())
+    private fun useCase(usenetOn: Boolean = true) =
+        ResolveStreamsUseCase(FakeAddonDao(listOf(addon("torrentio"))), Lazy { client }, Lazy { search }, registry, noStreamProcessing(), usenetSettings(usenetOn))
 
     private fun stubAddon(streams: List<StremioStream> = listOf(StremioStream("https://cdn/a.mkv", "Torrentio", "A", emptyMap()))) {
         coEvery { client.fetchStreams(any(), any(), any()) } returns streams
@@ -123,6 +125,24 @@ class ResolveStreamsUsenetTest {
         assertEquals(8, server.maxConnections)
         assertTrue(server.tls)
         assertEquals("https://cdn/b.mkv", streams[1].url)
+    }
+
+    @Test
+    fun `with Enable Usenet OFF, nzbUrl streams needing your providers are dropped and own-servers ones still listed`() = runTest {
+        val raw = """{"streams":[
+            {"name":"Own servers","description":"A","nzbUrl":"https://addon/nzb/own","servers":["nntps://news.example.com:563/8"]},
+            {"name":"Your providers","description":"B","nzbUrl":"https://addon/nzb/yours"},
+            {"name":"Bad servers only","description":"C","nzbUrl":"https://addon/nzb/bad","servers":["ftp://nope"]},
+            {"name":"Direct","url":"https://cdn/b.mkv"}]}"""
+        stubAddon(StremioResourceParser.parseStreams(raw))
+        coEvery { search.configured() } returns false
+
+        val off = useCase(usenetOn = false)(movie).streams
+        assertEquals(listOf("Own servers", "Direct"), off.map { it.label })
+        assertTrue(UsenetStreamRegistry.isUsenet(off[0].url))
+
+        val on = useCase(usenetOn = true)(movie).streams
+        assertEquals(listOf("Own servers", "Your providers", "Bad servers only", "Direct"), on.map { it.label })
     }
 
     @Test

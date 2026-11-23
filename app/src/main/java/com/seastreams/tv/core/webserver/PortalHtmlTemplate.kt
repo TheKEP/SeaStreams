@@ -13,7 +13,7 @@ object PortalHtmlTemplate {
         val avatars = ProfileAvatar.entries.joinToString(",", "[", "]") { "{\"g\":\"${it.glyph}\",\"c\":\"${it.cssColor}\"}" }
         return HTML
             .replace("/*AVATARS*/", "window.AVATARS = $avatars;")
-            .replace("/*SCRIPT*/", PortalScript.JS + "\n" + PortalUsenetScript.JS + "\n" + PortalStreamScript.JS)
+            .replace("/*SCRIPT*/", PortalScript.JS + "\n" + PortalUsenetScript.JS + "\n" + PortalDebridScript.JS + "\n" + PortalStreamScript.JS)
     }
 
     private val HTML = """
@@ -23,7 +23,7 @@ object PortalHtmlTemplate {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
-<title>SeaStreams Portal</title>
+<title>seastreams Portal</title>
 <style>
 :root {
   --bg: #0B0D12; --surface: #161A23; --surface-2: #1F2430; --line: #2A3040;
@@ -98,7 +98,7 @@ table.ranges input { padding: 7px 8px; }
 </head>
 <body>
 <header>
-  <h1>SeaStreams</h1>
+  <h1>seastreams</h1>
   <p>Changes you make here appear on your TV instantly.</p>
 </header>
 <main>
@@ -152,6 +152,8 @@ table.ranges input { padding: 7px 8px; }
   </section>
 
   <section id="sources"></section>
+
+  <section id="debrid"></section>
 
   <section id="streams"></section>
 
