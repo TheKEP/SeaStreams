@@ -12,6 +12,7 @@ import com.seastreams.tv.domain.streams.SizeLimits
 import com.seastreams.tv.domain.streams.SortScope
 import com.seastreams.tv.domain.streams.StreamFilters
 import com.seastreams.tv.domain.streams.StreamFormatterChoice
+import com.seastreams.tv.domain.streams.StreamProcessingSettings
 import com.seastreams.tv.domain.streams.StreamSort
 import com.seastreams.tv.domain.streams.ValueRange
 import com.seastreams.tv.domain.streams.format.FormatterPreview
@@ -20,6 +21,37 @@ import com.seastreams.tv.domain.streams.format.PredefinedFormatters
 const val STREAM_FILTERS_ROW_KEY = "stream-filters"
 const val STREAM_SORT_ROW_KEY = "stream-sort"
 const val STREAM_FORMATTER_ROW_KEY = "stream-formatter"
+const val STREAM_FILTERING_TOGGLE_KEY = "stream-filtering-enabled"
+const val STREAM_SORTING_TOGGLE_KEY = "stream-sorting-enabled"
+const val STREAM_FORMATTING_TOGGLE_KEY = "stream-formatting-enabled"
+
+/** `Settings → UI` master toggles (PRD §13 *Master toggles*); each receives the new value. */
+class StreamProcessingActions(
+    val setFilteringEnabled: (Boolean) -> Unit = {},
+    val setSortingEnabled: (Boolean) -> Unit = {},
+    val setFormattingEnabled: (Boolean) -> Unit = {},
+)
+
+internal fun filteringDescription(enabled: Boolean): String =
+    if (enabled) "On: your stream filters are applied" else "Off: every stream is shown — your filters are kept"
+
+internal fun sortingDescription(enabled: Boolean): String =
+    if (enabled) "On: streams are sorted by your criteria" else "Off: addon order — your sort criteria are kept"
+
+internal fun formattingDescription(enabled: Boolean): String =
+    if (enabled) "On: streams use your chosen formatter" else "Off: the addon's own text — your formatter is kept"
+
+/**
+ * The row `Back` focuses when a panel opened from [key] closes: a stream panel's row while its stage is on, else its
+ * master toggle (the row was hidden while the panel was open, e.g. the stage switched off from the Web Portal). Any
+ * other key maps to itself.
+ */
+internal fun streamReturnRow(key: String, settings: StreamProcessingSettings): String = when {
+    key == STREAM_FILTERS_ROW_KEY && !settings.filteringEnabled -> STREAM_FILTERING_TOGGLE_KEY
+    key == STREAM_SORT_ROW_KEY && !settings.sortingEnabled -> STREAM_SORTING_TOGGLE_KEY
+    key == STREAM_FORMATTER_ROW_KEY && !settings.formattingEnabled -> STREAM_FORMATTING_TOGGLE_KEY
+    else -> key
+}
 
 /** `Off`, or how many filter groups are in use (`3 filters on`). */
 internal fun filtersSummary(filters: StreamFilters): String {

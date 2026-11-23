@@ -5,6 +5,10 @@ import com.seastreams.tv.core.database.entity.ProfileEntity
 import com.seastreams.tv.core.datastore.StreamProcessingStore
 import com.seastreams.tv.data.profile.ProfileRepository
 import com.seastreams.tv.domain.streams.FormatterId
+import com.seastreams.tv.domain.streams.SortCriterion
+import com.seastreams.tv.domain.streams.SortKey
+import com.seastreams.tv.domain.streams.StreamFormatterChoice
+import com.seastreams.tv.domain.streams.StreamSort
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.request.get
@@ -26,6 +30,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -128,6 +133,59 @@ class PortalStreamRoutesTest {
         assertEquals(FormatterId.CUSTOM, formatter.id)
         assertEquals("{addon.name}", formatter.customName)
         assertEquals(FormatterId.ORIGINAL, store.settings(1).first().formatter.id)
+    }
+
+    @Test
+    fun `GET exposes the master toggles, on by default`() = runTest {
+        val st = state(1)
+        assertTrue(st.filteringEnabled && st.sortingEnabled && st.formattingEnabled)
+        store.setSortingEnabled(1, false)
+        assertFalse(state(1).sortingEnabled)
+        assertTrue(state(2).sortingEnabled)
+    }
+
+    @Test
+    fun `a checkbox posts only its flag and the saved rules stay`() = runTest {
+        store.updateFilters(1) { it.copy(keywords = it.keywords.copy(excluded = listOf("CAM"))) }
+        store.updateFormatter(1) { StreamFormatterChoice(FormatterId.CUSTOM, "{addon.name}", null) }
+
+        assertEquals(200, post("/api/streams/filters", """{"profileId":1,"filteringEnabled":false}""").status.value)
+        assertEquals(200, post("/api/streams/sort", """{"profileId":1,"sortingEnabled":false}""").status.value)
+        val formatter = post("/api/streams/formatter", """{"profileId":1,"formattingEnabled":false}""")
+        assertEquals("Stream formatting turned off for Ken", json.decodeFromString<ApiMessage>(formatter.bodyAsText()).message)
+
+        val off = state(1)
+        assertFalse(off.filteringEnabled || off.sortingEnabled || off.formattingEnabled)
+        assertEquals(listOf("CAM"), off.filters.keywords.excluded)
+        assertEquals("{addon.name}", off.formatter.customName)
+        val two = state(2)
+        assertTrue(two.filteringEnabled && two.sortingEnabled && two.formattingEnabled)
+
+        post("/api/streams/filters", """{"profileId":1,"filteringEnabled":true}""")
+        assertTrue(state(1).filteringEnabled)
+        assertEquals(listOf("CAM"), state(1).filters.keywords.excluded)
+    }
+
+    @Test
+    fun `a save carries rules and flag together, and omitting the flag keeps it`() = runTest {
+        val sort = StreamSort(global = listOf(SortCriterion(SortKey.SEEDERS)))
+        val body = json.encodeToString(StreamSortRequest.serializer(), StreamSortRequest(2, sort, sortingEnabled = false))
+        assertEquals(200, post("/api/streams/sort", body).status.value)
+        assertEquals(sort, state(2).sort)
+        assertFalse(state(2).sortingEnabled)
+
+        val rulesOnly = json.encodeToString(StreamSortRequest.serializer(), StreamSortRequest(2, StreamSort()))
+        assertEquals(200, post("/api/streams/sort", rulesOnly).status.value)
+        assertEquals(StreamSort(), state(2).sort)
+        assertFalse(state(2).sortingEnabled)
+    }
+
+    @Test
+    fun `a save with neither rules nor flag is refused`() = runTest {
+        val empty = post("/api/streams/filters", """{"profileId":1}""")
+        assertEquals(400, empty.status.value)
+        assertEquals("Nothing to save", json.decodeFromString<ApiMessage>(empty.bodyAsText()).message)
+        assertEquals(400, post("/api/streams/formatter", """{"profileId":9,"formattingEnabled":false}""").status.value)
     }
 
     private fun profile(id: Long, name: String) =

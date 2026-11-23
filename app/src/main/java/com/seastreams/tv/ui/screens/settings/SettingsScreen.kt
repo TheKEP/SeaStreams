@@ -38,7 +38,9 @@ import com.seastreams.tv.ui.screens.settings.streams.STREAM_FILTERS_ROW_KEY
 import com.seastreams.tv.ui.screens.settings.streams.STREAM_FORMATTER_ROW_KEY
 import com.seastreams.tv.ui.screens.settings.streams.STREAM_SORT_ROW_KEY
 import com.seastreams.tv.ui.screens.settings.streams.StreamPanelHost
+import com.seastreams.tv.ui.screens.settings.streams.StreamProcessingActions
 import com.seastreams.tv.ui.screens.settings.streams.StreamProcessingViewModel
+import com.seastreams.tv.ui.screens.settings.streams.streamReturnRow
 import com.seastreams.tv.ui.components.LocalFocusOrigins
 import com.seastreams.tv.ui.components.LocalLayerCovered
 import com.seastreams.tv.ui.components.LocalTransientMessages
@@ -102,7 +104,7 @@ fun SettingsScreen(
     // Leaving a panel: land on the row that opened it.
     LaunchedEffect(panel) {
         viewModel.setPortalVisible(panel == SettingsPanel.Portal)
-        if (panel == SettingsPanel.Main) returnKey?.let(focusRow)
+        if (panel == SettingsPanel.Main) returnKey?.let { focusRow(streamReturnRow(it, streamState)) }
     }
     val openPanel: (String, SettingsPanel) -> Unit = { key, next ->
         returnKey = key
@@ -163,6 +165,11 @@ fun SettingsScreen(
                 setDebridEnabled = { debrid.setEnabled(it) },
                 clearDebrid = { debrid.clearAll() },
                 undoClearDebrid = { debrid.undoClear() },
+            ),
+            streams = StreamProcessingActions(
+                setFilteringEnabled = streams::setFilteringEnabled,
+                setSortingEnabled = streams::setSortingEnabled,
+                setFormattingEnabled = streams::setFormattingEnabled,
             ),
         ),
         sources = sourcesState,

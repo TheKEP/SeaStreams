@@ -17,11 +17,18 @@ import com.seastreams.tv.ui.screens.settings.sources.DebridUiState
 import com.seastreams.tv.ui.screens.settings.sources.SourcesActions
 import com.seastreams.tv.ui.screens.settings.sources.SourcesUiState
 import com.seastreams.tv.ui.screens.settings.sources.sourcesItems
+import com.seastreams.tv.ui.screens.settings.streams.STREAM_FILTERING_TOGGLE_KEY
 import com.seastreams.tv.ui.screens.settings.streams.STREAM_FILTERS_ROW_KEY
 import com.seastreams.tv.ui.screens.settings.streams.STREAM_FORMATTER_ROW_KEY
+import com.seastreams.tv.ui.screens.settings.streams.STREAM_FORMATTING_TOGGLE_KEY
+import com.seastreams.tv.ui.screens.settings.streams.STREAM_SORTING_TOGGLE_KEY
 import com.seastreams.tv.ui.screens.settings.streams.STREAM_SORT_ROW_KEY
+import com.seastreams.tv.ui.screens.settings.streams.StreamProcessingActions
+import com.seastreams.tv.ui.screens.settings.streams.filteringDescription
 import com.seastreams.tv.ui.screens.settings.streams.filtersSummary
+import com.seastreams.tv.ui.screens.settings.streams.formattingDescription
 import com.seastreams.tv.ui.screens.settings.streams.sortSummary
+import com.seastreams.tv.ui.screens.settings.streams.sortingDescription
 import java.time.ZoneId
 
 /** One entry of a Settings category list. */
@@ -30,7 +37,7 @@ sealed interface SettingsItem {
 
     /**
      * A focusable row. [indented] marks a conditional sub-setting drawn beneath its parent toggle
-     * (`Mute auto-play trailers`, `Trailer auto-play delay`, `Failover timeout duration`).
+     * (`Mute auto-play trailers`, `Trailer auto-play delay`, `Failover timeout duration`, the stream panel rows).
      */
     data class Entry(
         override val key: String,
@@ -129,6 +136,8 @@ class SettingsCallbacks(
     val updateHeaders: () -> Unit = {},
     /** `Sources` toggles and scoped clears. */
     val sources: SourcesActions = SourcesActions(),
+    /** `UI` stream processing master toggles. */
+    val streams: StreamProcessingActions = StreamProcessingActions(),
 )
 
 /**
@@ -197,20 +206,49 @@ private fun uiItems(state: SettingsUiState, swatchesOpen: Boolean, cb: SettingsC
 }
 
 /**
- * The bottom of `UI` (PRD §13), below the trailer rows: the active profile's stream filters, sorting and formatter.
- * Their panels' `Back` returns to these rows ([SettingsPanel.parent]).
+ * The bottom of `UI` (PRD §13), below the trailer rows: the active profile's three master toggles, each with its panel
+ * row (stream filters, sorting, formatter) as an indented sub-setting beneath it while the toggle is on. The stored
+ * rules are kept while a row is hidden. The panels' `Back` returns to these rows ([SettingsPanel.parent]).
  */
-internal fun streamProcessingItems(streams: StreamProcessingSettings, cb: SettingsCallbacks): List<SettingsItem> = listOf(
-    entry(STREAM_FILTERS_ROW_KEY, SeaIcons.FilterList, "Stream filters", filtersSummary(streams.filters), RowTrailing.Chevron) {
-        cb.open(SettingsPanel.Stream.Filters)
-    },
-    entry(STREAM_SORT_ROW_KEY, SeaIcons.Sort, "Stream sorting", sortSummary(streams.sort), RowTrailing.Chevron) {
-        cb.open(SettingsPanel.Stream.Sort)
-    },
-    entry(STREAM_FORMATTER_ROW_KEY, Icons.Filled.Edit, "Stream formatter", streams.formatter.id.label, RowTrailing.Chevron) {
-        cb.open(SettingsPanel.Stream.Formatter)
-    },
-)
+internal fun streamProcessingItems(streams: StreamProcessingSettings, cb: SettingsCallbacks): List<SettingsItem> = buildList {
+    val actions = cb.streams
+    add(
+        entry(STREAM_FILTERING_TOGGLE_KEY, SeaIcons.FilterList, "Enable stream filtering", filteringDescription(streams.filteringEnabled), RowTrailing.Toggle(streams.filteringEnabled)) {
+            actions.setFilteringEnabled(!streams.filteringEnabled)
+        },
+    )
+    if (streams.filteringEnabled) {
+        add(
+            entry(STREAM_FILTERS_ROW_KEY, SeaIcons.FilterList, "Stream filters", filtersSummary(streams.filters), RowTrailing.Chevron, indented = true) {
+                cb.open(SettingsPanel.Stream.Filters)
+            },
+        )
+    }
+    add(
+        entry(STREAM_SORTING_TOGGLE_KEY, SeaIcons.Sort, "Enable stream sorting", sortingDescription(streams.sortingEnabled), RowTrailing.Toggle(streams.sortingEnabled)) {
+            actions.setSortingEnabled(!streams.sortingEnabled)
+        },
+    )
+    if (streams.sortingEnabled) {
+        add(
+            entry(STREAM_SORT_ROW_KEY, SeaIcons.Sort, "Stream sorting", sortSummary(streams.sort), RowTrailing.Chevron, indented = true) {
+                cb.open(SettingsPanel.Stream.Sort)
+            },
+        )
+    }
+    add(
+        entry(STREAM_FORMATTING_TOGGLE_KEY, Icons.Filled.Edit, "Enable stream formatting", formattingDescription(streams.formattingEnabled), RowTrailing.Toggle(streams.formattingEnabled)) {
+            actions.setFormattingEnabled(!streams.formattingEnabled)
+        },
+    )
+    if (streams.formattingEnabled) {
+        add(
+            entry(STREAM_FORMATTER_ROW_KEY, Icons.Filled.Edit, "Stream formatter", streams.formatter.id.label, RowTrailing.Chevron, indented = true) {
+                cb.open(SettingsPanel.Stream.Formatter)
+            },
+        )
+    }
+}
 
 private fun otherItems(clearSecondsLeft: Int?, cacheBytes: Long?, cb: SettingsCallbacks): List<SettingsItem> = listOf(
     if (clearSecondsLeft != null) {

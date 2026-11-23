@@ -4,7 +4,8 @@ package com.seastreams.tv.core.webserver
  * The portal's `Stream filters & formatter` section (PRD §13), appended after [PortalScript] and reusing its `h`,
  * `byId`, `toast` and `api` helpers. Per profile: keywords, release groups, regexes, seeder / age ranges, size and
  * bitrate limits per resolution (movies / series), and custom formatter templates with a live preview from
- * `POST /api/streams/format-preview`. Values picked on the TV (resolutions, languages, sort order, …) are kept as they
+ * `POST /api/streams/format-preview`. Each section starts with its master toggle checkbox (`Enable stream filtering` /
+ * `sorting` / `formatting`), saved as soon as it changes by posting only that flag, so typed edits are kept. Values picked on the TV (resolutions, languages, sort order, …) are kept as they
  * are: a save sends them back unchanged. The form is built once per profile switch, so a refresh never wipes typing.
  *
  * Note: this is a Kotlin raw string, so the script deliberately never uses the dollar sign.
@@ -16,6 +17,12 @@ const SP = { st: null, profileId: null, previewTimer: 0, previewSeq: 0 };
 const SP_LISTS = [['required', 'Required'], ['excluded', 'Excluded'], ['included', 'Included (kept regardless)'], ['preferred', 'Preferred (in order)']];
 const SP_GB = 1e9;
 const SP_MBPS = 1e6;
+// [checkbox id, state/request field, endpoint, hint while off]
+const SP_STAGES = [
+  ['sp-on-filters', 'filteringEnabled', '/streams/filters', 'Off: every stream is shown. Your saved filters are kept but not applied.'],
+  ['sp-on-sort', 'sortingEnabled', '/streams/sort', 'Off: streams keep the addon order. Your saved sort criteria are kept but not applied.'],
+  ['sp-on-formatter', 'formattingEnabled', '/streams/formatter', "Off: streams show the addon's own text. Your saved formatter is kept but not applied."],
+];
 
 function spInput(id, extra) { return h('input', Object.assign({ type: 'text', id: id, autocapitalize: 'off', spellcheck: false }, extra || {})); }
 function spNumber(id) { return h('input', { type: 'number', id: id, min: '0', step: 'any', inputmode: 'decimal' }); }
@@ -25,6 +32,22 @@ function spCsv(text) { return text.split(',').map((x) => x.trim()).filter((x) =>
 function spLines(text) { return text.split('\n').map((x) => x.trim()).filter((x) => x.length); }
 function spNum(id, scale) { const v = byId(id).value.trim(); return v === '' ? null : Math.round(Number(v) * (scale || 1)); }
 function spShow(id, value, scale) { byId(id).value = value === null || value === undefined ? '' : String(value / (scale || 1)); }
+function spStage(stage, label) {
+  return h('div', null, h('label', { class: 'check' }, h('input', { type: 'checkbox', id: stage[0] }), label),
+    h('p', { class: 'hint', id: stage[0] + '-hint', hidden: true }, stage[3]));
+}
+function spStageHint(stage) { byId(stage[0] + '-hint').hidden = SP.st[stage[1]]; }
+
+// A master toggle posts only its own flag, so the rules (and anything typed but not saved) stay as they are.
+async function saveStage(stage, box) {
+  const body = { profileId: SP.profileId };
+  body[stage[1]] = box.checked;
+  box.disabled = true;
+  const ok = await api(stage[2], body, null);
+  box.disabled = false;
+  if (ok) SP.st[stage[1]] = box.checked; else box.checked = SP.st[stage[1]];
+  spStageHint(stage);
+}
 
 function renderStreamProfiles(st) {
   const select = byId('sp-profile');
@@ -84,10 +107,11 @@ function setupStreams() {
   const sec = byId('streams');
   sec.replaceChildren(
     h('h2', null, 'Stream filters & formatter'),
-    h('p', { class: 'hint' }, 'Each profile has its own. Pick resolutions, qualities, languages and the sort order on the TV (Settings → Sources); type patterns, limits and templates here.'),
+    h('p', { class: 'hint' }, 'Each profile has its own. Pick resolutions, qualities, languages and the sort order on the TV (Settings → UI); type patterns, limits and templates here.'),
     h('div', { class: 'row' }, h('label', { for: 'sp-profile' }, 'Editing'), h('select', { class: 'grow', id: 'sp-profile', 'aria-label': 'Profile' })),
     h('div', { id: 'sp-forms', hidden: true },
       h('h3', null, 'Filters'),
+      spStage(SP_STAGES[0], 'Enable stream filtering'),
       listGroup('kw', 'Keywords', 'Comma-separated words matched in the file name, release group or indexer (a space also matches . - _).', false),
       listGroup('rg', 'Release groups', 'Comma-separated group names, e.g. FraMeSToR, NTb.', false),
       listGroup('rx', 'Regex', 'One per line, written /pattern/flags. Flags: i ignore case, n negate (matches streams the pattern does NOT match). Preferred lines may start with a name: Remux = /remux/i', true),
@@ -95,7 +119,11 @@ function setupStreams() {
       rangeGroup('ag', 'Age', '(hours)'),
       h('div', { id: 'sp-limits' }),
       h('div', { class: 'row', style: 'margin-top:12px' }, h('button', { class: 'primary', type: 'button', id: 'sp-save-filters' }, 'Save filters')),
+      h('h3', null, 'Sorting'),
+      spStage(SP_STAGES[1], 'Enable stream sorting'),
+      h('p', { class: 'hint' }, 'Sort criteria are picked on the TV (Settings → UI → Stream sorting).'),
       h('h3', null, 'Formatter'),
+      spStage(SP_STAGES[2], 'Enable stream formatting'),
       h('p', { class: 'hint' }, 'Templates use the AIOStreams syntax, e.g. {stream.resolution::=2160p["4K"||""]}, {stream.size::rbytes}, {?…?} groups and {tools.newLine}.'),
       spField('Formatter', h('select', { id: 'sp-fm-id' })),
       spField('Name template', spArea('sp-fm-name', 3)),
@@ -106,6 +134,7 @@ function setupStreams() {
   byId('sp-profile').addEventListener('change', (e) => { const id = Number(e.currentTarget.value); if (id) loadStreams(id); });
   byId('sp-save-filters').addEventListener('click', (e) => saveStreamFilters(e.currentTarget));
   byId('sp-save-formatter').addEventListener('click', (e) => saveStreamFormatter(e.currentTarget));
+  SP_STAGES.forEach((stage) => byId(stage[0]).addEventListener('change', (e) => saveStage(stage, e.currentTarget)));
   byId('sp-fm-id').addEventListener('change', () => { applyFormatterChoice(null); schedulePreview(); });
   ['sp-fm-name', 'sp-fm-desc', 'sp-fm-file'].forEach((id) => byId(id).addEventListener('input', schedulePreview));
 }
@@ -137,6 +166,7 @@ function fillStreams() {
     spShow(t[0] + '-' + res + '-smin', r.series.min, t[2]);
     spShow(t[0] + '-' + res + '-smax', r.series.max, t[2]);
   }));
+  SP_STAGES.forEach((stage) => { byId(stage[0]).checked = st[stage[1]]; spStageHint(stage); });
   byId('sp-fm-id').value = st.formatter.id;
   applyFormatterChoice(st.formatter);
   schedulePreview();
@@ -213,7 +243,8 @@ async function saveStreamFilters(button) {
   f.ageHours = collectRange('ag');
   f.size = collectLimits('sz', SP_GB);
   f.bitrate = collectLimits('br', SP_MBPS);
-  if (await api('/streams/filters', { profileId: SP.profileId, filters: f }, button)) loadStreams(SP.profileId);
+  const body = { profileId: SP.profileId, filters: f, filteringEnabled: byId('sp-on-filters').checked };
+  if (await api('/streams/filters', body, button)) loadStreams(SP.profileId);
 }
 
 async function saveStreamFormatter(button) {
@@ -224,7 +255,8 @@ async function saveStreamFormatter(button) {
     customName: custom ? byId('sp-fm-name').value : SP.st.formatter.customName,
     customDescription: custom ? byId('sp-fm-desc').value : SP.st.formatter.customDescription,
   };
-  if (await api('/streams/formatter', { profileId: SP.profileId, formatter: formatter }, button)) loadStreams(SP.profileId);
+  const body = { profileId: SP.profileId, formatter: formatter, formattingEnabled: byId('sp-on-formatter').checked };
+  if (await api('/streams/formatter', body, button)) loadStreams(SP.profileId);
 }
 
 (function initStreams() {

@@ -22,7 +22,8 @@ class ProcessStreamsUseCase @Inject constructor(
     suspend operator fun invoke(profileId: Long, streams: List<StreamSource>, context: StreamContext): List<StreamSource> {
         if (streams.isEmpty()) return streams
         val settings = store.settings(profileId).first()
-        if (settings.isDefault) return streams
+        // Nothing stored, or every stage with rules switched off by its master toggle.
+        if (settings.effective().isDefault) return streams
         return withContext(dispatcher) { StreamPipeline.process(streams, settings, context, clock.millis()) }
     }
 }
