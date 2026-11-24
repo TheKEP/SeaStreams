@@ -134,7 +134,8 @@ app/src/main/java/com/seastreams/tv/
     │   ├── InlineTrailerOverlay.kt   # 16:9 showcase slot PlayerView surface + top-right white muted speaker badge; attaches only when playsIn(slot, cardFocused) — the one focused card owning the playing slot, so a duplicate title on an unfocused row keeps its backdrop
     │   └── PosterGrid.kt             # 5-column TvLazyVerticalGrid. No `focusRestorer`: its onEnter also fires for a programmatic child `requestFocus()` (direction `Enter`) and redirects it to the saved poster. Instead, a direction-aware `focusProperties { onEnter }` uses PosterGridFocus.kt's `posterGridEntry`: `Enter` requests keep their target, and D-pad entry restores `LastFocusedPoster` by key (`posterGridRestoreIndex`, which follows a reorder, else 0), scrolling to it first when it isn't composed
     └── screens/
-        ├── splash/                   # SplashScreen.kt (black hold screen, icon + Fredoka "seastreams" 420ms black start, then one-shot 2.84s left-to-right pop-in + bobbing; >= 3.35s AND AppGate loaded; preloads Profile Gate backdrop)
+        ├── splash/                   # SplashScreen.kt (black hold screen, icon (96dp, 10dp down: tip on the `a` counter centre) + Fredoka "seastreams" 420ms black start, then one-shot 2.84s left-to-right pop-in + bobbing read only in graphicsLayer (no per-frame recomposition); >= 3.35s AND AppGate loaded; preloads Profile Gate backdrop)
+        │                             # SplashMotion.kt (pure splashMotionFor: Wave, or Fade when ANIMATOR_DURATION_SCALE == 0 / Build.MANUFACTURER "Amazon" / amazon.hardware.fire_tv feature / isLowRamDevice; Fade = one 600ms whole-lockup alpha layer, or instant reveal at scale 0)
         ├── profiles/                 # ProfileSelectScreen.kt, ProfileCreateScreen.kt (with QR code)
         ├── home/                     # HomeScreen.kt + HomeViewModel.kt
         ├── catalog/                  # MoviesScreen.kt, TvShowsScreen.kt, ViewMoreScreen.kt

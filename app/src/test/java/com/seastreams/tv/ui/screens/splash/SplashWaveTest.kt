@@ -44,6 +44,14 @@ class SplashWaveTest {
     }
 
     @Test
+    fun `both wave and lightweight fade settle before the minimum hold ends`() {
+        assertEquals(420L, START_DELAY_MS)
+        assertEquals(3350L, MIN_HOLD_MS)
+        assertTrue(START_DELAY_MS + ANIMATION_DURATION_MS.toLong() <= MIN_HOLD_MS)
+        assertTrue(START_DELAY_MS + LOCKUP_FADE_MS <= MIN_HOLD_MS)
+    }
+
+    @Test
     fun `each letter is invisible before its start time`() {
         for (index in letters) {
             assertTrue(state(startOf(index) - 1f, index).alpha == 0f, "index=$index")
