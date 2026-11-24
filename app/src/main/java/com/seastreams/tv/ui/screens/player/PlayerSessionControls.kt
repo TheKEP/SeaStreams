@@ -1,6 +1,7 @@
 package com.seastreams.tv.ui.screens.player
 
 import androidx.lifecycle.viewModelScope
+import com.seastreams.tv.core.datastore.PlaybackSpeed
 import com.seastreams.tv.core.datastore.SubtitleStyle
 import com.seastreams.tv.domain.playback.SubtitleOption
 import com.seastreams.tv.domain.playback.SubtitleSource
@@ -89,8 +90,18 @@ fun PlayerViewModel.updateSessionAudio(transform: (SessionAudio) -> SessionAudio
     val updated = transform(previous).withPassthroughAutoOff(previous)
     _state.update { it.copy(audio = updated) }
     val manager = currentManager() ?: return
-    manager.setDsp(updated.toDsp())
+    manager.setDsp(updated.toDsp(_state.value.playbackSpeed))
     manager.setPassthrough(updated.passthrough)
+}
+
+/** Session speed change from the HUD's Speed overlay; never saved, so the next video starts at the profile default. */
+fun PlayerViewModel.setPlaybackSpeed(speed: PlaybackSpeed) {
+    _state.update { it.withPlaybackSpeed(speed) }
+    val state = _state.value
+    val manager = currentManager() ?: return
+    manager.setSpeed(speed.multiplier)
+    manager.setDsp(state.audio.toDsp(speed))
+    manager.setPassthrough(state.audio.passthrough)
 }
 
 /** Twice a second: position, progress saves and the Info overlay; cue text every 100 ms. */

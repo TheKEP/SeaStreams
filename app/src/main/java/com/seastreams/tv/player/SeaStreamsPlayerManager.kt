@@ -7,6 +7,7 @@ import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
@@ -258,6 +259,11 @@ class SeaStreamsPlayerManager(
 
     fun setDsp(config: AudioDspConfig) {
         engine.dsp.config = config
+    }
+
+    /** Session playback speed; pitch stays 1.0 (Sonic time-stretches PCM). Survives stream/episode switches. */
+    fun setSpeed(speed: Float) {
+        player.playbackParameters = PlaybackParameters(speed)
     }
 
     /**

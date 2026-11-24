@@ -41,7 +41,8 @@ data class PlayerEngineConfig(
     val preferredAudioLanguage: String,
 ) {
     companion object {
-        fun from(settings: AppSettings, dsp: AudioDspConfig, displaySupportsDolbyVision: Boolean) = PlayerEngineConfig(
+        /** [passthrough] is the session's value: it starts off when the session's speed isn't 1.0x (PRD §9). */
+        fun from(settings: AppSettings, dsp: AudioDspConfig, passthrough: Boolean, displaySupportsDolbyVision: Boolean) = PlayerEngineConfig(
             bufferProfile = settings.player.playbackBufferProfile,
             parallelConnections = settings.player.parallelStreamConnections,
             dolbyVision = DvPolicyInputs(
@@ -49,7 +50,7 @@ data class PlayerEngineConfig(
                 convertProfile7 = settings.player.convertDvProfile7ToHdr,
                 displaySupportsDolbyVision = displaySupportsDolbyVision,
             ),
-            passthrough = settings.audio.passthroughEnabled,
+            passthrough = passthrough,
             dsp = dsp,
             preferredAudioLanguage = settings.audio.preferredAudioLanguage,
         )

@@ -290,6 +290,8 @@ private fun keyFor(panel: SettingsPanel): String = when (panel) {
         ChoiceKind.BUFFER_PROFILE -> "buffer"
         ChoiceKind.PARALLEL_CONNECTIONS -> "parallel"
         ChoiceKind.DOLBY_VISION -> "dolby-vision"
+        ChoiceKind.PLAYBACK_SPEED -> SPEED_ROW_KEY
+        ChoiceKind.VOLUME_BOOST -> VOLUME_ROW_KEY
     }
     SettingsPanel.Main -> PROFILES_ROW_KEY
 }

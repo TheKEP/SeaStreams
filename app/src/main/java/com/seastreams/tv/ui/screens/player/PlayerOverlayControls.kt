@@ -98,7 +98,8 @@ fun PlayerOverlayControls(state: PlayerUiState, viewModel: PlayerViewModel, init
             line?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = Color.White.copy(alpha = 0.85f), maxLines = 1) }
         }
         Column(Modifier.align(Alignment.TopEnd).padding(end = 48.dp, top = 32.dp), horizontalAlignment = Alignment.End) {
-            val remaining = (progress.durationMs - progress.positionMs).coerceAtLeast(0)
+            // At 1.5x the rest of the video takes 1/1.5 as long in wall-clock time.
+            val remaining = ((progress.durationMs - progress.positionMs).coerceAtLeast(0) / state.playbackSpeed.multiplier).toLong()
             if (progress.durationMs > 0) {
                 Text("Ends at ${LocalTime.now().plusSeconds(remaining / MILLIS_PER_SECOND).format(CLOCK)}", style = MaterialTheme.typography.titleSmall, color = Color.White)
             }
@@ -106,7 +107,7 @@ fun PlayerOverlayControls(state: PlayerUiState, viewModel: PlayerViewModel, init
         }
         Column(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                // The Info panel ends just above this block's seek row (PlayerPanels.infoPanelBottomInset).
+                // The Subtitles, Audio, Speed and Info cards end just above this block's seek row (PlayerPanels.cardBottomInset).
                 .onSizeChanged { onBottomBlockMeasured(with(density) { it.height.toDp() }) }
                 .padding(horizontal = 48.dp, vertical = HUD_BOTTOM_PADDING),
             verticalArrangement = Arrangement.spacedBy(14.dp),

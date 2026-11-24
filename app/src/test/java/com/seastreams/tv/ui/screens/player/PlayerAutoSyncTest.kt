@@ -133,7 +133,7 @@ class PlayerAutoSyncTest {
             request = PlaybackRequest.Media(2, PlaybackTarget(1, show, "tt5", EpisodeRef(1, 3)), emptyList(), 0, emptyList(), 0),
         )
         val controls = actionBarControls(state)
-        assertEquals(8, controls.size, "every control is showing")
+        assertEquals(9, controls.size, "every control is showing")
 
         // Upper bound for a bold 14 sp label: 0.7 em per character.
         val charWidth = 14.dp * 0.7f
@@ -145,6 +145,7 @@ class PlayerAutoSyncTest {
                 BarControl.SUBTITLES -> pill("Subtitles")
                 BarControl.SUBTITLE_SYNC -> sync
                 BarControl.AUDIO -> pill("Audio")
+                BarControl.SPEED -> pill("Speed")
                 BarControl.STREAMS -> pill("Streams")
                 BarControl.EPISODES -> pill("Episodes")
                 BarControl.INFO -> pill("Info")

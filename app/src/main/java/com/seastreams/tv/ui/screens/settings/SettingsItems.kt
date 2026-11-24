@@ -120,6 +120,8 @@ enum class ChoiceKind {
     BUFFER_PROFILE,
     PARALLEL_CONNECTIONS,
     DOLBY_VISION,
+    PLAYBACK_SPEED,
+    VOLUME_BOOST,
 }
 
 /** Callbacks the lists need; kept apart from the ViewModel so the builders stay plain functions. */

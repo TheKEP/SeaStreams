@@ -59,12 +59,14 @@ internal object ProfileSettingsKeys {
     val AUTO_PLAY_TRAILERS = ScopedKey("player_autoplay_trailers", ::booleanPreferencesKey)
     val MUTE_AUTO_PLAY_TRAILERS = ScopedKey("player_mute_autoplay_trailers", ::booleanPreferencesKey)
     val TRAILER_DELAY_SECONDS = ScopedKey("player_trailer_delay_s", ::intPreferencesKey)
+    val DEFAULT_PLAYBACK_SPEED = ScopedKey("player_default_speed", ::stringPreferencesKey)
     val BACKGROUND_COLOR = ScopedKey("ui_background_color", ::intPreferencesKey)
 
     val PASSTHROUGH_ENABLED = ScopedKey("audio_passthrough", ::booleanPreferencesKey)
     val DIALOGUE_BOOST = ScopedKey("audio_dialogue_boost", ::stringPreferencesKey)
     val NIGHT_MODE = ScopedKey("audio_night_mode", ::booleanPreferencesKey)
     val AUDIO_DELAY_MS = ScopedKey("audio_delay_ms", ::intPreferencesKey)
+    val VOLUME_BOOST = ScopedKey("audio_volume_boost", ::stringPreferencesKey)
     val PREFERRED_AUDIO_LANGUAGE = ScopedKey("audio_language", ::stringPreferencesKey)
 
     val SUBTITLE_MODE = ScopedKey("subs_mode", ::stringPreferencesKey)
@@ -88,8 +90,8 @@ internal object ProfileSettingsKeys {
         EXTERNAL_PLAYER, AUTO_PLAY_TOP_STREAM, PREFERRED_AUTOPLAY_ADDON, AUTO_STREAM_FAILOVER, FALLBACK_TIMEOUT_SECONDS,
         AUTO_PLAY_FROM_CONTINUE_WATCHING, BLUR_UNWATCHED_THUMBNAILS, HDR_WHITE_DIMMING, AUTO_PLAY_NEXT_EPISODE,
         CONVERT_DV_PROFILE_7, DOLBY_VISION_PLAYBACK, BUFFER_PROFILE, PARALLEL_CONNECTIONS, AUTO_PLAY_TRAILERS, MUTE_AUTO_PLAY_TRAILERS,
-        TRAILER_DELAY_SECONDS, BACKGROUND_COLOR,
-        PASSTHROUGH_ENABLED, DIALOGUE_BOOST, NIGHT_MODE, AUDIO_DELAY_MS, PREFERRED_AUDIO_LANGUAGE,
+        TRAILER_DELAY_SECONDS, DEFAULT_PLAYBACK_SPEED, BACKGROUND_COLOR,
+        PASSTHROUGH_ENABLED, DIALOGUE_BOOST, NIGHT_MODE, AUDIO_DELAY_MS, VOLUME_BOOST, PREFERRED_AUDIO_LANGUAGE,
         SUBTITLE_MODE, SUBTITLE_LANGUAGE, HIDE_NON_PREFERRED_SUBTITLES, CLEAN_SDH, SUBTITLE_FONT_SCALE,
         SUBTITLE_BOLD, SUBTITLE_ITALIC, SUBTITLE_TEXT_COLOR, SUBTITLE_EDGE_TYPE, SUBTITLE_BACKGROUND_OPACITY,
         AUTO_SYNC_SUBTITLES, STREAM_FILTERS, STREAM_SORT, STREAM_FORMATTER,
@@ -128,6 +130,7 @@ internal class ProfileSettingsReader(private val prefs: Preferences, private val
             fallbackTimeoutSeconds = clampFallbackTimeout(get(FALLBACK_TIMEOUT_SECONDS) ?: defaults.fallbackTimeoutSeconds),
             autoPlayFromContinueWatching =
                 get(AUTO_PLAY_FROM_CONTINUE_WATCHING) ?: defaults.autoPlayFromContinueWatching,
+            defaultPlaybackSpeed = enumOrDefault(get(DEFAULT_PLAYBACK_SPEED), defaults.defaultPlaybackSpeed),
             blurUnwatchedThumbnails = get(BLUR_UNWATCHED_THUMBNAILS) ?: defaults.blurUnwatchedThumbnails,
             hdrWhiteDimming = get(HDR_WHITE_DIMMING) ?: defaults.hdrWhiteDimming,
             playbackBufferProfile = enumOrDefault(get(BUFFER_PROFILE), defaults.playbackBufferProfile),
@@ -147,6 +150,7 @@ internal class ProfileSettingsReader(private val prefs: Preferences, private val
             dialogueBoost = enumOrDefault(get(DIALOGUE_BOOST), defaults.dialogueBoost),
             nightMode = get(NIGHT_MODE) ?: defaults.nightMode,
             audioDelayMs = snapAudioDelay(get(AUDIO_DELAY_MS) ?: defaults.audioDelayMs),
+            volumeBoost = enumOrDefault(get(VOLUME_BOOST), defaults.volumeBoost),
             preferredAudioLanguage = get(PREFERRED_AUDIO_LANGUAGE) ?: defaults.preferredAudioLanguage,
         )
     }
@@ -193,6 +197,7 @@ internal class ProfileSettingsWriter(private val prefs: MutablePreferences, priv
         set(AUTO_STREAM_FAILOVER, updated.autoStreamFailover)
         set(FALLBACK_TIMEOUT_SECONDS, clampFallbackTimeout(updated.fallbackTimeoutSeconds))
         set(AUTO_PLAY_FROM_CONTINUE_WATCHING, updated.autoPlayFromContinueWatching)
+        set(DEFAULT_PLAYBACK_SPEED, updated.defaultPlaybackSpeed.name)
         set(BLUR_UNWATCHED_THUMBNAILS, updated.blurUnwatchedThumbnails)
         set(HDR_WHITE_DIMMING, updated.hdrWhiteDimming)
         set(BUFFER_PROFILE, updated.playbackBufferProfile.name)
@@ -207,6 +212,7 @@ internal class ProfileSettingsWriter(private val prefs: MutablePreferences, priv
         set(DIALOGUE_BOOST, updated.dialogueBoost.name)
         set(NIGHT_MODE, updated.nightMode)
         set(AUDIO_DELAY_MS, snapAudioDelay(updated.audioDelayMs))
+        set(VOLUME_BOOST, updated.volumeBoost.name)
         set(PREFERRED_AUDIO_LANGUAGE, updated.preferredAudioLanguage.ifBlank { DEFAULT_LANGUAGE })
     }
 

@@ -30,12 +30,12 @@ class SettingsItemsTest {
             ),
             SettingsCategory.PLAYBACK to listOf(
                 "Player", "Auto-play top stream", "Preferred auto-play addon", "Auto-play next episode",
-                "Auto-play from continue watching", "Automatic stream failover", "Failover timeout duration",
+                "Auto-play from continue watching", "Default playback speed", "Automatic stream failover", "Failover timeout duration",
                 "Playback buffer profile", "Parallel stream connections", "Convert Dolby Vision Profile 7 to HDR",
                 "Dolby Vision playback", "HDR white dimming",
             ),
             SettingsCategory.AUDIO to listOf(
-                "Audio passthrough", "Dialogue boost", "Night mode", "Audio delay/advance", "Preferred audio language",
+                "Audio passthrough", "Dialogue boost", "Night mode", "Default volume level", "Audio delay/advance", "Preferred audio language",
             ),
             SettingsCategory.SUBTITLES to listOf(
                 "Subtitles always on/off", "Preferred subtitle language", "Hide non-preferred language",

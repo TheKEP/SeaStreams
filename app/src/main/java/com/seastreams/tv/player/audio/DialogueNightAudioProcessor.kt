@@ -6,9 +6,20 @@ import androidx.media3.common.audio.BaseAudioProcessor
 import com.seastreams.tv.core.util.MILLIS_PER_SECOND
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.math.roundToLong
 
-/** Live DSP settings; the player swaps them in for session-only changes from the Audio overlay. */
-data class AudioDspConfig(val dialogueBoostDb: Int = 0, val nightMode: Boolean = false, val delayMs: Int = 0)
+/**
+ * Live DSP settings; the player swaps them in for session-only changes from the Audio/Speed overlays.
+ * [volumeGain] is the overall linear gain (Volume Boost); [playbackSpeed] is the player's current speed,
+ * so Audio Delay stays [delayMs] of wall-clock time after Sonic time-stretches the output.
+ */
+data class AudioDspConfig(
+    val dialogueBoostDb: Int = 0,
+    val nightMode: Boolean = false,
+    val delayMs: Int = 0,
+    val volumeGain: Float = 1f,
+    val playbackSpeed: Float = 1f,
+)
 
 /**
  * On-device PCM processing (PRD §9 Audio DSP & Sync), installed only when HDMI audio passthrough is
@@ -19,8 +30,11 @@ data class AudioDspConfig(val dialogueBoostDb: Int = 0, val nightMode: Boolean =
  *   band of the mid signal, so music and effects at the extremes stay where they were.
  * - **Night Mode**: a linked-channel feed-forward compressor (−30 dBFS threshold, 4:1) with make-up
  *   gain, which evens out explosions and quiet speech.
+ * - **Volume Boost** (`+25%`–`+100%`): overall linear gain, applied after Dialogue Boost and Night Mode.
  * - **Audio Delay** (`±500 ms`): positive values insert silence so audio plays later than the video
  *   (ExoPlayer's clock follows the frames played); negative values drop audio so it plays earlier.
+ *   This runs before Sonic (media time), so the delay is scaled by the playback speed to stay constant
+ *   in wall-clock time.
  *
  * A soft limiter keeps boosted peaks from clipping. 16-bit and float PCM are processed; other
  * encodings pass through untouched (the processor reports itself inactive).
@@ -72,7 +86,7 @@ class DialogueNightAudioProcessor(initial: AudioDspConfig = AudioDspConfig()) : 
         val frameBytes = channels * bytesPerSample
         if (frameBytes == 0 || !inputBuffer.hasRemaining()) return
         val current = config
-        updateDelay(current.delayMs)
+        updateDelay(current.delayMs, current.playbackSpeed)
         val inputFrames = inputBuffer.remaining() / frameBytes
         val skipped = minOf(framesToSkip, inputFrames.toLong()).toInt()
         framesToSkip -= skipped
@@ -86,7 +100,7 @@ class DialogueNightAudioProcessor(initial: AudioDspConfig = AudioDspConfig()) : 
         val frame = FloatArray(channels)
         repeat(keptFrames) {
             for (c in 0 until channels) frame[c] = readSample(inputBuffer)
-            process(frame, gain, current.nightMode)
+            process(frame, gain, current.nightMode, current.volumeGain)
             for (c in 0 until channels) writeSample(output, frame[c])
         }
         // Drop any trailing partial frame so the buffer is fully consumed.
@@ -95,8 +109,8 @@ class DialogueNightAudioProcessor(initial: AudioDspConfig = AudioDspConfig()) : 
     }
 
     /** Applies a changed delay at once: more delay inserts silence, less delay skips input. */
-    private fun updateDelay(delayMs: Int) {
-        val target = delayMs.toLong() * sampleRate / MILLIS_PER_SECOND
+    private fun updateDelay(delayMs: Int, speed: Float) {
+        val target = (delayMs.toDouble() * speed.coerceAtLeast(MIN_SPEED) * sampleRate / MILLIS_PER_SECOND).roundToLong()
         val diff = target - appliedDelayFrames
         if (diff == 0L) return
         appliedDelayFrames = target
@@ -111,7 +125,7 @@ class DialogueNightAudioProcessor(initial: AudioDspConfig = AudioDspConfig()) : 
         }
     }
 
-    private fun process(frame: FloatArray, dialogueGain: Float, nightMode: Boolean) {
+    private fun process(frame: FloatArray, dialogueGain: Float, nightMode: Boolean, volumeGain: Float) {
         if (dialogueGain != 1f) {
             if (channels >= CENTER_CHANNEL_MIN_COUNT) {
                 frame[CENTER_INDEX] *= dialogueGain
@@ -128,7 +142,10 @@ class DialogueNightAudioProcessor(initial: AudioDspConfig = AudioDspConfig()) : 
             val gain = compressor.gainFor(frame.maxOf { kotlin.math.abs(it) })
             for (c in 0 until channels) frame[c] *= gain
         }
-        if (dialogueGain != 1f || nightMode) {
+        if (volumeGain != 1f) {
+            for (c in 0 until channels) frame[c] *= volumeGain
+        }
+        if (dialogueGain != 1f || nightMode || volumeGain != 1f) {
             for (c in 0 until channels) frame[c] = softLimit(frame[c])
         }
     }
@@ -144,5 +161,6 @@ class DialogueNightAudioProcessor(initial: AudioDspConfig = AudioDspConfig()) : 
         /** Q of a band centred on 1 kHz spanning roughly 300 Hz–3.4 kHz. */
         private const val VOCAL_Q = 0.45f
         private const val HALF = 0.5f
+        private const val MIN_SPEED = 0.1f
     }
 }

@@ -15,6 +15,7 @@ import com.seastreams.tv.ui.screens.player.BarControl.EPISODES
 import com.seastreams.tv.ui.screens.player.BarControl.INFO
 import com.seastreams.tv.ui.screens.player.BarControl.NEXT_EPISODE
 import com.seastreams.tv.ui.screens.player.BarControl.PLAY_PAUSE
+import com.seastreams.tv.ui.screens.player.BarControl.SPEED
 import com.seastreams.tv.ui.screens.player.BarControl.STREAMS
 import com.seastreams.tv.ui.screens.player.BarControl.SUBTITLES
 import com.seastreams.tv.ui.screens.player.BarControl.SUBTITLE_SYNC
@@ -39,22 +40,22 @@ class PlayerActionBarTest {
 
     @Test
     fun `movie bar runs Play-Pause to Info without episode controls or sync`() {
-        assertEquals(listOf(PLAY_PAUSE, SUBTITLES, AUDIO, STREAMS, INFO), actionBarControls(movie))
+        assertEquals(listOf(PLAY_PAUSE, SUBTITLES, AUDIO, SPEED, STREAMS, INFO), actionBarControls(movie))
     }
 
     @Test
     fun `episode bar adds Next Episode and Episodes and still ends on Info`() {
-        assertEquals(listOf(PLAY_PAUSE, NEXT_EPISODE, SUBTITLES, AUDIO, STREAMS, EPISODES, INFO), actionBarControls(episode))
+        assertEquals(listOf(PLAY_PAUSE, NEXT_EPISODE, SUBTITLES, AUDIO, SPEED, STREAMS, EPISODES, INFO), actionBarControls(episode))
     }
 
     @Test
     fun `active external subtitle adds the sync offset right after Subtitles`() {
         assertEquals(
-            listOf(PLAY_PAUSE, SUBTITLES, SUBTITLE_SYNC, AUDIO, STREAMS, INFO),
+            listOf(PLAY_PAUSE, SUBTITLES, SUBTITLE_SYNC, AUDIO, SPEED, STREAMS, INFO),
             actionBarControls(movie.withSubtitle(SubtitleSource.EXTERNAL)),
         )
         assertEquals(
-            listOf(PLAY_PAUSE, NEXT_EPISODE, SUBTITLES, SUBTITLE_SYNC, AUDIO, STREAMS, EPISODES, INFO),
+            listOf(PLAY_PAUSE, NEXT_EPISODE, SUBTITLES, SUBTITLE_SYNC, AUDIO, SPEED, STREAMS, EPISODES, INFO),
             actionBarControls(episode.withSubtitle(SubtitleSource.EXTERNAL)),
         )
     }

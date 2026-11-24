@@ -2,7 +2,10 @@ package com.seastreams.tv.ui.screens.player
 
 import com.seastreams.tv.core.datastore.AudioSettings
 import com.seastreams.tv.core.datastore.DialogueBoost
+import com.seastreams.tv.core.datastore.DspLevels
+import com.seastreams.tv.core.datastore.PlaybackSpeed
 import com.seastreams.tv.core.datastore.SubtitleStyle
+import com.seastreams.tv.core.datastore.VolumeBoost
 import com.seastreams.tv.core.datastore.engagesDsp
 import com.seastreams.tv.core.util.MILLIS_PER_SECOND
 import com.seastreams.tv.domain.model.Episode
@@ -21,7 +24,7 @@ import com.seastreams.tv.player.subtitle.sync.SyncRate
 import com.seastreams.tv.ui.components.MetadataFormat
 
 /** The in-player overlays opened from the bottom bar. */
-enum class PlayerPanel { SUBTITLES, AUDIO, STREAMS, EPISODES, INFO }
+enum class PlayerPanel { SUBTITLES, AUDIO, SPEED, STREAMS, EPISODES, INFO }
 
 /** Session-only audio DSP and passthrough (PRD §9): starts from General Settings, never written back. */
 data class SessionAudio(
@@ -29,18 +32,31 @@ data class SessionAudio(
     val nightMode: Boolean,
     val delayMs: Int,
     val passthrough: Boolean = false,
+    val volumeBoost: VolumeBoost = VolumeBoost.STANDARD,
 ) {
-    fun toDsp() = AudioDspConfig(dialogueBoost.gainDb, nightMode, delayMs)
+    fun toDsp(speed: PlaybackSpeed = PlaybackSpeed.STANDARD) =
+        AudioDspConfig(dialogueBoost.gainDb, nightMode, delayMs, volumeBoost.gain, speed.multiplier)
+
+    private fun levels() = DspLevels(dialogueBoost, nightMode, delayMs, volumeBoost)
 
     /** Same rule as General Settings: turning an effect on in this change turns passthrough off. */
     fun withPassthroughAutoOff(previous: SessionAudio): SessionAudio {
-        val engaged = engagesDsp(previous.dialogueBoost, dialogueBoost, previous.nightMode, nightMode, previous.delayMs, delayMs)
+        val engaged = engagesDsp(previous.levels(), levels())
         return if (passthrough && engaged) copy(passthrough = false) else this
     }
 
     companion object {
-        fun from(settings: AudioSettings) =
-            SessionAudio(settings.dialogueBoost, settings.nightMode, settings.audioDelayMs, settings.passthroughEnabled)
+        /**
+         * The session's starting audio. Only decoded PCM can be time-stretched, so a session starting at a
+         * [speed] other than Standard starts with passthrough off (the saved setting is never changed).
+         */
+        fun from(settings: AudioSettings, speed: PlaybackSpeed = PlaybackSpeed.STANDARD) = SessionAudio(
+            dialogueBoost = settings.dialogueBoost,
+            nightMode = settings.nightMode,
+            delayMs = settings.audioDelayMs,
+            passthrough = settings.passthroughEnabled && speed == PlaybackSpeed.STANDARD,
+            volumeBoost = settings.volumeBoost,
+        )
     }
 }
 
@@ -92,6 +108,8 @@ data class PlayerUiState(
     val audioOptions: List<AudioOption> = emptyList(),
     val selectedAudioId: String? = null,
     val audio: SessionAudio = SessionAudio(DialogueBoost.OFF, nightMode = false, delayMs = 0),
+    /** Session-only playback speed (PRD §9): starts from the profile default, never written back. */
+    val playbackSpeed: PlaybackSpeed = PlaybackSpeed.STANDARD,
     val dspAvailable: Boolean = false,
     val hdrWhiteDimming: Boolean = false,
     /** The current stream's SDR / HDR10 / HLG / Dolby Vision, live from the player (PRD §10). */
@@ -124,6 +142,16 @@ data class PlayerUiState(
 
     /** [subtitleOffsetMs] was set by auto-sync and not nudged since. */
     val subtitleOffsetAuto: Boolean get() = subtitleSyncStatus is AutoSyncStatus.Locked
+
+    /**
+     * HUD speed change (session only). Switching to a speed other than Standard turns session passthrough
+     * off, since bitstreamed audio can't be time-stretched; it can be switched back on by hand afterwards.
+     */
+    fun withPlaybackSpeed(speed: PlaybackSpeed): PlayerUiState {
+        val engaged = speed != playbackSpeed && speed != PlaybackSpeed.STANDARD
+        val sessionAudio = if (engaged && audio.passthrough) audio.copy(passthrough = false) else audio
+        return copy(playbackSpeed = speed, audio = sessionAudio)
+    }
 }
 
 /** Position values, published apart from [PlayerUiState] so the twice-a-second tick stays cheap. */
