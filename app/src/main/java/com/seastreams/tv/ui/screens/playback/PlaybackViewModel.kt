@@ -31,6 +31,8 @@ import com.seastreams.tv.domain.usecase.ResolveContinueWatchingTargetUseCase
 import com.seastreams.tv.domain.usecase.ResolveTrailerStreamUseCase
 import com.seastreams.tv.player.external.ExternalLaunchSpec
 import com.seastreams.tv.player.external.ExternalStreamUrls
+import com.seastreams.tv.player.StreamFailureMessages
+import com.seastreams.tv.player.StreamFailureReason
 import com.seastreams.tv.player.StreamPreflight
 import dagger.Lazy
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -281,10 +283,11 @@ class PlaybackViewModel @Inject constructor(
             externalUrls.get().prepare(stream, target.title())
         } catch (e: IOException) {
             if (failover && index + 1 < resolution.streams.size) {
-                showSkip(index, index + 1, resolution.streams.size)
+                showSkip(index, index + 1, resolution.streams.size, StreamFailureReason.fromThrowable(e))
                 return start(resolved, index + 1, current)
             }
-            return stopLoading(e.message ?: "That stream couldn't be opened")
+            // Never the raw message: it may hold a signed link or account detail.
+            return stopLoading(StreamFailureReason.sanitize(e.message.orEmpty()).replaceFirstChar(Char::uppercaseChar).ifEmpty { "That stream couldn't be opened" })
         }
         _state.update { it.copy(picker = null, loading = null, loadingStatus = null) }
         val prefs = current.subtitles
@@ -319,7 +322,8 @@ class PlaybackViewModel @Inject constructor(
     }
 
     /** Auto-play found nothing to play: close the loading screen and say why. */
-    private fun showSkip(from: Int, to: Int, total: Int) = _state.update { it.copy(loadingStatus = skipStatus(from, to, total)) }
+    private fun showSkip(from: Int, to: Int, total: Int, reason: String?) =
+        _state.update { it.copy(loadingStatus = StreamFailureMessages.skipped(from, to, total, reason)) }
 
     private suspend fun stopLoading(text: String) {
         _state.update { it.copy(loading = null, loadingStatus = null) }

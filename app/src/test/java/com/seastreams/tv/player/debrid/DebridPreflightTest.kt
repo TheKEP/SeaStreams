@@ -96,7 +96,7 @@ class DebridPreflightTest {
     @Test
     fun `with failover on auto-play passes over the deleted file to the next stream`() = runTest {
         val (rig, streams) = setUp()
-        val pick = firstPlayable(streams, 0, failover = true, streamPreflight(debrid = rig.preflight())) { from, to, total -> events += "skip $from→$to/$total" }
+        val pick = firstPlayable(streams, 0, failover = true, streamPreflight(debrid = rig.preflight())) { from, to, total, _ -> events += "skip $from→$to/$total" }
 
         assertEquals(StartPick.Play(1), pick)
         assertEquals(listOf("skip 0→1/2"), events)
@@ -112,8 +112,8 @@ class DebridPreflightTest {
             index = 0,
             failover = failover,
             onPlay = { events += "play $it" },
-            onSkip = { from, to, total -> events += "skip $from→$to/$total" },
-            onStopped = { events += "stopped $it" },
+            onSkip = { from, to, total, _ -> events += "skip $from→$to/$total" },
+            onStopped = { index, _ -> events += "stopped $index" },
             onExhausted = { events += "exhausted" },
         )
 

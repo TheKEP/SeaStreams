@@ -17,6 +17,7 @@ class StreamFallbackControllerTest {
     private val advances = mutableListOf<Triple<Int, Int, FallbackReason>>()
     private val exhausted = mutableListOf<FallbackReason>()
     private val stopped = mutableListOf<Int>()
+    private val details = mutableListOf<String>()
 
     /** The Automatic Stream Failover setting as the controller reads it on each stream start. */
     private var failover = true
@@ -25,9 +26,18 @@ class StreamFallbackControllerTest {
         scope = backgroundScope,
         timeoutMs = { timeoutSeconds * 1_000L },
         failover = { failover },
-        onAdvance = { from, to, reason -> advances += Triple(from, to, reason) },
-        onExhausted = { exhausted += it },
-        onStopped = { stopped += it },
+        onAdvance = { from, to, reason, detail ->
+            advances += Triple(from, to, reason)
+            details += "advance $from→$to: $detail"
+        },
+        onExhausted = { reason, detail ->
+            exhausted += reason
+            details += "exhausted: $detail"
+        },
+        onStopped = { index, detail ->
+            stopped += index
+            details += "stopped $index: $detail"
+        },
     )
 
     // ---- Automatic Stream Failover off -----------------------------------------------------------
@@ -227,5 +237,59 @@ class StreamFallbackControllerTest {
         fallback.onError()
 
         assertTrue(advances.isEmpty())
+    }
+
+    // ---- Failure details & rapid failures ---------------------------------------------------------
+
+    @Test
+    fun `failover on - a burst of failures advances once per stream with its reason, then exhausts exactly once`() = runTest {
+        val fallback = controller()
+        val reasons = listOf("HTTP 403 (access denied)", "unsupported video codec (HEVC)", "connection timed out", "HTTP 404 (not found)", "damaged or incomplete file")
+        fallback.onStreamStarted(0, reasons.size)
+        reasons.forEachIndexed { index, reason ->
+            fallback.onError(reason)
+            // A duplicate error for the same stream (ExoPlayer can report twice) arrives before the next one starts.
+            fallback.onError("duplicate")
+            if (index + 1 < reasons.size) fallback.onStreamStarted(index + 1, reasons.size)
+        }
+        // Late errors after the list ran out report nothing more.
+        repeat(3) { fallback.onError("late") }
+        advanceTimeBy(60_000)
+        runCurrent()
+
+        assertEquals((0 until 4).map { Triple(it, it + 1, FallbackReason.ERROR) }, advances)
+        assertEquals(listOf(FallbackReason.ERROR), exhausted, "one exhaustion, one toast, one exit")
+        assertEquals(
+            listOf(
+                "advance 0→1: HTTP 403 (access denied)",
+                "advance 1→2: unsupported video codec (HEVC)",
+                "advance 2→3: connection timed out",
+                "advance 3→4: HTTP 404 (not found)",
+                "exhausted: damaged or incomplete file",
+            ),
+            details,
+        )
+        assertTrue(stopped.isEmpty())
+    }
+
+    @Test
+    fun `failover on - a timeout carries no detail`() = runTest {
+        val fallback = controller(timeoutSeconds = 1)
+        fallback.onStreamStarted(0, 1)
+        advanceTimeBy(1_001)
+        runCurrent()
+        assertEquals(listOf("exhausted: null"), details)
+    }
+
+    @Test
+    fun `failover off - the stop carries the reason and repeated errors never stop twice`() = runTest {
+        failover = false
+        val fallback = controller()
+        fallback.onStreamStarted(2, 12)
+        repeat(5) { fallback.onError("password-protected archive") }
+
+        assertEquals(listOf("stopped 2: password-protected archive"), details)
+        assertTrue(advances.isEmpty())
+        assertTrue(exhausted.isEmpty())
     }
 }

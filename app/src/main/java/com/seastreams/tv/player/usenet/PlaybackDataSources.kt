@@ -33,10 +33,17 @@ class PlaybackDataSources @Inject constructor(
     private val debridLinks: Lazy<DebridLinkResolver>,
 ) {
 
-    fun mediaSourceFactory(stream: StreamSource, http: () -> DataSource.Factory, listener: TransferListener): MediaSource.Factory = when {
-        UsenetStreamRegistry.isUsenet(stream.url) -> DefaultMediaSourceFactory(NntpDataSource.Factory(sessions, listener)).setLoadErrorHandlingPolicy(UsenetLoadErrorPolicy())
-        DebridStreamRegistry.isDebrid(stream.url) -> DefaultMediaSourceFactory(ResolvingDataSource.Factory(http(), ::resolveDebrid))
-        else -> DefaultMediaSourceFactory(http())
+    /** [wrap] is applied to the outermost factory (e.g. the Info overlay's file-size tracker). */
+    fun mediaSourceFactory(
+        stream: StreamSource,
+        http: () -> DataSource.Factory,
+        listener: TransferListener,
+        wrap: (DataSource.Factory) -> DataSource.Factory = { it },
+    ): MediaSource.Factory = when {
+        UsenetStreamRegistry.isUsenet(stream.url) ->
+            DefaultMediaSourceFactory(wrap(NntpDataSource.Factory(sessions, listener))).setLoadErrorHandlingPolicy(UsenetLoadErrorPolicy())
+        DebridStreamRegistry.isDebrid(stream.url) -> DefaultMediaSourceFactory(wrap(ResolvingDataSource.Factory(http(), ::resolveDebrid)))
+        else -> DefaultMediaSourceFactory(wrap(http()))
     }
 
     /** `seastreams-debrid://<token>` → its HTTPS link; a refused or unknown token fails the load (failover moves on). */

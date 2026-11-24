@@ -13,10 +13,11 @@ import com.seastreams.tv.domain.playback.PlayerProgressTracker
 import com.seastreams.tv.domain.playback.PlayerStop
 import com.seastreams.tv.domain.playback.SubtitleSource
 import com.seastreams.tv.player.DisplayHdrSupport
-import com.seastreams.tv.player.FallbackReason
 import com.seastreams.tv.player.PlayerEngineConfig
 import com.seastreams.tv.player.PlayerEvent
 import com.seastreams.tv.player.SeaStreamsPlayerManager
+import com.seastreams.tv.player.StreamFailureMessages
+import com.seastreams.tv.player.StreamFailureReason
 import com.seastreams.tv.player.StreamFallbackController
 import com.seastreams.tv.player.knownOrZero
 import com.seastreams.tv.player.subtitle.ExternalSubtitleLoader
@@ -99,14 +100,9 @@ class PlayerViewModel @Inject constructor(
         scope = viewModelScope,
         timeoutMs = { settings.player.fallbackTimeoutSeconds * MILLIS_PER_SECOND },
         failover = { settings.player.autoStreamFailover },
-        onAdvance = ::onFallbackAdvance,
-        onExhausted = { reason ->
-            viewModelScope.launch {
-                _messages.send(if (reason == FallbackReason.TIMEOUT) "None of the streams started in time" else "None of the streams would play")
-                exit()
-            }
-        },
-        onStopped = { index -> onStreamStopped(index) },
+        onAdvance = { from, to, reason, detail -> onFallbackAdvance(from, to, reason, detail) },
+        onExhausted = { reason, detail -> exitWithMessage(StreamFailureMessages.exhausted(reason, detail)) },
+        onStopped = { index, detail -> onStreamStopped(index, detail) },
     )
 
     /** Starts [request] unless it is already the open session. */
@@ -199,14 +195,6 @@ class PlayerViewModel @Inject constructor(
         if (streamGate.handles(stream.url)) openThroughGate(manager, index, positionMs) else handOff(manager, index, positionMs)
     }
 
-    private fun onFallbackAdvance(from: Int, to: Int, reason: FallbackReason) {
-        val manager = _manager.value ?: return
-        val total = _state.value.streams.size
-        val what = if (reason == FallbackReason.TIMEOUT) "didn't start" else "failed"
-        _state.update { it.copy(status = "Stream ${from + 1} $what. Trying stream ${to + 1} of $total…") }
-        playIndex(manager, to, maxOf(manager.player.currentPosition, 0L))
-    }
-
     private suspend fun onEvent(manager: SeaStreamsPlayerManager, event: PlayerEvent) {
         when (event) {
             PlayerEvent.Ready -> {
@@ -215,11 +203,14 @@ class PlayerViewModel @Inject constructor(
                 _state.update { it.copy(status = null) }
             }
             PlayerEvent.FirstFrame -> _state.update { it.onFirstFrame() }
-            is PlayerEvent.Failed -> if (_state.value.isTrailer) {
-                _messages.send("Trailer couldn't play")
-                exit()
-            } else {
-                fallback.onError()
+            is PlayerEvent.Failed -> when {
+                _state.value.isTrailer -> {
+                    _messages.send("Trailer couldn't play")
+                    exit()
+                }
+                // A queued error from a stream already replaced must not fail (or skip) the one now starting.
+                event.generation != manager.generation -> Unit
+                else -> fallback.onError(StreamFailureReason.fromPlayback(event.error))
             }
             PlayerEvent.TracksChanged -> refreshTracks(manager)
             PlayerEvent.Ended -> onEnded(manager)

@@ -15,6 +15,7 @@ import com.seastreams.tv.usenet.verify.ReleaseHealth
 import com.seastreams.tv.usenet.verify.ReleaseHealthCache
 import dagger.Lazy
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.junit.jupiter.api.AfterEach
@@ -31,6 +32,7 @@ class PlayerStreamGateTest {
     private val registry = UsenetStreamRegistry()
     private val health = ReleaseHealthCache()
     private val events = mutableListOf<String>()
+    private val reasons = mutableListOf<String>()
 
     private fun usenet(title: String): StreamSource {
         val grab = UsenetGrab.Indexed(1, "Idx", title, NzbRequest("https://idx/get?id=$title", "k$title"), title, 1)
@@ -43,11 +45,14 @@ class PlayerStreamGateTest {
     private val good = usenet("D.good")
     private val http = StreamSource("https://addon", "Addon", "https://s/a.mkv", "Addon", "", emptyMap())
 
+    /** More passworded releases, as a whole indexer of them would return. */
+    private val passwordedTokens = mutableSetOf<String>()
+
     private val sessions = UsenetSessionRegistry(
         opener = { token ->
             when (token) {
                 token(sevenZip) -> throw ArchiveRefusedException("7z archives can't be streamed")
-                token(passworded) -> throw ArchiveRefusedException("The archive is password-protected")
+                token(passworded), in passwordedTokens -> throw ArchiveRefusedException("The archive is password-protected")
                 token(missing) -> throw UsenetUnplayableException("Articles are missing")
                 else -> UsenetSession(token, "Movie.mkv", ByteVolume("Movie.mkv", ByteArray(1_024)), emptyList(), 60_000)
             }
@@ -70,9 +75,18 @@ class PlayerStreamGateTest {
             index = index,
             failover = failover,
             onPlay = { events += "play $it" },
-            onSkip = { from, to, total -> events += "skip $from→$to/$total" },
-            onStopped = { events += "stopped $it" },
-            onExhausted = { events += "exhausted" },
+            onSkip = { from, to, total, reason ->
+                events += "skip $from→$to/$total"
+                reasons += "skip $from: $reason"
+            },
+            onStopped = { index, reason ->
+                events += "stopped $index"
+                reasons += "stopped $index: $reason"
+            },
+            onExhausted = { message ->
+                events += "exhausted"
+                reasons += message
+            },
         )
     }
 
@@ -100,5 +114,44 @@ class PlayerStreamGateTest {
     fun `nothing left to try ends in exhausted, never a player error`() {
         open(listOf(good, sevenZip, passworded), index = 1)
         assertEquals(listOf("skip 1→2/3", "exhausted"), events)
+    }
+
+    @Test
+    fun `a whole source refused in milliseconds - each skip once with its reason, one summary naming the last`() {
+        val refused = (1..8).map { usenet("Pw.$it.passworded") } + sevenZip
+        refused.dropLast(1).forEach { passwordedTokens += token(it) }
+        open(refused)
+
+        assertEquals((0 until 8).map { "skip $it→${it + 1}/9" } + "exhausted", events, "no skipped bound, no duplicate")
+        assertEquals((0 until 8).map { "skip $it: password-protected archive" }, reasons.dropLast(1))
+        assertEquals("None of the streams would play (last: 7z archive not supported)", reasons.last())
+    }
+
+    @Test
+    fun `failover off names the reason of the stopped stream`() {
+        open(listOf(passworded, good), failover = false)
+        assertEquals(listOf("stopped 0: password-protected archive"), reasons)
+    }
+
+    @Test
+    fun `a new open cancels the run still checking, so nothing stale is reported`() {
+        val scope = TestScope(StandardTestDispatcher())
+        fun start(streams: List<StreamSource>) = gate.open(
+            scope = scope,
+            streams = streams,
+            index = 0,
+            failover = true,
+            onPlay = { events += "play $it" },
+            onSkip = { from, to, total, _ -> events += "skip $from→$to/$total" },
+            onStopped = { index, _ -> events += "stopped $index" },
+            onExhausted = { events += "exhausted" },
+        )
+        start(listOf(sevenZip, passworded, missing))
+        start(listOf(good)) // e.g. the user picked another stream before the first run started
+        gate.cancel()
+        start(listOf(sevenZip, good))
+        scope.testScheduler.advanceUntilIdle()
+
+        assertEquals(listOf("skip 0→1/2", "play 1"), events)
     }
 }

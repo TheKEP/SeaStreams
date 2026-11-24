@@ -146,8 +146,8 @@ class PlaybackUsenetSkipTest {
 
         assertEquals(2, (open.player as PlaybackRequest.Media).streamIndex, "the player is only ever given stream 3")
         assertEquals(1, states.mapNotNull { it.player }.distinct().size, "no player request for a refused release")
-        assertTrue(states.any { it.loadingStatus == "Stream 1 didn't start. Trying stream 2 of 4…" })
-        assertTrue(states.any { it.loadingStatus == "Stream 2 didn't start. Trying stream 3 of 4…" })
+        assertTrue(states.any { it.loadingStatus == "Stream 1 didn't start (7z archive not supported). Trying stream 2 of 4…" })
+        assertTrue(states.any { it.loadingStatus == "Stream 2 didn't start (password-protected archive). Trying stream 3 of 4…" })
         assertNull(open.loadingStatus)
         assertTrue(health.get(token(sevenZip)) is ReleaseHealth.NotStreamable)
         assertTrue(health.get(token(passworded)) is ReleaseHealth.NotStreamable)
@@ -175,7 +175,7 @@ class PlaybackUsenetSkipTest {
         vm.play(target, forcePicker = false)
         val event = withTimeout(TIMEOUT_MS) { vm.events.first() }
 
-        assertEquals(PlaybackEvent.Message(NONE_WOULD_PLAY), event)
+        assertEquals(PlaybackEvent.Message("None of the streams would play (last: password-protected archive)"), event)
         assertNull(vm.state.value.player)
         assertNull(vm.state.value.loading)
     }
