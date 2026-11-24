@@ -11,6 +11,7 @@ import com.seastreams.tv.domain.playback.LastUsedStreamRecorder
 import com.seastreams.tv.domain.playback.PlaybackProgressRecorder
 import com.seastreams.tv.domain.playback.PlaybackStreamResolver
 import com.seastreams.tv.domain.usecase.ResolveTrailerStreamUseCase
+import com.seastreams.tv.domain.usecase.TrailerExtractor
 import com.seastreams.tv.testutil.FakeLastUsedStreamDao
 import com.seastreams.tv.testutil.FakeWatchProgressDao
 import io.mockk.coEvery
@@ -62,7 +63,7 @@ class PlaybackTrailerTest {
         storeScope.cancel()
     }
 
-    private fun viewModel() = PlaybackViewModel(
+    private fun viewModel(resolveTrailer: ResolveTrailerStreamUseCase = this.resolveTrailer) = PlaybackViewModel(
         settings = SettingsDataStore(PreferenceDataStoreFactory.create(scope = storeScope) { File(dir, "s.preferences_pb") }),
         streams = mockk<PlaybackStreamResolver>(),
         recorder = PlaybackProgressRecorder(dao, Clock.systemUTC()),
@@ -100,6 +101,24 @@ class PlaybackTrailerTest {
         assertNull(vm.state.value.player)
         val event = withTimeout(1_000) { vm.events.first() }
         assertEquals(PlaybackEvent.OpenYouTube("key2"), event)
+    }
+
+    @Test
+    fun `an extractor LinkageError on older Android falls back to YouTube instead of crashing`() = runTest {
+        val attempts = mutableListOf<String>()
+        val brokenRuntime = TrailerExtractor { key ->
+            attempts += key
+            throw NoSuchMethodError("No static method decode(Ljava/lang/String;Ljava/nio/charset/Charset;)")
+        }
+        val vm = viewModel(ResolveTrailerStreamUseCase(brokenRuntime, { _, _, _ -> true }, UnconfinedTestDispatcher()))
+
+        vm.playTrailer("Dune", listOf("key5", "key6"))
+
+        val event = withTimeout(1_000) { vm.events.first() }
+        assertEquals(PlaybackEvent.OpenYouTube("key5"), event)
+        assertNull(vm.state.value.player)
+        assertNull(vm.state.value.busyLabel)
+        assertEquals(listOf("key5"), attempts)
     }
 
     @Test

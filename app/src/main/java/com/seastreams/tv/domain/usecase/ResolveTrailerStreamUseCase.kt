@@ -50,6 +50,13 @@ fun interface VideoCodecSupport {
 class NoTrailerStreamException(key: String) : IOException("No playable trailer stream for $key")
 
 /**
+ * The extractor can't run on this runtime (a [LinkageError] such as `NoSuchMethodError` on Android < 33),
+ * so every candidate would fail the same way (PRD §9 *Runtime compatibility*).
+ */
+class TrailerExtractorUnavailableException(key: String, cause: Throwable) :
+    IOException("Trailer extractor unavailable on this runtime (key $key)", cause)
+
+/**
  * PRD §9 trailer streams, SDR only (§10): the highest-quality adaptive video-only stream at or below
  * [maxHeight] that the device can decode (taller first, then higher frame rate, then MP4 over WebM,
  * then bitrate), paired with the best M4A audio stream (`MergingMediaSource`). Without such a pair (no
@@ -139,7 +146,9 @@ private const val VP9_PROFILE_2 = 2
  * Trailer Candidates). Up to [MAX_TRAILER_CANDIDATES] keys are tried in order: a key fails when
  * extraction throws (e.g. a made-for-kids upload YouTube won't serve) or nothing playable is found.
  * Throws once every candidate failed; callers decide the fallback (Details opens YouTube, catalog rows
- * silently keep their artwork). Cancellation is never caught, so a cancelled hover stops at once.
+ * silently keep their artwork). A [TrailerExtractorUnavailableException] (or a raw [LinkageError] from the
+ * extractor) stops the loop at once: the runtime gap fails every key alike. Cancellation is never caught,
+ * so a cancelled hover stops at once.
  */
 class ResolveTrailerStreamUseCase(
     private val extractor: TrailerExtractor,
@@ -156,8 +165,14 @@ class ResolveTrailerStreamUseCase(
             for (key in youtubeKeys.take(MAX_TRAILER_CANDIDATES)) {
                 try {
                     return@withContext resolve(key, maxHeight)
+                } catch (e: TrailerExtractorUnavailableException) {
+                    failures += e
+                    break
                 } catch (e: IOException) {
                     failures += e
+                } catch (e: LinkageError) {
+                    failures += TrailerExtractorUnavailableException(key, e)
+                    break
                 }
             }
             val last = failures.lastOrNull() ?: throw NoTrailerStreamException(NO_KEYS)

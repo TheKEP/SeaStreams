@@ -1,11 +1,13 @@
 package com.seastreams.tv.data.trailer
 
 import android.media.MediaCodecList
+import android.util.Log
 import com.seastreams.tv.core.network.OkHttpDownloader
 import com.seastreams.tv.domain.usecase.ExtractedTrailer
 import com.seastreams.tv.domain.usecase.TrailerAudioCandidate
 import com.seastreams.tv.domain.usecase.TrailerContainer
 import com.seastreams.tv.domain.usecase.TrailerExtractor
+import com.seastreams.tv.domain.usecase.TrailerExtractorUnavailableException
 import com.seastreams.tv.domain.usecase.TrailerVideoCandidate
 import com.seastreams.tv.domain.usecase.VideoCodecSupport
 import com.seastreams.tv.domain.usecase.videoCodecFamily
@@ -48,16 +50,29 @@ class NewPipeInitializer @Inject constructor(private val okHttpClient: Lazy<OkHt
  * [TrailerExtractor] backed by NewPipeExtractor. Adaptive YouTube streams delivered as progressive
  * HTTP get a DASH manifest built locally, because YouTube serves them in short ranges; streams that
  * would need another network round trip (OTF, HLS) are skipped.
+ *
+ * Everything that touches NewPipe runs inside [guardNewPipe], so a runtime gap (e.g. an API 33 JDK method
+ * missing on Fire OS) becomes a [TrailerExtractorUnavailableException] instead of crashing the app.
  */
-class NewPipeTrailerExtractor @Inject constructor(private val initializer: NewPipeInitializer) : TrailerExtractor {
+class NewPipeTrailerExtractor internal constructor(
+    private val initialize: () -> Unit,
+    private val fetchInfo: (String) -> StreamInfo,
+) : TrailerExtractor {
+
+    @Inject
+    constructor(initializer: NewPipeInitializer) : this(
+        initialize = initializer::ensureInitialized,
+        fetchInfo = { url -> StreamInfo.getInfo(ServiceList.YouTube, url) },
+    )
 
     override suspend fun extract(youtubeKey: String): ExtractedTrailer = withContext(Dispatchers.IO) {
-        initializer.ensureInitialized()
-        val info = try {
-            StreamInfo.getInfo(ServiceList.YouTube, WATCH_URL + youtubeKey)
-        } catch (e: ExtractionException) {
-            throw IOException("YouTube extraction failed for $youtubeKey", e)
+        guardNewPipe(youtubeKey) {
+            initialize()
+            toTrailer(fetchInfo(WATCH_URL + youtubeKey))
         }
+    }
+
+    private fun toTrailer(info: StreamInfo): ExtractedTrailer {
         val duration = info.duration
         val videos = (info.videoOnlyStreams + info.videoStreams).mapNotNull { stream ->
             if (!stream.isUrl || stream.deliveryMethod != DeliveryMethod.PROGRESSIVE_HTTP) return@mapNotNull null
@@ -81,7 +96,7 @@ class NewPipeTrailerExtractor @Inject constructor(private val initializer: NewPi
                 dashManifest = manifest(stream.content, stream.itagItem, duration),
             )
         }
-        ExtractedTrailer(videos, audios)
+        return ExtractedTrailer(videos, audios)
     }
 
     private fun manifest(url: String, itag: ItagItem?, durationSeconds: Long): String? {
@@ -105,6 +120,22 @@ class NewPipeTrailerExtractor @Inject constructor(private val initializer: NewPi
         const val WATCH_URL = "https://www.youtube.com/watch?v="
     }
 }
+
+/**
+ * Runs NewPipe code for [youtubeKey]: [ExtractionException] → [IOException]; a [LinkageError]
+ * (`NoSuchMethodError`, `NoClassDefFoundError`, `ExceptionInInitializerError`) → [TrailerExtractorUnavailableException].
+ * Nothing else is caught, so cancellation always propagates.
+ */
+internal inline fun <T> guardNewPipe(youtubeKey: String, block: () -> T): T = try {
+    block()
+} catch (e: ExtractionException) {
+    throw IOException("YouTube extraction failed for $youtubeKey", e)
+} catch (e: LinkageError) {
+    Log.w(GUARD_TAG, "NewPipeExtractor is incompatible with this runtime", e)
+    throw TrailerExtractorUnavailableException(youtubeKey, e)
+}
+
+internal const val GUARD_TAG = "NewPipeTrailerExtractor"
 
 /**
  * Decoders listed by [MediaCodecList]: a stream qualifies only when a decoder for its codec reports its

@@ -1,3 +1,12 @@
+import com.android.build.api.instrumentation.AsmClassVisitorFactory
+import com.android.build.api.instrumentation.ClassContext
+import com.android.build.api.instrumentation.ClassData
+import com.android.build.api.instrumentation.FramesComputationMode
+import com.android.build.api.instrumentation.InstrumentationParameters
+import com.android.build.api.instrumentation.InstrumentationScope
+import org.objectweb.asm.ClassVisitor
+import org.objectweb.asm.MethodVisitor
+import org.objectweb.asm.Opcodes
 import java.util.Properties
 
 plugins {
@@ -66,6 +75,44 @@ android {
     testOptions {
         unitTests.all { it.useJUnitPlatform() }
         unitTests.isReturnDefaultValues = true
+    }
+}
+
+/**
+ * NewPipeExtractor calls `URLDecoder.decode(String, Charset)` / `URLEncoder.encode(String, Charset)`, which
+ * Android only ships from API 33 and desugaring doesn't backport (Fire OS crash). Retarget both calls to
+ * `core/util/UrlCodecCompat` (ARCHITECTURE.md §4). Same descriptor, so stack and frames are unchanged.
+ */
+abstract class NewPipeUrlCodecRewrite : AsmClassVisitorFactory<InstrumentationParameters.None> {
+    override fun isInstrumentable(classData: ClassData): Boolean =
+        classData.className.startsWith("org.schabi.newpipe.")
+
+    override fun createClassVisitor(classContext: ClassContext, nextClassVisitor: ClassVisitor): ClassVisitor =
+        object : ClassVisitor(Opcodes.ASM9, nextClassVisitor) {
+            override fun visitMethod(
+                access: Int, name: String?, descriptor: String?, signature: String?, exceptions: Array<out String>?,
+            ): MethodVisitor {
+                val next = super.visitMethod(access, name, descriptor, signature, exceptions)
+                return object : MethodVisitor(Opcodes.ASM9, next) {
+                    override fun visitMethodInsn(opcode: Int, owner: String, name: String, descriptor: String, isInterface: Boolean) {
+                        val rewrite = opcode == Opcodes.INVOKESTATIC && descriptor == CHARSET_CODEC_DESCRIPTOR &&
+                            ((owner == "java/net/URLDecoder" && name == "decode") || (owner == "java/net/URLEncoder" && name == "encode"))
+                        super.visitMethodInsn(opcode, if (rewrite) URL_CODEC_COMPAT else owner, name, descriptor, isInterface)
+                    }
+                }
+            }
+        }
+
+    private companion object {
+        const val CHARSET_CODEC_DESCRIPTOR = "(Ljava/lang/String;Ljava/nio/charset/Charset;)Ljava/lang/String;"
+        const val URL_CODEC_COMPAT = "com/seastreams/tv/core/util/UrlCodecCompat"
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.instrumentation.transformClassesWith(NewPipeUrlCodecRewrite::class.java, InstrumentationScope.ALL) {}
+        variant.instrumentation.setAsmFramesComputationMode(FramesComputationMode.COPY_FRAMES)
     }
 }
 
