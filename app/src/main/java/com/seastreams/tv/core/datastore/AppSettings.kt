@@ -84,6 +84,8 @@ data class PlayerSettings(
     val fallbackTimeoutSeconds: Int = DEFAULT_FALLBACK_TIMEOUT_SECONDS,
     /** `Continue Watching` cards play directly from Home, bypassing Details (PRD §3/§11: on by default). */
     val autoPlayFromContinueWatching: Boolean = true,
+    /** Speed every movie/episode starts at (PRD §9/§11); the HUD's Speed overlay changes it per session only. */
+    val defaultPlaybackSpeed: PlaybackSpeed = PlaybackSpeed.DEFAULT,
     val blurUnwatchedThumbnails: Boolean = false,
     /** Plays Dolby Vision Profile 7 tracks as their HDR10 base layer (PRD §9: on by default). */
     val convertDvProfile7ToHdr: Boolean = true,
@@ -110,31 +112,16 @@ data class PlayerSettings(
 }
 
 /**
- * PRD §9: whether this change turns an audio effect **on** — Dialogue Boost to a level other than Off,
- * Night Mode off → on, or Audio Delay to a new non-zero value. Keeping an effect on, turning one off or
- * resetting the delay to 0 doesn't count.
- */
-fun engagesDsp(
-    boostBefore: DialogueBoost,
-    boostAfter: DialogueBoost,
-    nightBefore: Boolean,
-    nightAfter: Boolean,
-    delayBeforeMs: Int,
-    delayAfterMs: Int,
-): Boolean =
-    (boostAfter != boostBefore && boostAfter != DialogueBoost.OFF) ||
-        (nightAfter && !nightBefore) ||
-        (delayAfterMs != delayBeforeMs && delayAfterMs != 0)
-
-/**
  * Turning an effect on switches passthrough off so it takes effect at once (effects need PCM). Only the
  * change that engages an effect does this, so passthrough can be switched back on afterwards and stays on.
  */
 fun AudioSettings.withPassthroughAutoOff(previous: AudioSettings): AudioSettings {
     val delay = SettingsDataStore.snapAudioDelay(audioDelayMs)
-    val engaged = engagesDsp(previous.dialogueBoost, dialogueBoost, previous.nightMode, nightMode, previous.audioDelayMs, delay)
+    val engaged = engagesDsp(previous.dspLevels(), dspLevels().copy(delayMs = delay))
     return if (passthroughEnabled && engaged) copy(passthroughEnabled = false) else this
 }
+
+fun AudioSettings.dspLevels() = DspLevels(dialogueBoost, nightMode, audioDelayMs, volumeBoost)
 
 data class AudioSettings(
     /**
@@ -145,6 +132,8 @@ data class AudioSettings(
     val dialogueBoost: DialogueBoost = DialogueBoost.OFF,
     val nightMode: Boolean = false,
     val audioDelayMs: Int = 0,
+    /** Overall PCM gain (PRD §9); any level but Standard is an effect ([withPassthroughAutoOff]). */
+    val volumeBoost: VolumeBoost = VolumeBoost.DEFAULT,
     val preferredAudioLanguage: String = DEFAULT_LANGUAGE,
 ) {
     companion object {

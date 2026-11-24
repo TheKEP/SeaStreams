@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.seastreams.tv.core.datastore.AppSettings
+import com.seastreams.tv.core.datastore.PlaybackSpeed
 import com.seastreams.tv.core.datastore.SettingsDataStore
 import com.seastreams.tv.core.util.MILLIS_PER_SECOND
 import com.seastreams.tv.domain.model.EpisodeRef
@@ -116,12 +117,16 @@ class PlayerViewModel @Inject constructor(
             val (client, sources) = withContext(Dispatchers.IO) { okHttp.get() to dataSources.get() }
             // Cancelled during the initial load: never build (or show) a player for a session already left.
             if (exiting) return@launch
-            val audio = SessionAudio.from(settings.audio)
-            val config = PlayerEngineConfig.from(settings, audio.toDsp(), DisplayHdrSupport.supportsDolbyVision(context))
+            // Trailers always play at 1.0x; movies/episodes start at the profile's default speed (PRD §9).
+            val speed = if (request is PlaybackRequest.Media) settings.player.defaultPlaybackSpeed else PlaybackSpeed.STANDARD
+            val audio = SessionAudio.from(settings.audio, speed)
+            val config = PlayerEngineConfig.from(settings, audio.toDsp(speed), audio.passthrough, DisplayHdrSupport.supportsDolbyVision(context))
             val manager = SeaStreamsPlayerManager(context, client, config, sources)
+            manager.setSpeed(speed.multiplier)
             _manager.value = manager
             _state.value = PlayerUiState(
                 audio = audio,
+                playbackSpeed = speed,
                 dspAvailable = manager.pcmOutput.value,
                 cleanSdh = settings.subtitles.cleanSdh,
                 subtitleStyle = settings.subtitles.style,

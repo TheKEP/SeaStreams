@@ -1,6 +1,5 @@
 package com.seastreams.tv.ui.screens.player
 
-import androidx.compose.ui.unit.dp
 import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
 import com.seastreams.tv.domain.model.PlaybackRequest
@@ -12,10 +11,9 @@ import com.seastreams.tv.usenet.session.UsenetStreamRegistry
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
-/** PRD §9 Info overlay: row order, the estimated bitrate, and the card's reach down to the seek row. */
+/** PRD §9 Info overlay: row order, the file size and the estimated bitrate (card geometry: PlayerPanelScrollbarTest). */
 class PlayerInfoRowsTest {
 
     private val http = StreamSource("https://addon", "Addon", "https://cdn/Movie.mkv", "Addon · 4k", "Movie.2024.2160p.mkv", emptyMap())
@@ -32,10 +30,10 @@ class PlayerInfoRowsTest {
     fun `live network rows sit directly below Player engine and above File`() {
         val labels = infoRows(state(http), telemetry).map { it.label }
         assertEquals(
-            listOf("Stream", "Player engine", "Download", "Range connections", "Buffer", "File", "Video codec", "Dynamic range", "Resolution", "Bitrate"),
-            labels.take(10),
+            listOf("Stream", "Player engine", "Download", "Range connections", "Buffer", "File", "File size", "Video codec", "Dynamic range", "Resolution", "Bitrate"),
+            labels.take(11),
         )
-        assertEquals(listOf("Audio codec", "Channels", "Sample rate", "Audio language", "Subtitles"), labels.drop(10).take(5))
+        assertEquals(listOf("Audio codec", "Channels", "Sample rate", "Audio language", "Subtitles"), labels.drop(11).take(5))
     }
 
     @Test
@@ -51,7 +49,30 @@ class PlayerInfoRowsTest {
     fun `Usenet releases have no HTTP range row, the rest keep their order`() {
         val labels = infoRows(state(usenet), telemetry).map { it.label }
         assertFalse("Range connections" in labels)
-        assertEquals(listOf("Stream", "Player engine", "Download", "Buffer", "File"), labels.take(5))
+        assertEquals(listOf("Stream", "Player engine", "Download", "Buffer", "File", "File size"), labels.take(6))
+    }
+
+    @Test
+    fun `File size reads 1024-based units, and a dash when unknown`() {
+        assertEquals("58.42 GB", fileSizeText(62_727_000_000))
+        assertEquals("1.00 GB", fileSizeText(1L shl 30))
+        assertEquals("734 MB", fileSizeText(734L * 1024 * 1024))
+        assertEquals("512 KB", fileSizeText(512L * 1024))
+        assertEquals("900 B", fileSizeText(900))
+        assertEquals("—", fileSizeText(null))
+        assertEquals("—", fileSizeText(0))
+        assertEquals("—", fileSizeText(-1))
+    }
+
+    @Test
+    fun `the File size row uses the tracked size, then the hint, then the parsed release, like Bitrate`() {
+        fun size(stream: StreamSource, tracked: Long?) =
+            infoRows(state(stream), telemetry.copy(contentLengthBytes = tracked)).first { it.label == "File size" }.value
+        val hinted = http.copy(hints = StreamHints(sizeBytes = 4L shl 30))
+        assertEquals("9.00 GB", size(hinted, tracked = 9L shl 30), "the data source's own length wins")
+        assertEquals("4.00 GB", size(hinted, tracked = null))
+        assertEquals("4.00 GB", size(hinted, tracked = 0))
+        assertEquals("—", size(http, tracked = null), "nothing known")
     }
 
     @Test
@@ -98,35 +119,5 @@ class PlayerInfoRowsTest {
         assertEquals("10.0 Mbps (est.)", rows["Bitrate"])
         val known = infoRows(state(http, runtimeMinutes = null), telemetry.copy(contentLengthBytes = 9_000_000_000, playerDurationMs = 3_600_000))
         assertEquals("20.0 Mbps (est.)", known.first { it.label == "Bitrate" }.value)
-    }
-
-    // ---- Panel geometry -------------------------------------------------------------------------
-
-    @Test
-    fun `the Info card reaches lower than the other panels, yet stays above the seek row`() {
-        assertTrue(INFO_PANEL_BOTTOM_INSET < PANEL_BOTTOM_INSET, "Info extends below the other panels")
-        // Bottom padding + action bar + spacing + seek row: the card never covers the remaining-time text.
-        assertTrue(INFO_PANEL_BOTTOM_INSET >= HUD_BOTTOM_PADDING + CIRCLE_SIZE + 14.dp + 24.dp + INFO_PANEL_GAP)
-        assertEquals(INFO_PANEL_BOTTOM_INSET, infoPanelBottomInset(null))
-    }
-
-    @Test
-    fun `a measured HUD block places the card a clean gap above its seek row`() {
-        // 24 padding + 20 seek row + 14 + 48 bar + 24 padding.
-        assertEquals(130.dp - HUD_BOTTOM_PADDING + INFO_PANEL_GAP, infoPanelBottomInset(130.dp))
-        // A larger font scale (taller time label) lifts the card with it.
-        assertTrue(infoPanelBottomInset(160.dp) > infoPanelBottomInset(130.dp))
-        assertEquals(INFO_PANEL_BOTTOM_INSET, infoPanelBottomInset(0.dp), "an unmeasured (zero) block falls back")
-    }
-
-    @Test
-    fun `the scrollbar thumb is proportional and follows the scroll position`() {
-        assertNull(scrollbarThumb(0, maxValue = 0, viewport = 400, trackPx = 400f, minThumbPx = 24f), "no overflow, no scrollbar")
-        val top = scrollbarThumb(0, maxValue = 400, viewport = 400, trackPx = 400f, minThumbPx = 24f)
-        assertEquals(ThumbSpan(0f, 200f), top, "half the content visible: half-length thumb at the top")
-        assertEquals(ThumbSpan(100f, 200f), scrollbarThumb(200, 400, 400, 400f, 24f))
-        assertEquals(ThumbSpan(200f, 200f), scrollbarThumb(400, 400, 400, 400f, 24f))
-        val long = scrollbarThumb(0, maxValue = 100_000, viewport = 400, trackPx = 400f, minThumbPx = 24f)
-        assertEquals(24f, long?.length, "a very long list keeps a visible thumb")
     }
 }

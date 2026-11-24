@@ -49,6 +49,7 @@ enum class BarControl {
     SUBTITLES,
     SUBTITLE_SYNC,
     AUDIO,
+    SPEED,
     STREAMS,
     EPISODES,
     INFO,
@@ -56,7 +57,7 @@ enum class BarControl {
 
 /**
  * The controls currently on the bar, left to right: Play/Pause, Next Episode (episodes only),
- * Subtitles, the `- 0.0s +` sync offset (only while an addon subtitle is on), Audio, Streams, Episodes
+ * Subtitles, the `- 0.0s +` sync offset (only while an addon subtitle is on), Audio, Speed, Streams, Episodes
  * (episodes only), Info. Trailers show Play/Pause only. Its first and last entries are the wrap edges.
  */
 fun actionBarControls(state: PlayerUiState): List<BarControl> = buildList {
@@ -70,6 +71,7 @@ fun actionBarControls(state: PlayerUiState): List<BarControl> = buildList {
     pill(BarControl.SUBTITLES, PlayerPanel.SUBTITLES)
     if (state.externalSubtitleActive) add(BarControl.SUBTITLE_SYNC)
     pill(BarControl.AUDIO, PlayerPanel.AUDIO)
+    pill(BarControl.SPEED, PlayerPanel.SPEED)
     pill(BarControl.STREAMS, PlayerPanel.STREAMS)
     pill(BarControl.EPISODES, PlayerPanel.EPISODES)
     pill(BarControl.INFO, PlayerPanel.INFO)
@@ -132,6 +134,7 @@ private fun BarControlItem(
         BarControl.SUBTITLES -> PanelPill("Subtitles", PlayerPanel.SUBTITLES, state, viewModel, panelButtons, modifier)
         BarControl.SUBTITLE_SYNC -> SubtitleSync(state.subtitleOffsetMs, state.subtitleSyncStatus.hudCaption(), viewModel::stepSubtitleOffset, modifier)
         BarControl.AUDIO -> PanelPill("Audio", PlayerPanel.AUDIO, state, viewModel, panelButtons, modifier)
+        BarControl.SPEED -> PanelPill("Speed", PlayerPanel.SPEED, state, viewModel, panelButtons, modifier)
         BarControl.STREAMS -> PanelPill("Streams", PlayerPanel.STREAMS, state, viewModel, panelButtons, modifier)
         BarControl.EPISODES -> PanelPill("Episodes", PlayerPanel.EPISODES, state, viewModel, panelButtons, modifier)
         BarControl.INFO -> PanelPill("Info", PlayerPanel.INFO, state, viewModel, panelButtons, modifier)
@@ -222,10 +225,11 @@ private fun SubtitleSync(offsetMs: Long, caption: String?, onStep: (Int) -> Unit
     }
 }
 
-// Bar geometry (the 960 dp-wide width budget is checked in PlayerActionBarTest).
-internal val BAR_SPACING = 10.dp
+// Bar geometry: tightened when the Speed pill joined, so the full episode bar (9 controls) still fits
+// 960 dp (the width budget is checked in PlayerAutoSyncTest).
+internal val BAR_SPACING = 8.dp
 internal val CIRCLE_SIZE = 48.dp
-internal val PILL_PADDING = 18.dp
+internal val PILL_PADDING = 13.dp
 internal val SYNC_BUTTON_SIZE = 40.dp
 internal val SYNC_SPACING = 6.dp
 

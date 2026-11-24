@@ -69,11 +69,13 @@ internal fun infoRows(state: PlayerUiState, telemetry: InfoTelemetry): List<Info
             add(InfoRow("Range connections", "${telemetry.activeConnections}x active · ${telemetry.maxConnections}x max"))
         }
         add(InfoRow("Buffer", "%.1f s · %.1f MB".format(Locale.US, telemetry.bufferedSeconds, telemetry.bufferedMb)))
+        // One size for both rows: data source → addon/indexer/Debrid hint → parsed release.
+        val size = streamSizeBytes(telemetry.contentLengthBytes, stream)
         add(InfoRow("File", fileName(stream?.description, stream?.url) ?: "—"))
+        add(InfoRow("File size", fileSizeText(size)))
         add(InfoRow("Video codec", videoCodec(video)))
         add(InfoRow("Dynamic range", telemetry.dynamicRange))
         add(InfoRow("Resolution", video?.takeIf { it.width > 0 }?.let { "${it.width}×${it.height}${frameRate(it)}" } ?: "—"))
-        val size = streamSizeBytes(telemetry.contentLengthBytes, stream)
         add(InfoRow("Bitrate", bitrateText(video, size, playbackDurationMs(telemetry.playerDurationMs, runtimeMs))))
         add(InfoRow("Audio codec", PlayerTracks.codecName(audio?.sampleMimeType) ?: "—"))
         add(InfoRow("Channels", audio?.let { PlayerTracks.channelLayout(it.channelCount) } ?: "—"))

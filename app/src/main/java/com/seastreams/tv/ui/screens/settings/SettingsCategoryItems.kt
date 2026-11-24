@@ -31,6 +31,11 @@ internal fun playbackItems(state: SettingsUiState, cb: SettingsCallbacks): List<
             },
         )
         add(
+            entry(SPEED_ROW_KEY, SeaIcons.Timer, "Default playback speed", p.defaultPlaybackSpeed.label, RowTrailing.Chevron) {
+                cb.open(SettingsPanel.Choice(ChoiceKind.PLAYBACK_SPEED))
+            },
+        )
+        add(
             entry(FAILOVER_ROW_KEY, SeaIcons.SkipNext, "Automatic stream failover", failoverDescription(p.autoStreamFailover), RowTrailing.Toggle(p.autoStreamFailover)) {
                 cb.updatePlayer { it.copy(autoStreamFailover = !it.autoStreamFailover) }
             },
@@ -67,11 +72,12 @@ internal fun audioItems(state: SettingsUiState, cb: SettingsCallbacks): List<Set
     return listOf(
         entry(
             "passthrough", SeaIcons.Volume, "Audio passthrough",
-            if (a.passthroughEnabled) "On: Dolby/DTS go to your receiver untouched. Turning on an effect below switches this off" else "Off: Dialogue boost, Night mode and Audio delay/advance apply",
+            if (a.passthroughEnabled) "On: Dolby/DTS go to your receiver untouched. Turning on an effect below switches this off" else "Off: Dialogue boost, Night mode, Volume level and Audio delay/advance apply",
             RowTrailing.Toggle(a.passthroughEnabled),
         ) { vm.updateAudio { it.copy(passthroughEnabled = !it.passthroughEnabled) } },
         entry("dialogue", SeaIcons.Equalizer, "Dialogue boost", dialogueLabel(a.dialogueBoost.gainDb), RowTrailing.Chevron) { cb.open(SettingsPanel.Choice(ChoiceKind.DIALOGUE_BOOST)) },
         toggle("night", SeaIcons.Moon, "Night mode", a.nightMode) { vm.updateAudio { it.copy(nightMode = !it.nightMode) } },
+        entry(VOLUME_ROW_KEY, SeaIcons.Volume, "Default volume level", a.volumeBoost.label, RowTrailing.Chevron) { cb.open(SettingsPanel.Choice(ChoiceKind.VOLUME_BOOST)) },
         entry(
             "audio-delay", SeaIcons.Timer, "Audio delay/advance", audioDelayLabel(a.audioDelayMs),
             RowTrailing.Stepper(
@@ -104,4 +110,6 @@ const val PLAYER_ROW_KEY = "player"
 const val FAILOVER_ROW_KEY = "failover"
 const val FALLBACK_ROW_KEY = "fallback"
 const val HDR_DIM_ROW_KEY = "hdr-dim"
+const val SPEED_ROW_KEY = "default-speed"
+const val VOLUME_ROW_KEY = "volume-boost"
 private const val AUDIO_STEP_MS = 25

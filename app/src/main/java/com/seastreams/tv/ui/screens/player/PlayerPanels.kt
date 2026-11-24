@@ -5,8 +5,8 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -31,6 +31,7 @@ import androidx.tv.material3.Text
 import com.seastreams.tv.core.datastore.AudioSettings
 import com.seastreams.tv.core.datastore.DialogueBoost
 import com.seastreams.tv.core.datastore.SettingsDataStore
+import com.seastreams.tv.core.datastore.VolumeBoost
 import com.seastreams.tv.ui.components.SeaIcons
 import com.seastreams.tv.ui.screens.playback.StreamListPanel
 import com.seastreams.tv.ui.screens.settings.RowTrailing
@@ -43,13 +44,16 @@ import com.seastreams.tv.ui.theme.requestFocusAfterFrame
 
 /**
  * The open overlay, as a right-hand panel over the still-playing video. [hudBottomBlock] is the measured height of the
- * HUD's seek row + action bar block (`null` before it is measured), which the Info panel reaches down to.
+ * HUD's seek row + action bar block (`null` before it is measured), which the Subtitles, Audio, Speed and Info cards
+ * reach down to ([cardBottomInset]); Streams and Episodes end above the action bar ([PANEL_BOTTOM_INSET]).
  */
 @Composable
 fun PlayerPanels(panel: PlayerPanel, state: PlayerUiState, viewModel: PlayerViewModel, hudBottomBlock: Dp?, modifier: Modifier) {
+    val cardInset = cardBottomInset(hudBottomBlock)
     when (panel) {
-        PlayerPanel.SUBTITLES -> SubtitlesPanel(state, viewModel, modifier)
-        PlayerPanel.AUDIO -> PanelScaffold("Audio", modifier) { first -> audioItems(state, viewModel, first) }
+        PlayerPanel.SUBTITLES -> SubtitlesPanel(state, viewModel, cardInset, modifier)
+        PlayerPanel.AUDIO -> PanelScaffold("Audio", cardInset, modifier) { first -> audioItems(state, viewModel, first) }
+        PlayerPanel.SPEED -> SpeedPanel(state, viewModel, cardInset, modifier)
         // Same container as the Details stream modal; Back is handled by the player (focus → Streams button).
         PlayerPanel.STREAMS -> StreamListPanel(
             title = state.title,
@@ -66,41 +70,55 @@ fun PlayerPanels(panel: PlayerPanel, state: PlayerUiState, viewModel: PlayerView
             showRank = true,
         )
         PlayerPanel.EPISODES -> EpisodesPanel(state, viewModel, modifier)
-        PlayerPanel.INFO -> InfoPanel(viewModel, infoPanelBottomInset(hudBottomBlock), modifier)
+        PlayerPanel.INFO -> InfoPanel(viewModel, cardInset, modifier)
     }
 }
 
 /**
- * Right-hand panel: focus starts on its first entry and can't wander back to the HUD with the D-pad;
+ * Right-hand card: focus starts on its first entry and can't wander back to the HUD with the D-pad;
  * `Back` closes it (handled by the player) and returns focus to the bar button.
  */
 @Composable
-fun PanelScaffold(title: String, modifier: Modifier, content: LazyListScope.(first: FocusRequester) -> Unit) {
+fun PanelScaffold(title: String, bottomInset: Dp, modifier: Modifier, content: LazyListScope.(first: FocusRequester) -> Unit) {
     val first = remember { FocusRequester() }
-    PanelScaffold(title, modifier, rememberLazyListState(), onOpen = { first.requestFocusAfterFrame() }) { content(first) }
+    PanelScaffold(title, bottomInset, modifier, rememberLazyListState(), onOpen = { first.requestFocusAfterFrame() }) { content(first) }
 }
 
-/** [PanelScaffold] with its own [listState] and [onOpen] focus action (e.g. focus the active row). */
+/**
+ * [PanelScaffold] with its own [listState] and [onOpen] focus action (e.g. focus the active row). The card ends
+ * [bottomInset] above the screen bottom and shows the shared [PanelScrollbar] while its rows overflow.
+ */
 @Composable
-fun PanelScaffold(title: String, modifier: Modifier, listState: LazyListState, onOpen: suspend () -> Unit, content: LazyListScope.() -> Unit) {
+fun PanelScaffold(
+    title: String,
+    bottomInset: Dp,
+    modifier: Modifier,
+    listState: LazyListState,
+    onOpen: suspend () -> Unit,
+    content: LazyListScope.() -> Unit,
+) {
     LaunchedEffect(title) { onOpen() }
     Column(
         modifier
-            .padding(bottom = PANEL_BOTTOM_INSET)
+            .padding(bottom = bottomInset)
             .fillMaxHeight()
             .width(PanelWidth)
             .background(SurfaceCard.copy(alpha = 0.94f))
-            .padding(horizontal = 24.dp, vertical = 28.dp)
+            .padding(start = 24.dp, end = 16.dp, top = 28.dp, bottom = 20.dp)
             .trapPanelFocus(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxWidth().weight(1f),
-            contentPadding = PaddingValues(vertical = 4.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) { content() }
+        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(SCROLLBAR_GAP)) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) { content() }
+            // Always laid out (so rows never reflow); drawn only while the rows overflow.
+            PanelScrollbar(listState::scrollMetrics, Modifier.fillMaxHeight().width(SCROLLBAR_WIDTH))
+        }
     }
 }
 
@@ -153,6 +171,15 @@ private fun LazyListScope.audioItems(state: PlayerUiState, viewModel: PlayerView
     item(key = "night") {
         SettingsRow(SeaIcons.Moon, "Night mode", null, RowTrailing.Toggle(audio.nightMode), { viewModel.updateSessionAudio { it.copy(nightMode = !it.nightMode) } })
     }
+    item(key = "volume") {
+        val step: (Int) -> Unit = { direction ->
+            val all = VolumeBoost.entries
+            viewModel.updateSessionAudio { it.copy(volumeBoost = all[(all.indexOf(it.volumeBoost) + direction).coerceIn(0, all.lastIndex)]) }
+        }
+        SettingsRow(SeaIcons.Volume, "Volume boost", audio.volumeBoost.label, RowTrailing.Stepper({ step(-1) }, { step(1) }), {
+            viewModel.updateSessionAudio { it.copy(volumeBoost = VolumeBoost.STANDARD) }
+        })
+    }
     item(key = "delay") {
         val step: (Int) -> Unit = { direction ->
             viewModel.updateSessionAudio { it.copy(delayMs = SettingsDataStore.snapAudioDelay(it.delayMs + direction * AudioSettings.AUDIO_DELAY_STEP_MS)) }
@@ -167,14 +194,14 @@ private fun LazyListScope.audioItems(state: PlayerUiState, viewModel: PlayerView
 internal fun passthroughDetail(state: PlayerUiState): String = when {
     !state.audio.passthrough -> "Off: effects below apply"
     state.dspAvailable -> "On: this track plays as PCM, effects apply"
-    else -> "On: sent to your receiver untouched. Turning on an effect switches this off"
+    else -> "On: sent to your receiver untouched. Turning on an effect or changing speed switches this off"
 }
 
 internal val PanelWidth = 500.dp
 
 /**
- * Right-hand panels end above the HUD's bottom block (24 dp padding + seek row + 14 dp + 48 dp action
- * bar ≈ 134 dp), so they never cover the action bar.
+ * Streams and Episodes end above the HUD's bottom block (24 dp padding + seek row + 14 dp + 48 dp action
+ * bar ≈ 134 dp), so they never cover the action bar. The other cards use [cardBottomInset].
  */
 internal val PANEL_BOTTOM_INSET = 150.dp
 
@@ -184,22 +211,22 @@ internal val HUD_BOTTOM_BLOCK = 24.dp + 24.dp + 14.dp + CIRCLE_SIZE + 24.dp
 /** The HUD bottom block's vertical padding (above the seek row and below the action bar). */
 internal val HUD_BOTTOM_PADDING = 24.dp
 
-/** Clear space between the Info card and the seek row / remaining-time text below it. */
-internal val INFO_PANEL_GAP = 12.dp
+/** Clear space between the Subtitles/Audio/Speed/Info cards and the seek row / remaining-time text below them. */
+internal val CARD_SEEK_GAP = 12.dp
 
 /**
- * Info's bottom inset before the HUD block is measured: bottom padding + action bar + spacing + seek row (~24 dp) +
- * [INFO_PANEL_GAP]. It sits just above the seek row, lower than the other panels' [PANEL_BOTTOM_INSET].
+ * The cards' bottom inset before the HUD block is measured: bottom padding + action bar + spacing + seek row (~24 dp)
+ * + [CARD_SEEK_GAP]. It sits just above the seek row, lower than Streams and Episodes ([PANEL_BOTTOM_INSET]).
  */
-internal val INFO_PANEL_BOTTOM_INSET = HUD_BOTTOM_PADDING + CIRCLE_SIZE + 14.dp + 24.dp + INFO_PANEL_GAP
+internal val CARD_BOTTOM_INSET = HUD_BOTTOM_PADDING + CIRCLE_SIZE + 14.dp + 24.dp + CARD_SEEK_GAP
 
 /**
- * The Info card ends [INFO_PANEL_GAP] above the top of the HUD's seek row: the measured block ([measured], padding
- * included) minus its top padding. Measured, so a larger font scale (a taller time label) lifts the card instead of
- * overlapping the `-2:44:28 / 2:52:35` text.
+ * The Subtitles, Audio, Speed and Info cards end [CARD_SEEK_GAP] above the top of the HUD's seek row: the measured
+ * block ([measured], padding included) minus its top padding. Measured, so a larger font scale (a taller time label)
+ * lifts the cards instead of overlapping the `-2:44:28 / 2:52:35` text.
  */
-internal fun infoPanelBottomInset(measured: Dp?): Dp =
-    measured?.takeIf { it > HUD_BOTTOM_PADDING }?.let { it - HUD_BOTTOM_PADDING + INFO_PANEL_GAP } ?: INFO_PANEL_BOTTOM_INSET
+internal fun cardBottomInset(measured: Dp?): Dp =
+    measured?.takeIf { it > HUD_BOTTOM_PADDING }?.let { it - HUD_BOTTOM_PADDING + CARD_SEEK_GAP } ?: CARD_BOTTOM_INSET
 
 /** Subtitle side padding; while a right-hand panel is open the cue is drawn left of it, never under it. */
 internal fun cueEndPadding(panel: PlayerPanel?): Dp =

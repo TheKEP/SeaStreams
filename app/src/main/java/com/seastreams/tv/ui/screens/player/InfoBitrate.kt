@@ -37,7 +37,24 @@ internal fun streamSizeBytes(trackedBytes: Long?, stream: StreamSource?): Long? 
 internal fun playbackDurationMs(playerDurationMs: Long, fallbackMs: Long): Long =
     playerDurationMs.takeIf { it > 0 } ?: fallbackMs.coerceAtLeast(0)
 
+/**
+ * The Info overlay's `File size` row, in the 1024-based units release names use (`58.42 GB`, `734 MB`, `512 KB`,
+ * `900 B`); `—` when the size is unknown. Pass [streamSizeBytes], so it matches the size the Bitrate row estimates from.
+ */
+internal fun fileSizeText(bytes: Long?): String {
+    val size = bytes?.takeIf { it > 0 } ?: return "—"
+    return when {
+        size >= BYTES_PER_GB -> "%.2f GB".format(Locale.US, size / BYTES_PER_GB.toDouble())
+        size >= BYTES_PER_MB -> "%.0f MB".format(Locale.US, size / BYTES_PER_MB.toDouble())
+        size >= BYTES_PER_KB -> "%.0f KB".format(Locale.US, size / BYTES_PER_KB.toDouble())
+        else -> "$size B"
+    }
+}
+
 private fun formatMbps(bitsPerSecond: Double): String = "%.1f Mbps".format(Locale.US, bitsPerSecond / BITS_PER_MEGABIT)
 
+private const val BYTES_PER_KB = 1_024L
+private const val BYTES_PER_MB = BYTES_PER_KB * 1_024
+private const val BYTES_PER_GB = BYTES_PER_MB * 1_024
 private const val BITS_PER_BYTE = 8.0
 private const val BITS_PER_MEGABIT = 1_000_000.0

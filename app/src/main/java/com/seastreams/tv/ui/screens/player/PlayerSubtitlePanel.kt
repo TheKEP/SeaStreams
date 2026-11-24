@@ -7,6 +7,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.unit.Dp
 import com.seastreams.tv.ui.components.SeaIcons
 import com.seastreams.tv.ui.screens.settings.RowTrailing
 import com.seastreams.tv.ui.screens.settings.SUBTITLE_COLORS
@@ -17,8 +18,8 @@ import com.seastreams.tv.ui.screens.settings.stepEdge
 import com.seastreams.tv.ui.screens.settings.stepFontScale
 import com.seastreams.tv.ui.screens.settings.stepOpacity
 import com.seastreams.tv.ui.theme.ignoreInitialKeyUp
+import com.seastreams.tv.ui.theme.focusItem
 import com.seastreams.tv.ui.theme.rememberListEdgeWrap
-import com.seastreams.tv.ui.theme.requestFocusAfterFrame
 import com.seastreams.tv.ui.theme.verticalListEdgeWrap
 
 /**
@@ -56,7 +57,7 @@ fun subtitlePanelLayout(state: PlayerUiState): SubtitlePanelLayout {
  * the release of the key that opened the menu, so opening it never picks a track.
  */
 @Composable
-fun SubtitlesPanel(state: PlayerUiState, viewModel: PlayerViewModel, modifier: Modifier) {
+fun SubtitlesPanel(state: PlayerUiState, viewModel: PlayerViewModel, bottomInset: Dp, modifier: Modifier) {
     val layout = subtitlePanelLayout(state)
     val listState = rememberLazyListState()
     val first = remember { FocusRequester() }
@@ -69,10 +70,11 @@ fun SubtitlesPanel(state: PlayerUiState, viewModel: PlayerViewModel, modifier: M
         (if (index == openedOn) Modifier.focusRequester(active) else Modifier).ignoreInitialKeyUp()
     }
     PanelScaffold(
-        "Subtitles", modifier, listState,
+        "Subtitles", bottomInset, modifier, listState,
         onOpen = {
+            // One row of context above the active track, then make sure the track itself is fully on screen.
             listState.scrollToItem((openedOn - 1).coerceAtLeast(0))
-            active.requestFocusAfterFrame()
+            if (!listState.focusItem(openedOn, active)) listState.focusItem(layout.firstIndex, first)
         },
     ) {
         item(key = KEY_OFF) {

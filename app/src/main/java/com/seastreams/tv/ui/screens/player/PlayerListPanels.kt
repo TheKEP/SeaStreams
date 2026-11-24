@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -20,14 +21,18 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import com.seastreams.tv.core.datastore.PlaybackSpeed
 import com.seastreams.tv.ui.components.MetadataFormat
+import com.seastreams.tv.ui.screens.settings.SettingsSectionHeader
 import com.seastreams.tv.ui.theme.SurfaceCard
 import com.seastreams.tv.ui.theme.TextSecondary
+import com.seastreams.tv.ui.theme.focusItem
 import com.seastreams.tv.ui.theme.focusPillColors
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
 
@@ -75,3 +80,47 @@ fun EpisodesPanel(state: PlayerUiState, viewModel: PlayerViewModel, modifier: Mo
         }
     }
 }
+
+/**
+ * Speed overlay (session only, PRD §9): one row per [PlaybackSpeed]. It opens scrolled so the active speed is fully
+ * on screen, with focus on it (a row below the viewport has no attached requester until it is scrolled in, so a
+ * plain focus request would land nowhere). Choosing a speed applies it at once and keeps the overlay open, without
+ * moving focus; `Back` returns focus to the Speed pill.
+ */
+@Composable
+fun SpeedPanel(state: PlayerUiState, viewModel: PlayerViewModel, bottomInset: Dp, modifier: Modifier) {
+    val listState = rememberLazyListState()
+    val first = remember { FocusRequester() }
+    val active = remember { FocusRequester() }
+    // Fixed when the overlay opens: picking another speed inside it must not move focus.
+    val openedOn = remember { state.playbackSpeed }
+    PanelScaffold(
+        "Playback speed", bottomInset, modifier, listState,
+        onOpen = {
+            if (!listState.focusItem(speedFocusIndex(openedOn), active)) listState.focusItem(speedFocusIndex(PlaybackSpeed.entries.first()), first)
+        },
+    ) {
+        item(key = "h-speed") { SettingsSectionHeader("This video only") }
+        PlaybackSpeed.entries.forEach { speed ->
+            item(key = "speed-${speed.name}") {
+                val requester = when (speed) {
+                    openedOn -> Modifier.focusRequester(active)
+                    PlaybackSpeed.entries.first() -> Modifier.focusRequester(first)
+                    else -> Modifier
+                }
+                OptionRow(
+                    label = speed.label,
+                    detail = null,
+                    selected = speed == state.playbackSpeed,
+                    onClick = { viewModel.setPlaybackSpeed(speed) },
+                    modifier = requester,
+                )
+            }
+        }
+    }
+}
+
+/** The Speed overlay's lazy index for [speed]: its rows follow the one "This video only" header. */
+internal fun speedFocusIndex(speed: PlaybackSpeed): Int = SPEED_HEADER_ROWS + speed.ordinal
+
+private const val SPEED_HEADER_ROWS = 1

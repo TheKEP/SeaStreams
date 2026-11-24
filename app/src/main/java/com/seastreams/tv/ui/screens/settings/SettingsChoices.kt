@@ -6,6 +6,8 @@ import com.seastreams.tv.core.datastore.BackgroundSwatches
 import com.seastreams.tv.core.datastore.DialogueBoost
 import com.seastreams.tv.core.datastore.DolbyVisionPlayback
 import com.seastreams.tv.core.datastore.PlaybackBufferProfile
+import com.seastreams.tv.core.datastore.PlaybackSpeed
+import com.seastreams.tv.core.datastore.VolumeBoost
 import com.seastreams.tv.core.datastore.PlayerSettings
 import com.seastreams.tv.core.datastore.PlayerChoice
 import com.seastreams.tv.core.network.InvalidManifestException
@@ -123,6 +125,20 @@ fun choiceSpec(kind: ChoiceKind, state: SettingsUiState, vm: SettingsViewModel):
             DolbyVisionPlayback.entries.map { mode ->
                 val label = if (mode == DolbyVisionPlayback.AUTO) "${mode.label} (default)" else mode.label
                 ChoiceOption(label, mode == player.dolbyVisionPlayback) { vm.updatePlayer { it.copy(dolbyVisionPlayback = mode) } }
+            },
+        )
+        ChoiceKind.PLAYBACK_SPEED -> ChoiceSpec(
+            "Default playback speed",
+            PlaybackSpeed.entries.map { speed ->
+                val label = if (speed == PlaybackSpeed.DEFAULT) "${speed.label} (default)" else speed.label
+                ChoiceOption(label, speed == player.defaultPlaybackSpeed) { vm.updatePlayer { it.copy(defaultPlaybackSpeed = speed) } }
+            },
+        )
+        ChoiceKind.VOLUME_BOOST -> ChoiceSpec(
+            "Default volume level",
+            VolumeBoost.entries.map { boost ->
+                val label = if (boost == VolumeBoost.DEFAULT) "${boost.label} (default)" else boost.label
+                ChoiceOption(label, boost == state.settings.audio.volumeBoost) { vm.updateAudio { it.copy(volumeBoost = boost) } }
             },
         )
         ChoiceKind.SUBTITLE_LANGUAGE -> ChoiceSpec(

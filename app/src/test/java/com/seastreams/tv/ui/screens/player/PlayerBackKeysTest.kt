@@ -118,8 +118,8 @@ class PlayerBackKeysTest {
     // ---- Focus restore after closing an overlay ----------------------------------------------------
 
     @Test
-    fun `closing Subtitles, Audio, Streams or Info refocuses that bar button`() {
-        listOf(PlayerPanel.SUBTITLES, PlayerPanel.AUDIO, PlayerPanel.STREAMS, PlayerPanel.INFO).forEach { panel ->
+    fun `closing Subtitles, Audio, Speed, Streams or Info refocuses that bar button`() {
+        listOf(PlayerPanel.SUBTITLES, PlayerPanel.AUDIO, PlayerPanel.SPEED, PlayerPanel.STREAMS, PlayerPanel.INFO).forEach { panel ->
             assertEquals(panel, panelReturnFocus(panel, movie), "movie $panel")
             assertEquals(panel, panelReturnFocus(panel, episode), "episode $panel")
         }

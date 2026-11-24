@@ -54,9 +54,24 @@ class PassthroughAutoOffTest {
 
     @Test
     fun `engagesDsp only counts effects being turned on`() {
-        assertTrue(engagesDsp(DialogueBoost.OFF, DialogueBoost.PLUS_12, false, false, 0, 0))
-        assertTrue(engagesDsp(DialogueBoost.PLUS_3, DialogueBoost.PLUS_6, false, false, 0, 0))
-        assertFalse(engagesDsp(DialogueBoost.PLUS_3, DialogueBoost.PLUS_3, true, true, 75, 75))
-        assertFalse(engagesDsp(DialogueBoost.PLUS_3, DialogueBoost.OFF, true, false, 75, 0))
+        val off = DspLevels(DialogueBoost.OFF, nightMode = false, delayMs = 0, volumeBoost = VolumeBoost.STANDARD)
+        val on = DspLevels(DialogueBoost.PLUS_3, nightMode = true, delayMs = 75, volumeBoost = VolumeBoost.PLUS_50)
+        assertTrue(engagesDsp(off, off.copy(dialogueBoost = DialogueBoost.PLUS_12)))
+        assertTrue(engagesDsp(on, on.copy(dialogueBoost = DialogueBoost.PLUS_6)))
+        assertTrue(engagesDsp(off, off.copy(volumeBoost = VolumeBoost.PLUS_25)))
+        assertTrue(engagesDsp(on, on.copy(volumeBoost = VolumeBoost.PLUS_100)))
+        assertFalse(engagesDsp(on, on))
+        assertFalse(engagesDsp(on, off))
+        assertFalse(engagesDsp(on, on.copy(volumeBoost = VolumeBoost.STANDARD)))
+    }
+
+    @Test
+    fun `a volume boost switches passthrough off and it can go back on`() {
+        val boosted = passthrough.change { it.copy(volumeBoost = VolumeBoost.PLUS_25) }
+        assertFalse(boosted.passthroughEnabled)
+        val backOn = boosted.change { it.copy(passthroughEnabled = true) }
+        assertTrue(backOn.passthroughEnabled)
+        assertTrue(backOn.change { it.copy(volumeBoost = VolumeBoost.STANDARD) }.passthroughEnabled)
+        assertFalse(backOn.change { it.copy(volumeBoost = VolumeBoost.PLUS_75) }.passthroughEnabled)
     }
 }
