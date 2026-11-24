@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.PlatformTextStyle
@@ -49,10 +50,13 @@ internal const val ANIMATION_DURATION_MS = 2840f
  * the launcher and starting app services, and the first ~300ms of frames drop; waiting until the
  * launch crossfade and startup work have finished lets frame 1 of the wave render smoothly.
  */
-private const val START_DELAY_MS = 420L
+internal const val START_DELAY_MS = 420L
 
 /** 420ms start delay + 2840ms of motion + ~90ms of stillness; the splash never leaves before this. */
-private const val MIN_HOLD_MS = 3350L
+internal const val MIN_HOLD_MS = 3350L
+
+/** Lightweight mode ([SplashMotion.Fade]): the whole lockup fades in once over this long. */
+internal const val LOCKUP_FADE_MS = 600
 
 /** Each letter to the right starts this long after its left neighbour (9 × 110ms = 990ms). */
 internal const val STAGGER_IN_MS = 110f
@@ -80,11 +84,13 @@ private const val BOB_DECAY = 0.9f
 
 /**
  * Icon size and a fixed downward shift, tuned against `docs/ui-references/tv_banner.png`: the play
- * button's top corner sits above the `s`, its bottom corner below, and its tip near the `s` waist.
- * The all-x-height wordmark's ink sits below the centre of its line box, hence the shift.
+ * button's top corner sits above the `s`, its bottom corner below, and its right-hand tip and
+ * horizontal centreline run through the middle of the `a` counter (the x-height centre). The
+ * all-x-height wordmark's ink sits below the centre of its line box, hence the shift; 14dp sat the
+ * tip below the `a` counter's centre.
  */
 private val ICON_SIZE = 96.dp
-private val ICON_OFFSET_Y = 14.dp
+private val ICON_OFFSET_Y = 10.dp
 
 /** Wordmark letters. */
 private val WordmarkStyle = TextStyle(
@@ -151,8 +157,10 @@ private fun bobState(b: Float): LetterWaveState {
 /**
  * Startup splash shown before the Profile Gate (PRD §2): the SeaStreams icon and a Fredoka
  * `seastreams` wordmark whose letters pop in left-to-right and bob in the water before settling
- * still, on pure black. It finishes once at least [MIN_HOLD_MS] has passed *and* [isStartupReady]
- * is true, whichever comes last.
+ * still, on pure black. On Fire OS / low-RAM hardware or with animations off ([SplashMotion.Fade])
+ * the letters stay static and the whole lockup fades in once (or appears at once) instead. It
+ * finishes once at least [MIN_HOLD_MS] has passed *and* [isStartupReady] is true, whichever comes
+ * last.
  */
 @Composable
 fun SeaStreamsSplashScreen(
@@ -164,16 +172,28 @@ fun SeaStreamsSplashScreen(
 
     val letters = remember { WORDMARK.toList() }
     val lastIndex = letters.lastIndex
+    val motion = rememberSplashMotion()
+    val context = LocalContext.current
     val sweepProgressMs = remember { Animatable(0f) }
+    // Fade mode only: the whole lockup's alpha. Wave mode keeps the lockup fully opaque.
+    val lockupAlpha = remember(motion) { Animatable(if (motion == SplashMotion.Fade) 0f else 1f) }
     val pxPerDp = LocalDensity.current.density
 
     // One-shot: the motion plays once and comes to rest; nothing loops.
-    LaunchedEffect(Unit) {
+    LaunchedEffect(motion) {
         delay(START_DELAY_MS)
-        sweepProgressMs.animateTo(
-            targetValue = ANIMATION_DURATION_MS,
-            animationSpec = tween(durationMillis = ANIMATION_DURATION_MS.toInt(), easing = LinearEasing),
-        )
+        when (motion) {
+            SplashMotion.Wave -> sweepProgressMs.animateTo(
+                targetValue = ANIMATION_DURATION_MS,
+                animationSpec = tween(durationMillis = ANIMATION_DURATION_MS.toInt(), easing = LinearEasing),
+            )
+            SplashMotion.Fade ->
+                if (animatorDurationScale(context) == 0f) {
+                    lockupAlpha.snapTo(1f)
+                } else {
+                    lockupAlpha.animateTo(1f, tween(durationMillis = LOCKUP_FADE_MS, easing = LinearEasing))
+                }
+        }
     }
 
     // Single timer from first frame: hold MIN_HOLD_MS, then wait (if still needed) for readiness.
@@ -190,6 +210,8 @@ fun SeaStreamsSplashScreen(
         contentAlignment = Alignment.Center,
     ) {
         Row(
+            // One GPU layer for the whole lockup; in Wave mode alpha stays 1.
+            modifier = Modifier.graphicsLayer { alpha = lockupAlpha.value },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(24.dp),
         ) {
@@ -203,9 +225,10 @@ fun SeaStreamsSplashScreen(
                     Text(
                         text = char.toString(),
                         style = WordmarkStyle,
-                        // Read the animation in the draw-layer phase: frames neither recompose
-                        // nor re-layout the Texts.
-                        modifier = Modifier.graphicsLayer {
+                        // Every animated property is read only inside graphicsLayer (never
+                        // Modifier.offset / scale / alpha), so frames neither recompose nor
+                        // re-layout the 10 Texts. Fade mode skips the per-letter layers entirely.
+                        modifier = if (motion == SplashMotion.Fade) Modifier else Modifier.graphicsLayer {
                             val state = letterWaveState(sweepProgressMs.value, index, lastIndex)
                             alpha = state.alpha
                             scaleX = state.scale
