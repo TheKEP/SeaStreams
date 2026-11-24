@@ -5,7 +5,8 @@ package com.seastreams.tv.core.webserver
  * `byId`, `toast` and `api` helpers. Per profile: keywords, release groups, regexes, seeder / age ranges, size and
  * bitrate limits per resolution (movies / series), and custom formatter templates with a live preview from
  * `POST /api/streams/format-preview`. Each section starts with its master toggle checkbox (`Enable stream filtering` /
- * `sorting` / `formatting`), saved as soon as it changes by posting only that flag, so typed edits are kept. Values picked on the TV (resolutions, languages, sort order, …) are kept as they
+ * `sorting` / `formatting`), saved as soon as it changes by posting only that flag, so typed edits are kept. `Export JSON`
+ * downloads `GET /api/streams/export`; `Import JSON` posts a picked file's text to `POST /api/streams/import`. Values picked on the TV (resolutions, languages, sort order, …) are kept as they
  * are: a save sends them back unchanged. The form is built once per profile switch, so a refresh never wipes typing.
  *
  * Note: this is a Kotlin raw string, so the script deliberately never uses the dollar sign.
@@ -110,6 +111,12 @@ function setupStreams() {
     h('p', { class: 'hint' }, 'Each profile has its own. Pick resolutions, qualities, languages and the sort order on the TV (Settings → UI); type patterns, limits and templates here.'),
     h('div', { class: 'row' }, h('label', { for: 'sp-profile' }, 'Editing'), h('select', { class: 'grow', id: 'sp-profile', 'aria-label': 'Profile' })),
     h('div', { id: 'sp-forms', hidden: true },
+      h('h3', null, 'Backup'),
+      h('p', { class: 'hint' }, "Export saves this profile's filters, sorting and formatter (with their on/off switches) as a JSON file. Import replaces them with a file exported earlier, from this TV or another one."),
+      h('div', { class: 'row' },
+        h('button', { type: 'button', id: 'sp-export' }, 'Export JSON'),
+        h('button', { type: 'button', id: 'sp-import' }, 'Import JSON'),
+        h('input', { type: 'file', id: 'sp-import-file', accept: 'application/json,.json', hidden: true })),
       h('h3', null, 'Filters'),
       spStage(SP_STAGES[0], 'Enable stream filtering'),
       listGroup('kw', 'Keywords', 'Comma-separated words matched in the file name, release group or indexer (a space also matches . - _).', false),
@@ -134,6 +141,9 @@ function setupStreams() {
   byId('sp-profile').addEventListener('change', (e) => { const id = Number(e.currentTarget.value); if (id) loadStreams(id); });
   byId('sp-save-filters').addEventListener('click', (e) => saveStreamFilters(e.currentTarget));
   byId('sp-save-formatter').addEventListener('click', (e) => saveStreamFormatter(e.currentTarget));
+  byId('sp-export').addEventListener('click', exportStreams);
+  byId('sp-import').addEventListener('click', () => byId('sp-import-file').click());
+  byId('sp-import-file').addEventListener('change', (e) => importStreams(e.currentTarget));
   SP_STAGES.forEach((stage) => byId(stage[0]).addEventListener('change', (e) => saveStage(stage, e.currentTarget)));
   byId('sp-fm-id').addEventListener('change', () => { applyFormatterChoice(null); schedulePreview(); });
   ['sp-fm-name', 'sp-fm-desc', 'sp-fm-file'].forEach((id) => byId(id).addEventListener('input', schedulePreview));
@@ -257,6 +267,32 @@ async function saveStreamFormatter(button) {
   };
   const body = { profileId: SP.profileId, formatter: formatter, formattingEnabled: byId('sp-on-formatter').checked };
   if (await api('/streams/formatter', body, button)) loadStreams(SP.profileId);
+}
+
+// The TV answers with Content-Disposition: attachment, so the browser saves the file and stays on the portal.
+function exportStreams() {
+  if (SP.profileId) window.location.href = '/api/streams/export?profileId=' + SP.profileId;
+}
+
+async function importStreams(input) {
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (!file || !SP.profileId) return;
+  if (file.size > 64 * 1024) { toast('That file is too large to be a stream settings backup', false); return; }
+  const button = byId('sp-import');
+  button.disabled = true;
+  try {
+    const text = await file.text();
+    const r = await fetch('/api/streams/import?profileId=' + SP.profileId, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: text });
+    let d;
+    try { d = await r.json(); } catch (e) { d = { ok: false, message: 'Unexpected response (HTTP ' + r.status + ')' }; }
+    toast(d.message, d.ok);
+    if (d.ok) loadStreams(SP.profileId);
+  } catch (e) {
+    toast('Could not reach the TV', false);
+  } finally {
+    button.disabled = false;
+  }
 }
 
 (function initStreams() {

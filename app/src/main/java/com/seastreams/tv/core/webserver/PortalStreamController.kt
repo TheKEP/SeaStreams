@@ -1,5 +1,7 @@
 package com.seastreams.tv.core.webserver
 
+import com.seastreams.tv.core.datastore.InvalidStreamBackupException
+import com.seastreams.tv.core.datastore.StreamProcessingBackupCodec
 import com.seastreams.tv.core.datastore.StreamProcessingStore
 import com.seastreams.tv.data.UserFacingException
 import com.seastreams.tv.data.profile.ProfileRepository
@@ -9,7 +11,6 @@ import com.seastreams.tv.domain.streams.SortKey
 import com.seastreams.tv.domain.streams.StreamFilters
 import com.seastreams.tv.domain.streams.StreamFormatterChoice
 import com.seastreams.tv.domain.streams.StreamSort
-import com.seastreams.tv.domain.streams.filter.KeywordMatcher
 import com.seastreams.tv.domain.streams.format.FormatterPreview
 import com.seastreams.tv.domain.streams.format.FormatterTemplates
 import com.seastreams.tv.domain.streams.format.PredefinedFormatters
@@ -17,6 +18,7 @@ import com.seastreams.tv.domain.streams.parse.ReleaseRegexTables
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.Serializable
 import java.time.Clock
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -66,6 +68,9 @@ data class FormatPreviewRequest(val name: String, val description: String, val f
 @Serializable
 data class FormatPreviewResponse(val name: String, val description: String)
 
+/** `GET /api/streams/export`: the download's file name and its JSON body. */
+data class StreamBackupFile(val fileName: String, val json: String)
+
 /**
  * Portal actions for per-profile stream filters, sorting and formatter (PRD §13). Every write names its profile, which
  * must exist, and only touches that profile's `p{id}/stream_*` keys. Regexes are validated before saving.
@@ -102,11 +107,7 @@ class PortalStreamController @Inject constructor(
         val filters = request.filters
         requireChange(filters, request.filteringEnabled)
         val name = requireProfile(request.profileId)
-        filters?.regex?.let { regex ->
-            (regex.required + regex.excluded + regex.included + regex.preferred.map { it.pattern })
-                .firstOrNull { it.isNotBlank() && !KeywordMatcher.isValid(it) }
-                ?.let { throw UserFacingException("Not a valid regex: $it") }
-        }
+        filters?.let(StreamProcessingBackupCodec::firstInvalidRegex)?.let { throw UserFacingException("Not a valid regex: $it") }
         store.updateFilters(request.profileId, request.filteringEnabled) { filters ?: it }
         return if (filters == null) toggled("Stream filtering", request.filteringEnabled, name) else "Stream filters saved for $name"
     }
@@ -132,6 +133,24 @@ class PortalStreamController @Inject constructor(
         return if (formatter == null) toggled("Stream formatting", request.formattingEnabled, name) else "Stream formatter saved for $name"
     }
 
+    /** [profileId]'s filters, sort lists and formatter, with their master toggles, as a downloadable JSON backup. */
+    suspend fun exportBackup(profileId: Long): StreamBackupFile {
+        val name = requireProfile(profileId)
+        return StreamBackupFile(backupFileName(name), StreamProcessingBackupCodec.encode(store.exportBackup(profileId)))
+    }
+
+    /** Validates [json] (version, regexes, template length; numbers are clamped) and replaces [profileId]'s stages. */
+    suspend fun importBackup(profileId: Long, json: String): String {
+        val name = requireProfile(profileId)
+        val backup = try {
+            StreamProcessingBackupCodec.decode(json)
+        } catch (e: InvalidStreamBackupException) {
+            throw UserFacingException(e.message.orEmpty())
+        }
+        store.importBackup(profileId, backup)
+        return "Stream settings imported for $name"
+    }
+
     /** The sample release (or [FormatPreviewRequest.filename]) rendered with the request's templates. */
     fun preview(request: FormatPreviewRequest): FormatPreviewResponse {
         val templates = FormatterTemplates(request.name.take(StreamProcessingStore.MAX_TEMPLATE_CHARS), request.description.take(StreamProcessingStore.MAX_TEMPLATE_CHARS))
@@ -149,7 +168,16 @@ class PortalStreamController @Inject constructor(
     private suspend fun requireProfile(profileId: Long): String =
         profiles.observeProfiles().first().firstOrNull { it.id == profileId }?.name ?: throw UserFacingException("That profile no longer exists")
 
-    private companion object {
+    internal companion object {
         const val MAX_FILENAME_CHARS = 512
+
+        /** `seastreams-stream-settings-<profile>.json`, the profile name reduced to `a-z`, `0-9` and `-`. */
+        fun backupFileName(profileName: String): String {
+            val slug = profileName.lowercase(Locale.ROOT).replace(NOT_SLUG, "-").trim('-').take(MAX_SLUG_CHARS).trimEnd('-').ifEmpty { "profile" }
+            return "seastreams-stream-settings-$slug.json"
+        }
+
+        private val NOT_SLUG = Regex("[^a-z0-9]+")
+        private const val MAX_SLUG_CHARS = 40
     }
 }

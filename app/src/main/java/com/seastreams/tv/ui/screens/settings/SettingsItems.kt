@@ -17,6 +17,8 @@ import com.seastreams.tv.ui.screens.settings.sources.DebridUiState
 import com.seastreams.tv.ui.screens.settings.sources.SourcesActions
 import com.seastreams.tv.ui.screens.settings.sources.SourcesUiState
 import com.seastreams.tv.ui.screens.settings.sources.sourcesItems
+import com.seastreams.tv.ui.screens.settings.streams.COPY_STREAM_SETTINGS_TITLE
+import com.seastreams.tv.ui.screens.settings.streams.STREAM_COPY_ROW_KEY
 import com.seastreams.tv.ui.screens.settings.streams.STREAM_FILTERING_TOGGLE_KEY
 import com.seastreams.tv.ui.screens.settings.streams.STREAM_FILTERS_ROW_KEY
 import com.seastreams.tv.ui.screens.settings.streams.STREAM_FORMATTER_ROW_KEY
@@ -98,6 +100,9 @@ sealed interface SettingsPanel {
         data object Sort : Stream
 
         data object Formatter : Stream
+
+        /** `Copy stream settings from…`: the other profiles, as a [ChoicePanel]. */
+        data object CopyFrom : Stream
     }
 }
 
@@ -157,11 +162,12 @@ fun settingsItems(
     sources: SourcesUiState = SourcesUiState(),
     debrid: DebridUiState = DebridUiState(),
     streams: StreamProcessingSettings = StreamProcessingSettings(),
+    profileCount: Int = 1,
     nowMillis: Long = System.currentTimeMillis(),
     zone: ZoneId = ZoneId.systemDefault(),
 ): List<SettingsItem> = when (category) {
     SettingsCategory.HOME -> homeItems(state, cb)
-    SettingsCategory.UI -> uiItems(state, swatchesOpen, cb) + streamProcessingItems(streams, cb)
+    SettingsCategory.UI -> uiItems(state, swatchesOpen, cb) + streamProcessingItems(streams, cb, profileCount)
     SettingsCategory.PLAYBACK -> playbackItems(state, cb)
     SettingsCategory.AUDIO -> audioItems(state, cb)
     SettingsCategory.SUBTITLES -> subtitleItems(state, cb)
@@ -210,9 +216,10 @@ private fun uiItems(state: SettingsUiState, swatchesOpen: Boolean, cb: SettingsC
 /**
  * The bottom of `UI` (PRD §13), below the trailer rows: the active profile's three master toggles, each with its panel
  * row (stream filters, sorting, formatter) as an indented sub-setting beneath it while the toggle is on. The stored
- * rules are kept while a row is hidden. The panels' `Back` returns to these rows ([SettingsPanel.parent]).
+ * rules are kept while a row is hidden. The panels' `Back` returns to these rows ([SettingsPanel.parent]). Last comes
+ * `Copy stream settings from…` while [profileCount] is 2 or more, whatever the toggles say.
  */
-internal fun streamProcessingItems(streams: StreamProcessingSettings, cb: SettingsCallbacks): List<SettingsItem> = buildList {
+internal fun streamProcessingItems(streams: StreamProcessingSettings, cb: SettingsCallbacks, profileCount: Int = 1): List<SettingsItem> = buildList {
     val actions = cb.streams
     add(
         entry(STREAM_FILTERING_TOGGLE_KEY, SeaIcons.FilterList, "Enable stream filtering", filteringDescription(streams.filteringEnabled), RowTrailing.Toggle(streams.filteringEnabled)) {
@@ -247,6 +254,13 @@ internal fun streamProcessingItems(streams: StreamProcessingSettings, cb: Settin
         add(
             entry(STREAM_FORMATTER_ROW_KEY, Icons.Filled.Edit, "Stream formatter", streams.formatter.id.label, RowTrailing.Chevron, indented = true) {
                 cb.open(SettingsPanel.Stream.Formatter)
+            },
+        )
+    }
+    if (profileCount >= 2) {
+        add(
+            entry(STREAM_COPY_ROW_KEY, Icons.Filled.AccountCircle, COPY_STREAM_SETTINGS_TITLE, "Replace this profile's filters, sorting and formatter", RowTrailing.Chevron) {
+                cb.open(SettingsPanel.Stream.CopyFrom)
             },
         )
     }

@@ -86,8 +86,8 @@ table.ranges th { color: var(--muted); font-weight: 500; text-align: left; paddi
 table.ranges td { padding: 3px 4px 3px 0; }
 table.ranges input { padding: 7px 8px; }
 .preview { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
-.preview .pv-name { font-weight: 700; white-space: pre-line; overflow-wrap: anywhere; }
-.preview .pv-desc { white-space: pre-line; overflow-wrap: anywhere; margin-top: 4px; font-size: 14px; }
+.preview .pv-name { font-weight: 700; white-space: pre-wrap; overflow-wrap: anywhere; }
+.preview .pv-desc { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 4px; font-size: 14px; }
 #toast { position: fixed; left: 16px; right: 16px; bottom: max(16px, env(safe-area-inset-bottom));
   max-width: 560px; margin: 0 auto; padding: 12px 16px; border-radius: 12px; background: var(--surface-2);
   border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(0,0,0,.4); opacity: 0;

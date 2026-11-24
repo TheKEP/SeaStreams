@@ -44,6 +44,7 @@ import com.seastreams.tv.ui.components.SeaIcons
 import com.seastreams.tv.ui.theme.TextSecondary
 import com.seastreams.tv.ui.theme.Follow
 import com.seastreams.tv.ui.theme.focusItem
+import com.seastreams.tv.ui.theme.ignoreInitialKeyUp
 import com.seastreams.tv.ui.theme.rememberListEdgeWrap
 import com.seastreams.tv.ui.theme.rememberReorderFocus
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
@@ -52,7 +53,10 @@ import com.seastreams.tv.ui.theme.verticalEdgeKeys
 import com.seastreams.tv.ui.theme.verticalListEdgeWrap
 import kotlinx.coroutines.launch
 
-/** Radio-style list; picking an option saves it and returns to the main list via [onDone]. */
+/**
+ * Radio-style list; picking an option saves it and returns to the main list via [onDone]. Rows ignore a release whose
+ * `OK` press began elsewhere ([ignoreInitialKeyUp]), so the key-up of the press that opened the panel never picks one.
+ */
 @Composable
 fun ChoicePanel(spec: ChoiceSpec, onDone: () -> Unit) {
     val selected = remember { FocusRequester() }
@@ -63,7 +67,7 @@ fun ChoicePanel(spec: ChoiceSpec, onDone: () -> Unit) {
         if (!listState.focusItem(spec.options.indexOfFirst { it.selected }, selected)) listState.focusItem(0, first)
     }
     PanelColumn(spec.title, listState) {
-        itemsIndexed(spec.options, key = { _, option -> option.label }) { index, option ->
+        itemsIndexed(spec.options, key = { _, option -> option.key ?: option.label }) { index, option ->
             SettingsRow(
                 icon = if (option.selected) Icons.Filled.Check else null,
                 title = option.label,
@@ -74,6 +78,7 @@ fun ChoicePanel(spec: ChoiceSpec, onDone: () -> Unit) {
                     onDone()
                 },
                 modifier = Modifier
+                    .ignoreInitialKeyUp()
                     .then(if (option.selected) Modifier.focusRequester(selected) else Modifier)
                     .then(if (index == 0) Modifier.focusRequester(first) else Modifier),
             )

@@ -15,6 +15,7 @@ import com.seastreams.tv.domain.streams.StreamSort
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationException
@@ -45,6 +46,8 @@ private data class Entry<T>(val value: T?, val enabled: Boolean)
  * object also holds its master toggle as `"enabled": false` while that stage is switched off; the rules are kept as
  * they are. A key whose rules equal the default and whose toggle is on is removed rather than stored; unreadable JSON
  * reads as the default.
+ *
+ * [copyProfile] and [exportBackup] / [importBackup] move all three stages between profiles or through a JSON file.
  */
 @Singleton
 class StreamProcessingStore @Inject constructor(private val dataStore: DataStore<Preferences>) {
@@ -74,21 +77,10 @@ class StreamProcessingStore @Inject constructor(private val dataStore: DataStore
         update(profileId, ProfileSettingsKeys.STREAM_FILTERS, StreamFilters.serializer(), StreamFilters(), enabled) { sanitised(transform(it)) }
 
     suspend fun updateSort(profileId: Long, enabled: Boolean? = null, transform: (StreamSort) -> StreamSort) =
-        update(profileId, ProfileSettingsKeys.STREAM_SORT, StreamSort.serializer(), StreamSort(), enabled) { current ->
-            transform(current).let { sort ->
-                StreamSort(sort.global.distinctBy { it.key }, sort.movies.distinctBy { it.key }, sort.series.distinctBy { it.key }, sort.anime.distinctBy { it.key })
-            }
-        }
+        update(profileId, ProfileSettingsKeys.STREAM_SORT, StreamSort.serializer(), StreamSort(), enabled) { tidy(transform(it)) }
 
     suspend fun updateFormatter(profileId: Long, enabled: Boolean? = null, transform: (StreamFormatterChoice) -> StreamFormatterChoice) =
-        update(profileId, ProfileSettingsKeys.STREAM_FORMATTER, StreamFormatterChoice.serializer(), StreamFormatterChoice(), enabled) { current ->
-            transform(current).let { choice ->
-                choice.copy(
-                    customName = choice.customName?.take(MAX_TEMPLATE_CHARS)?.takeIf { it.isNotBlank() },
-                    customDescription = choice.customDescription?.take(MAX_TEMPLATE_CHARS)?.takeIf { it.isNotBlank() },
-                )
-            }
-        }
+        update(profileId, ProfileSettingsKeys.STREAM_FORMATTER, StreamFormatterChoice.serializer(), StreamFormatterChoice(), enabled) { tidy(transform(it)) }
 
     /** `Enable stream filtering`: bypasses the filters without touching them. */
     suspend fun setFilteringEnabled(profileId: Long, enabled: Boolean) = updateFilters(profileId, enabled) { it }
@@ -98,6 +90,37 @@ class StreamProcessingStore @Inject constructor(private val dataStore: DataStore
 
     /** `Enable stream formatting`: bypasses the formatter without touching it. */
     suspend fun setFormattingEnabled(profileId: Long, enabled: Boolean) = updateFormatter(profileId, enabled) { it }
+
+    /**
+     * Makes [toProfileId]'s stream filters, sort lists and formatter (with each stage's master toggle) an exact copy of
+     * [fromProfileId]'s, in one edit; a key the source never stored is removed from the target. Other profiles and every
+     * other setting are untouched.
+     */
+    suspend fun copyProfile(fromProfileId: Long, toProfileId: Long) {
+        if (fromProfileId == toProfileId) return
+        dataStore.edit { prefs ->
+            STAGE_KEYS.forEach { key ->
+                val raw = prefs[key.forProfile(fromProfileId)]
+                if (raw == null) prefs.remove(key.forProfile(toProfileId)) else prefs[key.forProfile(toProfileId)] = raw
+            }
+        }
+    }
+
+    /** [profileId]'s stream processing as a portable backup (PRD §13 *Backup & copy*). */
+    suspend fun exportBackup(profileId: Long): StreamProcessingBackup = StreamProcessingBackup.of(settings(profileId).first())
+
+    /**
+     * Replaces all three of [profileId]'s stages (rules and master toggles) with [backup]'s in one edit, tidied as the
+     * TV and portal editors tidy them. [backup] is expected to have passed [StreamProcessingBackupCodec.decode].
+     */
+    suspend fun importBackup(profileId: Long, backup: StreamProcessingBackup) {
+        val settings = backup.toSettings()
+        dataStore.edit { prefs ->
+            write(prefs, ProfileSettingsKeys.STREAM_FILTERS, profileId, StreamFilters.serializer(), sanitised(settings.filters), StreamFilters(), settings.filteringEnabled)
+            write(prefs, ProfileSettingsKeys.STREAM_SORT, profileId, StreamSort.serializer(), tidy(settings.sort), StreamSort(), settings.sortingEnabled)
+            write(prefs, ProfileSettingsKeys.STREAM_FORMATTER, profileId, StreamFormatterChoice.serializer(), tidy(settings.formatter), StreamFormatterChoice(), settings.formattingEnabled)
+        }
+    }
 
     private suspend fun <T> update(
         profileId: Long,
@@ -139,6 +162,18 @@ class StreamProcessingStore @Inject constructor(private val dataStore: DataStore
 
     companion object {
         const val MAX_TEMPLATE_CHARS = 8_000
+
+        private val STAGE_KEYS = listOf(ProfileSettingsKeys.STREAM_FILTERS, ProfileSettingsKeys.STREAM_SORT, ProfileSettingsKeys.STREAM_FORMATTER)
+
+        /** One entry per sort key in each list. */
+        internal fun tidy(sort: StreamSort): StreamSort =
+            StreamSort(sort.global.distinctBy { it.key }, sort.movies.distinctBy { it.key }, sort.series.distinctBy { it.key }, sort.anime.distinctBy { it.key })
+
+        /** Templates are capped, and a blank one means "use the default"; spaces inside a template are kept as typed. */
+        internal fun tidy(choice: StreamFormatterChoice): StreamFormatterChoice = choice.copy(
+            customName = choice.customName?.take(MAX_TEMPLATE_CHARS)?.takeIf { it.isNotBlank() },
+            customDescription = choice.customDescription?.take(MAX_TEMPLATE_CHARS)?.takeIf { it.isNotBlank() },
+        )
 
         /** Trims and de-duplicates every list and drops non-positive result limits. */
         internal fun sanitised(filters: StreamFilters): StreamFilters {

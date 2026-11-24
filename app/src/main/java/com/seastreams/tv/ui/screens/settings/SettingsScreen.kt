@@ -34,6 +34,7 @@ import com.seastreams.tv.ui.screens.settings.sources.DebridSourcesViewModel
 import com.seastreams.tv.ui.screens.settings.sources.SourcesActions
 import com.seastreams.tv.ui.screens.settings.sources.SourcesPanelHost
 import com.seastreams.tv.ui.screens.settings.sources.SourcesViewModel
+import com.seastreams.tv.ui.screens.settings.streams.STREAM_COPY_ROW_KEY
 import com.seastreams.tv.ui.screens.settings.streams.STREAM_FILTERS_ROW_KEY
 import com.seastreams.tv.ui.screens.settings.streams.STREAM_FORMATTER_ROW_KEY
 import com.seastreams.tv.ui.screens.settings.streams.STREAM_SORT_ROW_KEY
@@ -73,6 +74,7 @@ fun SettingsScreen(
     val sourcesState by sources.state.collectAsState()
     val debridState by debrid.state.collectAsState()
     val streamState by streams.state.collectAsState()
+    val streamProfiles by streams.profiles.collectAsState()
     val savedBackground by appearance.saved.collectAsState()
     val cacheBytes by viewModel.cacheBytes.collectAsState()
     val messages = LocalTransientMessages.current
@@ -98,6 +100,7 @@ fun SettingsScreen(
     LaunchedEffect(viewModel) { viewModel.messages.collect { messages?.show(it) } }
     LaunchedEffect(sources) { sources.messages.collect { messages?.show(it) } }
     LaunchedEffect(debrid) { debrid.messages.collect { messages?.show(it) } }
+    LaunchedEffect(streams) { streams.messages.collect { messages?.show(it) } }
     // Opening the Sources tab runs the daily header-version check when it's due (PRD §12).
     LaunchedEffect(category) { if (category == SettingsCategory.SOURCES) sources.checkHeadersIfDue() }
     LaunchedEffect(Unit) { pillRequesters[SettingsCategory.HOME.ordinal].requestFocusAfterFrame() }
@@ -175,6 +178,7 @@ fun SettingsScreen(
         sources = sourcesState,
         debrid = debridState,
         streams = streamState,
+        profileCount = streamProfiles.size,
         nowMillis = sourcesNow,
     )
 
@@ -244,6 +248,8 @@ fun SettingsScreen(
                     openPortal = { panel = SettingsPanel.Portal },
                     close = { panel = SettingsPanel.Main },
                     nowMillis = System.currentTimeMillis(),
+                    profiles = streamProfiles,
+                    activeProfileId = profileId,
                 )
                 SettingsPanel.UsenetProviders,
                 SettingsPanel.UsenetIndexers,
@@ -279,6 +285,7 @@ private fun keyFor(panel: SettingsPanel): String = when (panel) {
     is SettingsPanel.Headers -> if (panel.use == HeaderUse.SEARCH) HEADERS_SEARCH_ROW_KEY else HEADERS_DOWNLOAD_ROW_KEY
     SettingsPanel.Stream.Sort -> STREAM_SORT_ROW_KEY
     SettingsPanel.Stream.Formatter -> STREAM_FORMATTER_ROW_KEY
+    SettingsPanel.Stream.CopyFrom -> STREAM_COPY_ROW_KEY
     // Nested filter panels all return to the `Stream filters` row once Back reaches the list.
     is SettingsPanel.Stream -> STREAM_FILTERS_ROW_KEY
     is SettingsPanel.Choice -> when (panel.kind) {

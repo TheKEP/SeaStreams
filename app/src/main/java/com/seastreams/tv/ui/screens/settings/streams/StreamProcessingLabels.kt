@@ -24,6 +24,13 @@ const val STREAM_FORMATTER_ROW_KEY = "stream-formatter"
 const val STREAM_FILTERING_TOGGLE_KEY = "stream-filtering-enabled"
 const val STREAM_SORTING_TOGGLE_KEY = "stream-sorting-enabled"
 const val STREAM_FORMATTING_TOGGLE_KEY = "stream-formatting-enabled"
+const val STREAM_COPY_ROW_KEY = "stream-copy-from"
+
+/** Title of the `UI` row and its profile list (PRD §13 *Backup & copy*). */
+const val COPY_STREAM_SETTINGS_TITLE = "Copy stream settings from…"
+
+/** The toast after a copy. */
+internal fun streamSettingsCopiedMessage(profileName: String): String = "Stream settings copied from $profileName"
 
 /** `Settings → UI` master toggles (PRD §13 *Master toggles*); each receives the new value. */
 class StreamProcessingActions(

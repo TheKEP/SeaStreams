@@ -16,7 +16,8 @@ import com.seastreams.tv.player.external.InstalledPlayer
 import java.util.Locale
 
 /** One option of a picker panel. */
-data class ChoiceOption(val label: String, val selected: Boolean, val apply: () -> Unit)
+/** [key] identifies the row when labels can repeat (two profiles with one name); it defaults to the label. */
+data class ChoiceOption(val label: String, val selected: Boolean, val key: Any? = null, val apply: () -> Unit)
 
 data class ChoiceSpec(val title: String, val options: List<ChoiceOption>)
 

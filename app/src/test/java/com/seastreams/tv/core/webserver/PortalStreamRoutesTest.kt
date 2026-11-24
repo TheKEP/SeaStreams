@@ -2,6 +2,7 @@ package com.seastreams.tv.core.webserver
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.seastreams.tv.core.database.entity.ProfileEntity
+import com.seastreams.tv.core.datastore.StreamProcessingBackupCodec
 import com.seastreams.tv.core.datastore.StreamProcessingStore
 import com.seastreams.tv.data.profile.ProfileRepository
 import com.seastreams.tv.domain.streams.FormatterId
@@ -186,6 +187,114 @@ class PortalStreamRoutesTest {
         assertEquals(400, empty.status.value)
         assertEquals("Nothing to save", json.decodeFromString<ApiMessage>(empty.bodyAsText()).message)
         assertEquals(400, post("/api/streams/formatter", """{"profileId":9,"formattingEnabled":false}""").status.value)
+    }
+
+    @Test
+    fun `export downloads the profile's stages as a named JSON attachment`() = runTest {
+        store.updateFilters(1, enabled = false) { it.copy(keywords = it.keywords.copy(excluded = listOf("CAM"))) }
+        val response = browser.get("$base/api/streams/export?profileId=1")
+        assertEquals(200, response.status.value)
+        assertEquals("attachment; filename=\"seastreams-stream-settings-ken.json\"", response.headers["Content-Disposition"])
+        assertTrue(response.headers["Content-Type"].orEmpty().startsWith("application/json"))
+        val backup = StreamProcessingBackupCodec.decode(response.bodyAsText())
+        assertFalse(backup.filters.enabled)
+        assertEquals(listOf("CAM"), backup.filters.rules.keywords.excluded)
+
+        assertEquals(404, browser.get("$base/api/streams/export?profileId=9").status.value)
+        assertEquals(400, browser.get("$base/api/streams/export").status.value)
+    }
+
+    @Test
+    fun `import writes an exported file onto another profile, master toggles included`() = runTest {
+        store.updateSort(1, enabled = false) { it.copy(global = listOf(SortCriterion(SortKey.SEEDERS))) }
+        store.updateFormatter(1) { StreamFormatterChoice(FormatterId.CUSTOM, "{addon.name}   {stream.resolution}", null) }
+        val file = browser.get("$base/api/streams/export?profileId=1").bodyAsText()
+
+        val imported = post("/api/streams/import?profileId=2", file)
+        assertEquals(200, imported.status.value, imported.bodyAsText())
+        assertEquals("Stream settings imported for Kids", json.decodeFromString<ApiMessage>(imported.bodyAsText()).message)
+        assertEquals(store.settings(1).first(), store.settings(2).first())
+        assertFalse(state(2).sortingEnabled)
+        assertEquals("{addon.name}   {stream.resolution}", state(2).formatter.customName)
+    }
+
+    @Test
+    fun `import refuses bad JSON, a bad regex, the wrong content type and unknown profiles`() = runTest {
+        val before = store.settings(1).first()
+        val garbage = post("/api/streams/import?profileId=1", "{nope")
+        assertEquals(400, garbage.status.value)
+        assertEquals("That isn't a seastreams stream settings file", json.decodeFromString<ApiMessage>(garbage.bodyAsText()).message)
+
+        val regex = """{"version":1,"filters":{"rules":{"regex":{"required":["/([oops/"]}}},"sort":{"rules":{}},"formatter":{"rules":{}}}"""
+        val badRegex = post("/api/streams/import?profileId=1", regex)
+        assertEquals(400, badRegex.status.value)
+        assertTrue(json.decodeFromString<ApiMessage>(badRegex.bodyAsText()).message.startsWith("Not a valid regex"))
+
+        val text = browser.post("$base/api/streams/import?profileId=1") {
+            contentType(ContentType.Text.Plain)
+            setBody(browser.get("$base/api/streams/export?profileId=1").bodyAsText())
+        }
+        assertEquals(415, text.status.value)
+        val valid = browser.get("$base/api/streams/export?profileId=1").bodyAsText()
+        assertEquals(400, post("/api/streams/import?profileId=9", valid).status.value)
+        assertEquals(400, post("/api/streams/import", valid).status.value)
+        assertEquals(before, store.settings(1).first())
+    }
+
+    @Test
+    fun `the preview answers spaces exactly as typed, and the page shows them`() = runTest {
+        val body = json.encodeToString(FormatPreviewRequest.serializer(), FormatPreviewRequest("  {addon.name}   4K", "a  {?{addon.name} ?}b"))
+        val preview = json.decodeFromString<FormatPreviewResponse>(post("/api/streams/format-preview", body).bodyAsText())
+        assertEquals("  Torrentio   4K", preview.name)
+        assertEquals("a  Torrentio b", preview.description)
+        // pre-line would collapse those runs of spaces in the browser.
+        assertTrue(PortalHtmlTemplate.render().contains(".pv-name { font-weight: 700; white-space: pre-wrap;"))
+    }
+
+    @Test
+    fun `the served portal page carries the backup buttons and a script that tokenises cleanly`() = runTest {
+        val page = browser.get("$base/")
+        assertEquals(200, page.status.value)
+        val html = page.bodyAsText()
+        listOf("sp-export", "sp-import", "sp-import-file", "/api/streams/export?profileId=", "/api/streams/import?profileId=")
+            .forEach { assertTrue(html.contains(it), it) }
+        val script = html.substringAfter("<script>").substringBefore("</script>")
+        val errors = JsSyntaxChecker.check(script)
+        assertTrue(errors.isEmpty(), errors.joinToString("\n"))
+    }
+
+    @Test
+    fun `export and import refuse a foreign Host header and leave the settings alone`() = runTest {
+        store.updateSort(1) { it.copy(global = listOf(SortCriterion(SortKey.SIZE))) }
+        val before = store.settings(1).first()
+        val port = base.substringAfterLast(':')
+        val body = browser.get("$base/api/streams/export?profileId=1").bodyAsText()
+        fun rawStatus(request: String): String = java.net.Socket("127.0.0.1", port.toInt()).use { socket ->
+            socket.getOutputStream().write(request.toByteArray())
+            socket.getInputStream().bufferedReader().readLine()
+        }
+        val export = rawStatus("GET /api/streams/export?profileId=1 HTTP/1.1\r\nHost: attacker.example:$port\r\nConnection: close\r\n\r\n")
+        assertTrue(export.contains("403"), export)
+        val bytes = body.toByteArray()
+        val import = rawStatus(
+            "POST /api/streams/import?profileId=2 HTTP/1.1\r\nHost: attacker.example:$port\r\nContent-Type: application/json\r\n" +
+                "Content-Length: ${bytes.size}\r\nConnection: close\r\n\r\n" + body,
+        )
+        assertTrue(import.contains("403"), import)
+        assertEquals(before, store.settings(1).first())
+        assertEquals(StreamSort(), store.settings(2).first().sort)
+    }
+
+    @Test
+    fun `an oversized import is refused before it is read`() = runTest {
+        val huge = post("/api/streams/import?profileId=1", "{\"version\":1,\"pad\":\"${"x".repeat(MAX_BODY_CHARS)}\"}")
+        assertEquals(413, huge.status.value)
+    }
+
+    @Test
+    fun `backup file names are reduced to a safe slug`() {
+        assertEquals("seastreams-stream-settings-ken-s-tv.json", PortalStreamController.backupFileName("Ken's TV"))
+        assertEquals("seastreams-stream-settings-profile.json", PortalStreamController.backupFileName("👶"))
     }
 
     private fun profile(id: Long, name: String) =
