@@ -68,6 +68,29 @@ class JoinedData(spans: List<Span>) : RandomAccessData {
         throw IOException("The archive's volumes keep changing layout")
     }
 
+    /**
+     * Bytes `[start, start + length)` as their own [JoinedData], mapped onto the exact volume offsets (a stored 7z
+     * entry inside joined `.7z.NNN` volumes). A snapshot of the current layout: only for spans without a pending
+     * lazy [Span.verify].
+     */
+    fun slice(start: Long, length: Long): JoinedData {
+        val current = layout
+        require(start >= 0 && length >= 0 && length <= current.total - start) { "Slice outside the data" }
+        check(current.spans.all { it.verified }) { "A lazily resolved layout can't be sliced" }
+        val out = ArrayList<Span>()
+        var at = start
+        val end = start + length
+        while (at < end) {
+            val index = spanAt(current, at)
+            val span = current.spans[index]
+            val within = at - current.starts[index]
+            val take = minOf(end - at, span.length - within)
+            out += Span(span.volume, span.offset + within, take)
+            at += take
+        }
+        return JoinedData(out)
+    }
+
     private fun spanAt(current: Layout, position: Long): Int {
         var low = 0
         var high = current.spans.size - 1

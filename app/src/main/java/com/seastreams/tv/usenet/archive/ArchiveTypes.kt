@@ -4,12 +4,13 @@ import java.io.EOFException
 import java.io.IOException
 
 /**
- * A release that can never stream: compressed / encrypted / 7z archives, no video, a missing volume, or damage
+ * A release that can never stream: compressed or encrypted archives (without a working NZB password), no video, a
+ * missing volume, or damage
  * beyond the policy. Lasting: the player doesn't retry it and failover moves on (ARCHITECTURE §10).
  */
 open class UsenetUnplayableException(message: String) : IOException(message)
 
-/** The archive set is refused (PRD §12: compressed, encrypted without the NZB password, 7z, no video inside). */
+/** The archive set is refused (PRD §12: compressed, encrypted RAR, 7z without / with a wrong NZB password, no video). */
 class ArchiveRefusedException(message: String) : UsenetUnplayableException(message)
 
 /** RAR headers that don't parse (truncated, bad CRC, impossible sizes). */

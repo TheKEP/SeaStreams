@@ -11,7 +11,7 @@ enum class VolumeStyle {
     /** `name.ext.001`, `.002` …: raw byte splits (or, by signature, RAR / 7z volumes). */
     SPLIT,
 
-    /** `name.7z`, `name.7z.001` …: never streamable. */
+    /** `name.7z`, `name.7z.001` …: one 7z archive split into raw byte volumes. */
     SEVEN_ZIP,
 }
 
@@ -20,7 +20,7 @@ data class VolumeName(val base: String, val index: Int, val style: VolumeStyle)
 
 /**
  * Parses volume names (PRD §12): `.partNN.rar`, the old `.rar` + `.rNN` scheme with its `.s00`–`.z99` rollover
- * after `.r99`, and `.001` splits. `.7z` / `.7z.NNN` are recognised so the set can be refused.
+ * after `.r99`, and `.001` splits. `.7z` / `.7z.NNN` form one 7z set (`.7z` alone is index 0).
  */
 object RarVolumeNames {
     private val PART = Regex("^(.+)\\.part(\\d{1,4})\\.rar$", RegexOption.IGNORE_CASE)

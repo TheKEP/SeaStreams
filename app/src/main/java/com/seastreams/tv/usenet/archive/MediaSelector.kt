@@ -7,11 +7,14 @@ data class ReleaseFile(val index: Int, val name: String, val statedBytes: Long)
 sealed interface MediaPlan {
     data class Plain(val file: Int) : MediaPlan
 
-    /** Raw `.001` byte splits (checked by signature at open: RAR inside is read as RAR, 7z refused). */
+    /** Raw `.001` byte splits (checked by signature at open: RAR inside is read as RAR, 7z as 7z). */
     data class Split(val files: List<Int>) : MediaPlan
 
     /** Stored RAR volumes; the entry is picked from the headers at open. */
     data class Rar(val files: List<Int>) : MediaPlan
+
+    /** A `.7z` file or `.7z.001` … byte-split set; the entry is picked (and refused unless stored) at open. */
+    data class SevenZip(val files: List<Int>) : MediaPlan
 
     data class Refused(val reason: String) : MediaPlan
 }
@@ -20,8 +23,8 @@ sealed interface MediaPlan {
  * Picks what a release plays (PRD §12): files are grouped into plain videos, RAR sets, `.001` split sets and 7z sets
  * (duplicate volumes — the same index posted twice — collapse to the larger copy); par2 / nfo / sfv and other
  * support files are ignored; a group named `sample` / `proof` under 5% of the largest is excluded; the largest
- * remaining group wins. A 7z or zip winner, a set without its first volume, or a gap in the volume numbers
- * is refused (it can never stream), so failover moves on.
+ * remaining group wins. A zip winner, a set without its first volume, or a gap in the volume numbers is refused
+ * (it can never stream), so failover moves on. 7z sets are opened by [SevenZipArchive] (stored entries only).
  */
 object MediaSelector {
     private val SAMPLE = Regex("(?i)(^|[ ._\\-\\[(/])(sample|proof)([ ._\\-\\])]|$)")
@@ -40,14 +43,14 @@ object MediaSelector {
         val kept = groups.filterNot { SAMPLE.containsMatchIn(it.name) && it.size < largest * SAMPLE_FRACTION }
         val winner = kept.maxByOrNull { it.size } ?: return MediaPlan.Refused("The release has only a sample")
         return when (winner.kind) {
-            Kind.SEVEN_ZIP -> MediaPlan.Refused("7z archives can't be streamed")
             Kind.ZIP -> MediaPlan.Refused("Zip archives can't be streamed")
             Kind.PLAIN -> MediaPlan.Plain(winner.files.single().index)
-            Kind.RAR, Kind.SPLIT -> {
+            Kind.RAR, Kind.SPLIT, Kind.SEVEN_ZIP -> {
                 val gap = winner.indices.first() > 0 || winner.indices.zipWithNext().any { (a, b) -> b != a + 1 }
                 when {
                     gap -> MediaPlan.Refused("A volume of the archive is missing")
                     winner.kind == Kind.RAR -> MediaPlan.Rar(winner.files.map { it.index })
+                    winner.kind == Kind.SEVEN_ZIP -> MediaPlan.SevenZip(winner.files.map { it.index })
                     else -> MediaPlan.Split(winner.files.map { it.index })
                 }
             }

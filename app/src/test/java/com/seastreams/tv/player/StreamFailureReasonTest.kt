@@ -30,6 +30,10 @@ class StreamFailureReasonTest {
         delimiter = '|',
         value = [
             "7z archives can't be streamed|7z archive not supported",
+            "The 7z archive is compressed (only stored archives can stream)|compressed 7z not supported",
+            "The 7z archive password is wrong|wrong archive password",
+            "The 7z archive is damaged or incomplete|damaged archive",
+            "The 7z archive's layout isn't supported|7z archive not supported",
             "Zip archives can't be streamed|zip archive not supported",
             "The archive is password-protected|password-protected archive",
             "The archive is compressed (only stored archives can stream)|compressed RAR not supported",
