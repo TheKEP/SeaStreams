@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -36,6 +37,16 @@ class BuiltInAddonGuard @Inject constructor(
 
     /** Never returns: runs for the process lifetime. */
     suspend fun keepDebridEntries() = keepEntries(debrid.listed, "Debrid") { addonRepository.ensureDebrid() }
+
+    /**
+     * One immediate pass of both upkeeps, for changes [keepEntries] can't see. A backup restore can replace an existing
+     * profile's list with one that has no `usenet://builtin` / `debrid://builtin` row while the source stays configured
+     * and the profile ids stay the same, so the `(shown, profileIds)` key never changes. Idempotent (insert-if-absent).
+     */
+    suspend fun refreshSourceEntries() {
+        if (usenet.configured.first()) ensureOnce("Usenet") { addonRepository.ensureUsenet() }
+        if (debrid.listed.first()) ensureOnce("Debrid") { addonRepository.ensureDebrid() }
+    }
 
     /** Runs [ensure] whenever [shown] is true and the profile list changes (profiles created later get the entry). */
     private suspend fun keepEntries(shown: Flow<Boolean>, label: String, ensure: suspend () -> Unit) {

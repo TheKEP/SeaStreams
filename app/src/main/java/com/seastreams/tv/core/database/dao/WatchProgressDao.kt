@@ -80,6 +80,10 @@ interface WatchProgressDao {
     )
     fun observeCompletedIds(profileId: Long, mediaType: MediaType): Flow<List<Int>>
 
+    /** Every record of [profileId], oldest first (backup export and restore merge). */
+    @Query("SELECT * FROM watch_progress WHERE profileId = :profileId ORDER BY updatedAtMillis")
+    suspend fun getAll(profileId: Long): List<WatchProgressEntity>
+
     @Upsert
     suspend fun upsert(progress: WatchProgressEntity)
 

@@ -9,6 +9,7 @@ import com.seastreams.tv.ui.screens.settings.streams.STREAM_SORT_ROW_KEY
 import com.seastreams.tv.core.datastore.AppSettings
 import com.seastreams.tv.core.datastore.PlayerSettings
 import com.seastreams.tv.core.datastore.SubtitleSettings
+import androidx.compose.ui.input.key.Key
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
@@ -46,7 +47,7 @@ class SettingsItemsTest {
                 "Update header versions", "Usenet performance", "Clear Usenet settings",
                 "Enable Debrid", "Debrid providers", "Clear Debrid settings", "Web portal",
             ),
-            SettingsCategory.OTHER to listOf("Clear library", "Clear cache"),
+            SettingsCategory.OTHER to listOf("Backup & restore", "Clear library", "Clear cache"),
         )
         assertEquals(SettingsCategory.entries.toSet(), expected.keys)
         expected.forEach { (category, titles) -> assertEquals(titles, buildItems(category).titles(), category.label) }
@@ -121,7 +122,7 @@ class SettingsItemsTest {
     }
 
     @Test
-    fun `Other holds Clear library then Clear cache, and the Undo row keeps its place`() {
+    fun `Other holds Backup and restore, Clear library then Clear cache, and the Undo row keeps its place`() {
         var cleared = 0
         val other = buildItems(SettingsCategory.OTHER, onClearCache = { cleared++ })
         val last = other.last() as SettingsItem.Entry
@@ -132,8 +133,35 @@ class SettingsItemsTest {
         assertEquals(1, cleared)
 
         val undo = buildItems(SettingsCategory.OTHER, clearSecondsLeft = 3)
-        assertEquals(listOf(CLEAR_ROW_KEY, CLEAR_CACHE_ROW_KEY), undo.keys())
+        assertEquals(listOf(BACKUP_ROW_KEY, CLEAR_ROW_KEY, CLEAR_CACHE_ROW_KEY), undo.keys())
         assertEquals("Undo clear library", undo.entry(CLEAR_ROW_KEY).title)
+    }
+
+    @Test
+    fun `Backup and restore opens the backup portal panel`() {
+        val panels = mutableListOf<SettingsPanel>()
+        val backup = buildItems(SettingsCategory.OTHER, open = { panels += it }).entry(BACKUP_ROW_KEY)
+
+        assertEquals(BACKUP_ROW_TITLE, backup.title)
+        assertEquals(RowTrailing.Chevron, backup.trailing)
+        backup.onClick()
+        assertEquals(listOf<SettingsPanel>(SettingsPanel.BackupPortal), panels)
+    }
+
+    @Test
+    fun `Other follows the one-way edge rule - Up on Backup and restore reaches the tab bar, Down on Clear cache wraps to it`() {
+        val items = buildItems(SettingsCategory.OTHER)
+        val ordinals = settingsEntryOrdinals(items)
+        val last = ordinals.max()
+        val backup = ordinals[items.indexOfFirst { it.key == BACKUP_ROW_KEY }]
+        val clearLibrary = ordinals[items.indexOfFirst { it.key == CLEAR_ROW_KEY }]
+        val clearCache = ordinals[items.indexOfFirst { it.key == CLEAR_CACHE_ROW_KEY }]
+
+        assertEquals(0, backup)
+        assertEquals(last, clearCache)
+        assertEquals(mapOf(Key.DirectionUp to SettingsRowEdge.TO_TAB_BAR), settingsRowEdges(backup, last))
+        assertEquals(emptyMap<Key, SettingsRowEdge>(), settingsRowEdges(clearLibrary, last))
+        assertEquals(mapOf(Key.DirectionDown to SettingsRowEdge.WRAP_TO_FIRST), settingsRowEdges(clearCache, last))
     }
 
     @Test

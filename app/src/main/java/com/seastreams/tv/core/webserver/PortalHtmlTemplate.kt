@@ -13,7 +13,9 @@ object PortalHtmlTemplate {
         val avatars = ProfileAvatar.entries.joinToString(",", "[", "]") { "{\"g\":\"${it.glyph}\",\"c\":\"${it.cssColor}\"}" }
         return HTML
             .replace("/*AVATARS*/", "window.AVATARS = $avatars;")
-            .replace("/*SCRIPT*/", PortalScript.JS + "\n" + PortalUsenetScript.JS + "\n" + PortalDebridScript.JS + "\n" + PortalStreamScript.JS)
+            .replace("/*SCRIPT*/", PortalScript.JS + "\n" + PortalUsenetScript.JS + "\n" + PortalDebridScript.JS + "\n" + PortalStreamScript.JS +
+                    "\n" + PortalBackupScript.JS,
+            )
     }
 
     private val HTML = """
@@ -51,6 +53,7 @@ button { font: inherit; border-radius: 999px; border: 1px solid var(--line); bac
   color: var(--text); padding: 9px 16px; cursor: pointer; white-space: nowrap; }
 button.primary { background: var(--accent); color: #0B0D12; border-color: var(--accent); font-weight: 600; }
 button.danger { color: var(--err); }
+p.warn { color: var(--err); }
 button.icon { padding: 7px 12px; }
 button:disabled { opacity: .45; cursor: default; }
 .check { display: flex; align-items: center; gap: 8px; font-size: 15px; }
@@ -156,6 +159,8 @@ table.ranges input { padding: 7px 8px; }
   <section id="debrid"></section>
 
   <section id="streams"></section>
+
+  <section id="backup"></section>
 
   <section id="import">
     <h2>Import a list into a Library</h2>

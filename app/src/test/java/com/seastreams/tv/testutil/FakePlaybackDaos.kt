@@ -111,6 +111,9 @@ class FakeWatchProgressDao : WatchProgressDao {
 
     override suspend fun upsertAll(progress: List<WatchProgressEntity>) = progress.forEach { upsert(it) }
 
+    override suspend fun getAll(profileId: Long): List<WatchProgressEntity> =
+        rows.value.filter { it.profileId == profileId }.sortedBy { it.updatedAtMillis }
+
     override suspend fun deleteEpisodes(profileId: Long, tmdbId: Int, mediaType: MediaType, seasonNumber: Int, episodeNumbers: List<Int>) =
         rows.update { list ->
             list.filterNot { it.key().take(4) == listOf(profileId, tmdbId, mediaType, seasonNumber) && it.episodeNumber in episodeNumbers }

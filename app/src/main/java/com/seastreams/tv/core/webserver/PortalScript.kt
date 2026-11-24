@@ -82,6 +82,7 @@ function render() {
   renderAddons(st);
   renderImportProfiles(st);
   renderStreamProfiles(st);
+  renderBackupProfiles(st);
 }
 
 function renderProfiles(st) {

@@ -52,6 +52,9 @@ class SettingsDataStore @Inject constructor(
 
     override suspend fun currentApiKey(): String? = tmdbApiKey.first()
 
+    /** [profileId]'s own General Settings (backup export), whichever profile is active. */
+    suspend fun profileSettings(profileId: Long): AppSettings = ProfileSettingsReader(preferences.first(), profileId).appSettings()
+
     /**
      * Streaming-service rows shown on the Movies/TV Shows tabs, in [StreamingProvider] order. The
      * *disabled* set is what is stored, so every provider (including ones added later) starts on.
@@ -143,6 +146,17 @@ class SettingsDataStore @Inject constructor(
     }
 
     companion object {
+        /**
+         * Backup restore's app-wide keys, inside its single edit: a non-blank [tmdbApiKey] replaces the stored key (a
+         * blank or absent one keeps it), and an active profile missing from [profileIds] (or none) becomes [fallback].
+         */
+        internal fun restoreAppKeys(prefs: MutablePreferences, tmdbApiKey: String?, profileIds: Set<Long>, fallback: Long?) {
+            tmdbApiKey?.trim()?.takeIf { it.isNotEmpty() }?.let { prefs[Keys.TMDB_API_KEY] = it }
+            if (prefs[Keys.ACTIVE_PROFILE_ID] !in profileIds) {
+                if (fallback == null) prefs.remove(Keys.ACTIVE_PROFILE_ID) else prefs[Keys.ACTIVE_PROFILE_ID] = fallback
+            }
+        }
+
         /**
          * Snaps to the nearest of [PlayerSettings.FALLBACK_TIMEOUT_OPTIONS] (10/15/20s), so a legacy
          * stored value from the old 1–10s range reads back as 10s and anything above 20s as 20s.

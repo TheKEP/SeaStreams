@@ -1,6 +1,7 @@
 package com.seastreams.tv.core.datastore
 
 import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -29,6 +30,11 @@ class DebridSettingsStore @Inject constructor(private val dataStore: DataStore<P
 
     suspend fun setEnabled(enabled: Boolean) {
         dataStore.edit { it[ENABLED] = enabled }
+    }
+
+    /** Backup restore, inside its single edit. */
+    internal fun writeBackup(prefs: MutablePreferences, enabled: Boolean) {
+        prefs[ENABLED] = enabled
     }
 
     /** `Clear Debrid settings`: every `debrid/` key, so Debrid reads as fresh (`Enable Debrid` off). */
