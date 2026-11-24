@@ -4,7 +4,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-    <!-- Search's microphone button: in-app SpeechRecognizer only (PRD §7). -->
+    <!-- Search's microphone button: in-app SpeechRecognizer (PRD §7). The Fire OS RecognizerIntent fallback needs no permission. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- External players stream Usenet through the loopback proxy while SeaStreams is in the background (PRD §12). -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -23,10 +23,14 @@
         android:name="android.hardware.microphone"
         android:required="false" />
 
-    <!-- Lets SpeechRecognizer find the device's recognition service on Android 11+. -->
     <queries>
+        <!-- Lets SpeechRecognizer find the device's recognition service on Android 11+. -->
         <intent>
             <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <!-- Voice search fallback where no recognition service exists (Fire OS): the system speech activity. -->
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
         </intent>
         <!-- External video players for Settings > Player (PRD §9). -->
         <intent>

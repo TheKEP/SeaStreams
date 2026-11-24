@@ -120,4 +120,57 @@ class SearchTopBarFocusTest {
         assertEquals(TopBarControl.CLEAR, focus.upTarget(clearShown = true))
         assertEquals(TopBarControl.FIELD, focus.upTarget(clearShown = false))
     }
+
+    @Test
+    fun `with the mic shown, home is the mic`() {
+        val focus = router()
+        assertEquals(TopBarControl.MIC, focus.homeControl)
+        assertSame(mic, focus.homeRequester(mic))
+    }
+
+    @Test
+    fun `with the mic hidden, initial focus goes to the field`() {
+        val focus = router().apply { micAvailable = false }
+        assertEquals(TopBarControl.FIELD, focus.homeControl)
+        assertSame(focus.field, focus.homeRequester(mic))
+    }
+
+    @Test
+    fun `with the mic hidden, Up from the chips lands on the field`() {
+        val focus = router().apply { micAvailable = false }
+        assertEquals(TopBarControl.FIELD, focus.upTarget(clearShown = false))
+        // Even a mic remembered from before it was hidden.
+        focus.onTopFocused(TopBarControl.MIC)
+        assertEquals(TopBarControl.FIELD, focus.upTarget(clearShown = true))
+    }
+
+    @Test
+    fun `with the mic hidden, a shown clear X is still returned to`() {
+        val focus = router().apply { micAvailable = false }
+        focus.onTopFocused(TopBarControl.CLEAR)
+        assertEquals(TopBarControl.CLEAR, focus.upTarget(clearShown = true))
+        assertEquals(TopBarControl.FIELD, focus.upTarget(clearShown = false))
+    }
+
+    @Test
+    fun `with the mic hidden, Up from the content without chips lands on the field`() = runTest {
+        val focus = router().apply { micAvailable = false }
+        assertTrue(focus.enterFromContent(hasChips = false, clearShown = false, mic = mic))
+        assertSame(focus.field, focused.single())
+    }
+
+    @Test
+    fun `with the mic hidden, failed requests never fall back to the mic`() = runTest {
+        val focus = routerFailing { f, r -> r === f.firstChip || r === f.clear }.apply { micAvailable = false }
+        focus.onTopFocused(TopBarControl.CLEAR)
+        assertTrue(focus.enterFromContent(hasChips = true, clearShown = true, mic = mic))
+        assertEquals(listOf(focus.firstChip, focus.clear, focus.field), focused)
+    }
+
+    @Test
+    fun `with the mic hidden, a failed field request leaves focus put`() = runTest {
+        val focus = routerFailing { f, r -> r === f.field }.apply { micAvailable = false }
+        assertFalse(focus.enterFromContent(hasChips = false, clearShown = false, mic = mic))
+        assertEquals(listOf(focus.field), focused)
+    }
 }

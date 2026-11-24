@@ -33,7 +33,6 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.seastreams.tv.ui.components.MicIcon
 import com.seastreams.tv.ui.components.RowGutter
-import com.seastreams.tv.ui.components.TvTextField
 import com.seastreams.tv.ui.theme.ErrorRed
 import com.seastreams.tv.ui.theme.FocusPill
 import com.seastreams.tv.ui.theme.OnFocusPill
@@ -41,13 +40,15 @@ import com.seastreams.tv.ui.theme.OutlineDim
 import com.seastreams.tv.ui.theme.TextPrimary
 import com.seastreams.tv.ui.theme.TextSecondary
 import com.seastreams.tv.ui.theme.focusPillColors
+import com.seastreams.tv.ui.theme.ignoreInitialKeyUp
 import com.seastreams.tv.ui.theme.onDpadKeyDown
 import com.seastreams.tv.ui.theme.tryRequestFocus
 import kotlinx.coroutines.launch
 
 /**
- * `search-screen.jpg` top area: microphone button (initial focus), wide search field, a clear (`X`)
- * button while there is a query, and the recent-search chips with their own clear-all `X`.
+ * `search-screen.jpg` top area: microphone button (initial focus; hidden without voice input, e.g.
+ * Fire OS, where the field is first and focused), wide search field, a clear (`X`) button while
+ * there is a query, and the recent-search chips with their own clear-all `X`.
  *
  * `Down` from the bottom-most control row (the chips when shown, else the mic / field row) first
  * asks [onDownToContent]; returning `true` consumes the press so the caller can route focus itself.
@@ -85,26 +86,47 @@ fun SearchTopBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            RoundIconButton(
-                icon = MicIcon,
-                contentDescription = if (voice.listening) "Stop voice search" else "Search by voice",
-                onClick = voice::toggle,
-                size = 56.dp,
-                active = voice.listening,
-                modifier = Modifier
-                    .focusRequester(micFocusRequester)
-                    .onFocusChanged { if (it.hasFocus) focus.onTopFocused(TopBarControl.MIC) },
-            )
-            TvTextField(
+            // No voice input for apps (Fire OS): no Microphone; the field is the row's first control.
+            if (voice.micAvailable) {
+                RoundIconButton(
+                    icon = MicIcon,
+                    contentDescription = if (voice.listening) "Stop voice search" else "Search by voice",
+                    onClick = voice::toggle,
+                    size = 56.dp,
+                    active = voice.listening,
+                    // A KeyUp whose KeyDown landed elsewhere (e.g. inside the speech activity) never re-clicks it.
+                    modifier = Modifier
+                        .focusRequester(micFocusRequester)
+                        .onFocusChanged { if (it.hasFocus) focus.onTopFocused(TopBarControl.MIC) }
+                        .ignoreInitialKeyUp(),
+                )
+            }
+            SearchTextField(
                 value = query,
                 onValueChange = onQueryChange,
-                label = null,
+                onSubmit = onSubmit,
                 placeholder = "Search movies & TV",
-                onDone = onSubmit,
+                input = focus.fieldInput,
+                // Leaving edit mode follows the resting field's rules: `Down` as the Row's handlers above,
+                // `Left` stops at the edge while there is no Microphone.
+                onExitDirection = { direction ->
+                    when (direction) {
+                        FieldExitDirection.DOWN -> if (hasRecents) {
+                            scope.launch { focus.focusFirstChip() }
+                            true
+                        } else {
+                            onDownToContent()
+                        }
+                        FieldExitDirection.LEFT -> !voice.micAvailable
+                        else -> false
+                    }
+                },
                 modifier = Modifier
                     .weight(1f)
                     .focusRequester(focus.field)
-                    .onFocusChanged { if (it.hasFocus) focus.onTopFocused(TopBarControl.FIELD) },
+                    .onFocusChanged { if (it.hasFocus) focus.onTopFocused(TopBarControl.FIELD) }
+                    // Edge stop: with no Microphone, `Left` must not jump into the category sidebar.
+                    .onDpadKeyDown(Key.DirectionLeft) { !voice.micAvailable },
             )
             if (query.isNotEmpty()) {
                 RoundIconButton(

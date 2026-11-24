@@ -35,13 +35,14 @@ import kotlinx.coroutines.launch
 /**
  * Search (`search-screen.jpg`, `search-results.jpg`, PRD §7).
  *
- * - Opens with D-pad focus on the microphone and `Trending Movies` showing in the grid.
+ * - Opens with D-pad focus on the microphone (on the search field where the device has no voice
+ *   input, e.g. Fire OS, and the mic is hidden) and `Trending Movies` showing in the grid.
  * - With an empty query: the hover-activated category sidebar on the left drives the 5-column
  *   poster grid on the right as focus moves over it.
  * - With a query: `Movies` and `TV Shows` result rows replace the browser. `Down` from the top bar
  *   and the bottom-row wrap both land on item #1 of the top results row ([SearchResultsFocus]).
  * - `Back` is handled by the caller (it returns to the previous tab).
- * - Each new [micFocusRequest] (long-press `Back` while already here, PRD §1) refocuses the microphone.
+ * - Each new [micFocusRequest] (long-press `Back` while already here, PRD §1) refocuses that same control.
  */
 @Composable
 fun SearchScreen(
@@ -60,13 +61,23 @@ fun SearchScreen(
 
     val mic = remember { FocusRequester() }
     val topBarFocus = remember { SearchTopBarFocus() }
-    LaunchedEffect(micFocusRequest) { mic.requestFocusAfterFrame() }
-    val voice = rememberVoiceSearch(
-        onPartial = { viewModel.onQueryChange(it) },
-        onResult = { viewModel.submit(it) },
-    )
-
     val scope = rememberCoroutineScope()
+    // After the speech activity closes, focus lands once the window has focus again.
+    val voiceActions = remember(viewModel, scope) {
+        object : VoiceSearchActions {
+            override fun submit(text: String) = viewModel.submit(text)
+            override fun focusMic() {
+                scope.launch { topBarFocus.homeRequester(mic).requestFocusAfterFrame() }
+            }
+            // The field's LaunchedEffect focuses the EditText and opens the keyboard.
+            override fun focusAndOpenKeyboard() = topBarFocus.fieldInput.openKeyboard()
+        }
+    }
+    val voice = rememberVoiceSearch(onPartial = { viewModel.onQueryChange(it) }, actions = voiceActions)
+    // Without voice input (Fire OS) the mic is hidden: focus starts on, and falls back to, the field.
+    topBarFocus.micAvailable = voice.micAvailable
+    LaunchedEffect(micFocusRequest) { topBarFocus.homeRequester(mic).requestFocusAfterFrame() }
+
     val loaded = (state.results as? ResultsState.Loaded)?.results
     // One router per result set, so every new search opens scrolled to the top.
     val resultsFocus = remember(loaded) { SearchResultsFocus(loaded?.let(::resultSections).orEmpty()) }
@@ -74,13 +85,23 @@ fun SearchScreen(
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(top = 28.dp)) {
         SearchTopBar(
             query = query,
-            onQueryChange = viewModel::onQueryChange,
-            onSubmit = { viewModel.submit() },
+            // Typed text, a search or a recent chip clears the "voice unavailable" note.
+            onQueryChange = {
+                voice.clearVoiceNotice()
+                viewModel.onQueryChange(it)
+            },
+            onSubmit = {
+                voice.clearVoiceNotice()
+                viewModel.submit()
+            },
             onClearQuery = viewModel::clearQuery,
             voice = voice,
             micFocusRequester = mic,
             recentSearches = state.recentSearches,
-            onRecentClick = { viewModel.submit(it) },
+            onRecentClick = {
+                voice.clearVoiceNotice()
+                viewModel.submit(it)
+            },
             onClearRecents = viewModel::clearRecentSearches,
             onDownToContent = {
                 // Results showing: always enter item #1 of the top row, never a row further down.
