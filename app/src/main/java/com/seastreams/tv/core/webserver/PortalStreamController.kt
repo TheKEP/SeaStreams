@@ -4,6 +4,7 @@ import com.seastreams.tv.core.datastore.InvalidStreamBackupException
 import com.seastreams.tv.core.datastore.StreamProcessingBackupCodec
 import com.seastreams.tv.core.datastore.StreamProcessingStore
 import com.seastreams.tv.data.UserFacingException
+import com.seastreams.tv.data.backup.BackupFileNames
 import com.seastreams.tv.data.profile.ProfileRepository
 import com.seastreams.tv.domain.streams.FilterAttribute
 import com.seastreams.tv.domain.streams.FormatterId
@@ -18,7 +19,6 @@ import com.seastreams.tv.domain.streams.parse.ReleaseRegexTables
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.Serializable
 import java.time.Clock
-import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -172,12 +172,6 @@ class PortalStreamController @Inject constructor(
         const val MAX_FILENAME_CHARS = 512
 
         /** `seastreams-stream-settings-<profile>.json`, the profile name reduced to `a-z`, `0-9` and `-`. */
-        fun backupFileName(profileName: String): String {
-            val slug = profileName.lowercase(Locale.ROOT).replace(NOT_SLUG, "-").trim('-').take(MAX_SLUG_CHARS).trimEnd('-').ifEmpty { "profile" }
-            return "seastreams-stream-settings-$slug.json"
-        }
-
-        private val NOT_SLUG = Regex("[^a-z0-9]+")
-        private const val MAX_SLUG_CHARS = 40
+        fun backupFileName(profileName: String): String = "seastreams-stream-settings-${BackupFileNames.profileSlug(profileName)}.json"
     }
 }

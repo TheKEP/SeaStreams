@@ -73,6 +73,9 @@ sealed interface SettingsPanel {
 
     data object Portal : SettingsPanel
 
+    /** The Web Portal QR modal opened from `Other → Backup & restore`; `Back` returns to that row. */
+    data object BackupPortal : SettingsPanel
+
     data object SubtitleStyle : SettingsPanel
 
     data object UsenetProviders : SettingsPanel
@@ -267,6 +270,9 @@ internal fun streamProcessingItems(streams: StreamProcessingSettings, cb: Settin
 }
 
 private fun otherItems(clearSecondsLeft: Int?, cacheBytes: Long?, cb: SettingsCallbacks): List<SettingsItem> = listOf(
+    entry(BACKUP_ROW_KEY, SeaIcons.QrCode, BACKUP_ROW_TITLE, "Download or restore a .json backup from your phone", RowTrailing.Chevron) {
+        cb.open(SettingsPanel.BackupPortal)
+    },
     if (clearSecondsLeft != null) {
         entry(CLEAR_ROW_KEY, Icons.Filled.Refresh, "Undo clear library", "Library will be cleared in ${clearSecondsLeft}s", RowTrailing.None, onClick = cb.undoClear)
     } else {
@@ -305,6 +311,8 @@ const val BACKGROUND_ROW_KEY = "background"
 const val TRAILERS_ROW_KEY = "trailers"
 const val TRAILERS_MUTE_ROW_KEY = "trailers-mute"
 const val TRAILERS_DELAY_ROW_KEY = "trailers-delay"
+const val BACKUP_ROW_KEY = "backup"
+const val BACKUP_ROW_TITLE = "Backup & restore"
 const val CLEAR_ROW_KEY = "clear-library"
 const val CLEAR_CACHE_ROW_KEY = "clear-cache"
 const val FIRST_ENABLED_ADDON = "First enabled addon"

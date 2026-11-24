@@ -40,6 +40,12 @@ class DebridSourcesRepository @Inject constructor(
         .map { rows -> rows.mapNotNull(::toProvider) }
         .flowOn(io)
 
+    /** Runs [block] holding the account lock (backup restore); [block] must not call back into this repository. */
+    internal suspend fun <T> withLock(block: suspend () -> T): T = lock.withLock { block() }
+
+    /** Discards in-flight sign-ins and refreshes for [kinds], whose credentials a backup restore just replaced. */
+    internal fun invalidateSignIns(kinds: Collection<DebridServiceKind>) = kinds.forEach(::bump)
+
     /** The current credential generation of [kind]. */
     fun generation(kind: DebridServiceKind): Long = synchronized(generations) { generations[kind] ?: 0L }
 

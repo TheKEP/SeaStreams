@@ -78,6 +78,14 @@ object StreamProcessingBackupCodec {
         } catch (e: IllegalArgumentException) {
             throw InvalidStreamBackupException("That isn't a seastreams stream settings file")
         }
+        return validated(backup)
+    }
+
+    /**
+     * [backup] checked (version, regexes, template length) with its numeric limits clamped; the full app backup runs
+     * every profile's stream settings through this too.
+     */
+    fun validated(backup: StreamProcessingBackup): StreamProcessingBackup {
         if (backup.version != STREAM_BACKUP_VERSION) {
             throw InvalidStreamBackupException("Unsupported stream settings file version ${backup.version}")
         }

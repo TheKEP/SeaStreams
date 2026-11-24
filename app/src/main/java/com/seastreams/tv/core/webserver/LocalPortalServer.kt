@@ -50,6 +50,7 @@ class LocalPortalServer @Inject constructor(
     private val proxy: Lazy<NntpProxy>,
     private val streams: Lazy<PortalStreamController>,
     private val debrid: Lazy<PortalDebridController>,
+    private val backup: Lazy<PortalBackupController>,
 ) {
 
     /** Test/composition convenience for already-built controllers. */
@@ -59,21 +60,25 @@ class LocalPortalServer @Inject constructor(
         proxy: NntpProxy? = null,
         streams: PortalStreamController? = null,
         debrid: PortalDebridController? = null,
+        backup: PortalBackupController? = null,
     ) : this(
         Lazy { controller },
         Lazy { usenet },
         Lazy { proxy ?: error("No Usenet proxy") },
         Lazy { streams ?: error("No stream controller") },
         Lazy { debrid ?: error("No Debrid controller") },
+        Lazy { backup ?: error("No backup controller") },
     ) {
         proxyAvailable = proxy != null
         streamsAvailable = streams != null
         debridAvailable = debrid != null
+        backupAvailable = backup != null
     }
 
     private var proxyAvailable = true
     private var streamsAvailable = true
     private var debridAvailable = true
+    private var backupAvailable = true
     private val leaseLock = Any()
     private var leases = 0
     private var uiWanted = false
@@ -128,6 +133,7 @@ class LocalPortalServer @Inject constructor(
         val candidate = embeddedServer(CIO, port = port, host = host) {
             portalModule(controller.get(), usenet.get(), if (proxyAvailable) proxy.get() else null, if (streamsAvailable) streams.get() else null,
                 if (debridAvailable) debrid.get() else null,
+                if (backupAvailable) backup.get() else null,
             )
         }
         return try {

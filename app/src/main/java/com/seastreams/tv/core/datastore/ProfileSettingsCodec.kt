@@ -186,6 +186,14 @@ internal class ProfileSettingsWriter(private val prefs: MutablePreferences, priv
         prefs[key.forProfile(profileId)] = value
     }
 
+    /** Every General Settings group at once (backup restore); a background that isn't a swatch is left as stored. */
+    fun all(updated: AppSettings) {
+        player(updated.player)
+        audio(updated.audio)
+        subtitles(updated.subtitles)
+        updated.appearance.backgroundArgb.takeIf { it in BackgroundSwatches.ALL }?.let { set(ProfileSettingsKeys.BACKGROUND_COLOR, it) }
+    }
+
     fun player(updated: PlayerSettings) = with(ProfileSettingsKeys) {
         set(EXTERNAL_PLAYER, updated.playerChoice.storageValue)
         set(AUTO_PLAY_TOP_STREAM, updated.autoPlayTopStream)

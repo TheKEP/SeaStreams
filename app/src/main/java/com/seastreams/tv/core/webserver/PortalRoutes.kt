@@ -40,6 +40,7 @@ private const val TAG = "LocalPortal"
  * - `/api/usenet…` – app-wide Usenet Sources ([usenetRoutes])
  * - `/api/debrid…`, `/api/sources/toggles` – app-wide Debrid accounts and the source toggles ([debridRoutes])
  * - `/api/streams…` – per-profile stream filters, sorting and formatter ([streamRoutes])
+ * - `/api/backup…` – single-profile and full app backup download and restore ([backupRoutes])
  * - `GET/HEAD /nntp/{token}/{name}` – the loopback-only Usenet proxy for external players ([nntpProxyRoutes])
  *
  * Mutations require `Content-Type: application/json`, which browsers cannot send cross-origin
@@ -52,6 +53,7 @@ fun Application.portalModule(
     proxy: NntpProxy? = null,
     streams: PortalStreamController? = null,
     debrid: PortalDebridController? = null,
+    backup: PortalBackupController? = null,
 ) {
     routing {
         proxy?.let { nntpProxyRoutes(it) }
@@ -86,6 +88,7 @@ fun Application.portalModule(
             usenetRoutes(usenet)
             streams?.let { streamRoutes(it) }
             debrid?.let { debridRoutes(it) }
+            backup?.let { backupRoutes(it) }
         }
     }
 }
@@ -116,7 +119,7 @@ internal suspend fun <T> ApplicationCall.receiveJson(deserializer: KSerializer<T
  * The trusted-host, JSON content-type and declared-size checks every JSON POST passes; when one fails it answers the
  * call itself and returns `false`.
  */
-internal suspend fun ApplicationCall.acceptsJsonPost(): Boolean {
+internal suspend fun ApplicationCall.acceptsJsonPost(maxChars: Int = MAX_BODY_CHARS): Boolean {
     if (!hasTrustedHost()) {
         respondForbiddenHost()
         return false
@@ -126,7 +129,7 @@ internal suspend fun ApplicationCall.acceptsJsonPost(): Boolean {
         return false
     }
     val declaredLength = request.headers[HttpHeaders.ContentLength]?.toLongOrNull()
-    if (declaredLength != null && declaredLength > MAX_BODY_CHARS) {
+    if (declaredLength != null && declaredLength > maxChars) {
         respondJson(HttpStatusCode.PayloadTooLarge, ApiMessage(false, "Request too large"), serializer())
         return false
     }
@@ -141,8 +144,12 @@ internal suspend fun ApplicationCall.guarded(action: suspend () -> String) =
  * Like [guarded], but a success answers [action]'s value instead of an [ApiMessage]. Failures log only the request
  * path: a query string never reaches the log.
  */
-internal suspend fun <T> ApplicationCall.guardedJson(serializer: KSerializer<T>, action: suspend () -> T) {
-    if (!acceptsJsonPost()) return
+internal suspend fun <T> ApplicationCall.guardedJson(
+    serializer: KSerializer<T>,
+    maxChars: Int = MAX_BODY_CHARS,
+    action: suspend () -> T,
+) {
+    if (!acceptsJsonPost(maxChars)) return
     try {
         respondJson(HttpStatusCode.OK, action(), serializer)
     } catch (e: CancellationException) {

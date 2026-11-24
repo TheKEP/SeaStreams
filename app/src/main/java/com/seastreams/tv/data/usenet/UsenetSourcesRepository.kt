@@ -33,6 +33,9 @@ class UsenetSourcesRepository @Inject constructor(
 ) {
     private val orderLock = Mutex()
 
+    /** Runs [block] holding the list lock (backup restore); [block] must not call back into this repository. */
+    internal suspend fun <T> withOrderLock(block: suspend () -> T): T = orderLock.withLock { block() }
+
     val providers: Flow<List<UsenetProvider>> = providerDao.observeAll()
         .map { rows -> rows.map(::toProvider) }
         .flowOn(io)

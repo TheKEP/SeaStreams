@@ -1,6 +1,7 @@
 package com.seastreams.tv.core.datastore
 
 import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -117,6 +118,14 @@ class UsenetSettingsStore @Inject constructor(private val dataStore: DataStore<P
             )
             prefs[Keys.HEADER_CHECKED_AT] = checkedAtMillis
         }
+    }
+
+    /** Backup restore, inside its single edit: the toggle, clamped performance values and both header presets. */
+    internal fun writeBackup(prefs: MutablePreferences, enabled: Boolean, performance: UsenetPerformance, search: HeaderPreset, download: HeaderPreset) {
+        prefs[Keys.ENABLED] = enabled
+        prefs[Keys.PERFORMANCE] = usenetJson.encodeToString(UsenetPerformance.serializer(), performance.clamped())
+        prefs[Keys.HEADERS_SEARCH] = search.name
+        prefs[Keys.HEADERS_DOWNLOAD] = download.name
     }
 
     private fun decodePerformance(raw: String?): UsenetPerformance {

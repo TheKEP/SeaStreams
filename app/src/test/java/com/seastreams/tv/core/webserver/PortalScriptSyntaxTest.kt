@@ -21,7 +21,8 @@ class PortalScriptSyntaxTest {
         assertEquals(1, scripts.size)
         val script = scripts.single()
         assertFalse(script.contains("/*SCRIPT*/") || script.contains("/*AVATARS*/"), "placeholders left unreplaced")
-        listOf("function render(", "function setupStreams(", "function exportStreams(", "function importStreams(", "window.AVATARS = [")
+        listOf("function render(", "function setupStreams(", "function exportStreams(", "function importStreams(", "function setupBackup(",
+            "function renderBackupProfiles(", "function restoreBackup(", "window.AVATARS = [")
             .forEach { assertTrue(script.contains(it), it) }
     }
 
@@ -38,6 +39,7 @@ class PortalScriptSyntaxTest {
             "PortalUsenetScript" to PortalUsenetScript.JS,
             "PortalDebridScript" to PortalDebridScript.JS,
             "PortalStreamScript" to PortalStreamScript.JS,
+            "PortalBackupScript" to PortalBackupScript.JS,
         ).forEach { (name, js) ->
             val errors = JsSyntaxChecker.check(js)
             assertTrue(errors.isEmpty(), "$name:\n" + errors.joinToString("\n"))
@@ -46,7 +48,7 @@ class PortalScriptSyntaxTest {
 
     @Test
     fun `no Kotlin interpolation artifacts reach the page`() {
-        listOf(PortalScript.JS, PortalUsenetScript.JS, PortalDebridScript.JS, PortalStreamScript.JS).forEach { js ->
+        listOf(PortalScript.JS, PortalUsenetScript.JS, PortalDebridScript.JS, PortalStreamScript.JS, PortalBackupScript.JS).forEach { js ->
             // The scripts are Kotlin raw strings: a dollar sign would be interpolated, so none may appear at all.
             assertFalse(js.contains('$'), js.lines().firstOrNull { it.contains('$') })
         }
@@ -70,6 +72,7 @@ class PortalScriptSyntaxTest {
         assertTrue(missing.isEmpty(), "byId() targets nothing creates: $missing")
         // The stream backup controls in particular.
         assertTrue(listOf("sp-export", "sp-import", "sp-import-file").all { it in available })
+        assertTrue(listOf("backup", "bk-profile", "bk-download", "bk-file", "bk-restore", "bk-creds").all { it in available })
     }
 
     @Test

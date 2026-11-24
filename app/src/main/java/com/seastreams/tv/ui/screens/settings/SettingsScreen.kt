@@ -106,7 +106,7 @@ fun SettingsScreen(
     LaunchedEffect(Unit) { pillRequesters[SettingsCategory.HOME.ordinal].requestFocusAfterFrame() }
     // Leaving a panel: land on the row that opened it.
     LaunchedEffect(panel) {
-        viewModel.setPortalVisible(panel == SettingsPanel.Portal)
+        viewModel.setPortalVisible(panel == SettingsPanel.Portal || panel == SettingsPanel.BackupPortal)
         if (panel == SettingsPanel.Main) returnKey?.let { focusRow(streamReturnRow(it, streamState)) }
     }
     val openPanel: (String, SettingsPanel) -> Unit = { key, next ->
@@ -240,6 +240,7 @@ fun SettingsScreen(
                     onOpenPortal = { panel = SettingsPanel.Portal },
                 )
                 SettingsPanel.Portal -> PortalPanel(state.portal) { panel = SettingsPanel.Main }
+                SettingsPanel.BackupPortal -> PortalPanel(state.portal, BACKUP_PORTAL_CAPTION) { panel = SettingsPanel.Main }
                 is SettingsPanel.Stream -> StreamPanelHost(
                     panel = current,
                     settings = streamState,
@@ -277,6 +278,7 @@ fun SettingsScreen(
 private fun keyFor(panel: SettingsPanel): String = when (panel) {
     SettingsPanel.Addons -> ADDONS_ROW_KEY
     SettingsPanel.Portal -> PORTAL_ROW_KEY
+    SettingsPanel.BackupPortal -> BACKUP_ROW_KEY
     SettingsPanel.SubtitleStyle -> "subs-style"
     SettingsPanel.UsenetProviders -> PROVIDERS_ROW_KEY
     SettingsPanel.UsenetIndexers -> INDEXERS_ROW_KEY

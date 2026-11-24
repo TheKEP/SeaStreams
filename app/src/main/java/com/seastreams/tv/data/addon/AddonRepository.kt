@@ -36,6 +36,12 @@ class AddonRepository @Inject constructor(
     private val orderLock = Mutex()
 
     /**
+     * Runs [block] holding the list-order lock, so no install, move or built-in upkeep interleaves with it (backup
+     * restore rewrites whole lists). [block] must not call back into this repository: the lock isn't re-entrant.
+     */
+    internal suspend fun <T> withOrderLock(block: suspend () -> T): T = orderLock.withLock { block() }
+
+    /**
      * [profileId]'s list as Manage addons and the portal show it: the Usenet entry only while Usenet is configured, the
      * Debrid entry only while Debrid is listed.
      */

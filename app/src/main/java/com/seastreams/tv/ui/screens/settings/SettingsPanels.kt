@@ -209,7 +209,7 @@ internal fun addonsPanelEdgeKeys(index: Int, addonCount: Int): Set<Key> =
 
 /** QR code + LAN URL of the Web Portal (PRD §8). */
 @Composable
-fun PortalPanel(link: PortalLink?, onDone: () -> Unit) {
+fun PortalPanel(link: PortalLink?, caption: String = PORTAL_CAPTION, onDone: () -> Unit) {
     val done = remember { FocusRequester() }
     LaunchedEffect(Unit) { done.requestFocusAfterFrame() }
     PanelColumn("Web Portal") {
@@ -222,7 +222,7 @@ fun PortalPanel(link: PortalLink?, onDone: () -> Unit) {
                         Text("Scan the code or open", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
                         Text(url, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         Text(
-                            "on a phone or computer on the same Wi-Fi to install addons, import MDBList lists into a Library and edit profiles.",
+                            caption,
                             style = MaterialTheme.typography.bodyMedium,
                             color = TextSecondary,
                         )
@@ -273,3 +273,10 @@ internal fun PanelColumn(
         )
     }
 }
+
+/** What the Web Portal panel says the portal is for. */
+const val PORTAL_CAPTION = "on a phone or computer on the same Wi-Fi to install addons, import MDBList lists into a Library and edit profiles."
+
+/** The same panel opened from `Other → Backup & restore`. */
+const val BACKUP_PORTAL_CAPTION =
+    "on a phone or computer on the same Wi-Fi, then use Backup & restore to download a .json backup of this profile or the whole app, or to restore one."

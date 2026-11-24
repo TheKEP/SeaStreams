@@ -64,6 +64,15 @@ class ProfileRepository @Inject constructor(
 ) {
     private val writeLock = Mutex()
 
+    /** Runs [block] while no profile can be created, edited or deleted (backup restore checks the cap inside it). */
+    internal suspend fun <T> withWriteLock(block: suspend () -> T): T = writeLock.withLock { block() }
+
+    /** Drops [profileId]'s cached Discover rows and loaded catalogs after its profile fields changed outside [update]. */
+    internal fun forgetCatalogs(profileId: Long) {
+        discoverSnapshots.forget(profileId)
+        loadedCatalogs.forget(profileId)
+    }
+
     fun observeProfiles(): Flow<List<ProfileEntity>> = profileDao.observeAll()
 
     /** Emits `null` once the profile is deleted (e.g. from the Web Portal). */
@@ -108,34 +117,46 @@ class ProfileRepository @Inject constructor(
         settings.clearProfile(profileId)
     }
 
-    private fun ProfileDraft.validated(): ProfileDraft {
+    private fun ProfileDraft.validated(): ProfileDraft = ProfileValidation.validated(this)
+
+    private fun ProfileDraft.toEntity(id: Long, createdAtMillis: Long) = ProfileValidation.entity(this, id, createdAtMillis)
+
+    companion object {
+        const val MAX_PROFILES = 5
+        const val MAX_NAME_LENGTH = 20
+        val AVATAR_COUNT: Int = ProfileAvatar.entries.size
+    }
+}
+
+/** The profile-field rules shared by the TV form, the portal and backup restore; failures are [UserFacingException]s. */
+internal object ProfileValidation {
+    fun validated(draft: ProfileDraft): ProfileDraft = with(draft) {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) throw UserFacingException("Enter a profile name")
-        if (trimmed.length > MAX_NAME_LENGTH) throw UserFacingException("Names can be at most $MAX_NAME_LENGTH characters")
-        if (avatarIndex !in 0 until AVATAR_COUNT) throw UserFacingException("Unknown avatar")
+        if (trimmed.length > ProfileRepository.MAX_NAME_LENGTH) {
+            throw UserFacingException("Names can be at most ${ProfileRepository.MAX_NAME_LENGTH} characters")
+        }
+        if (avatarIndex !in 0 until ProfileRepository.AVATAR_COUNT) throw UserFacingException("Unknown avatar")
         if (isKids && movieCeiling !in KidsCeilings.MOVIE) {
             throw UserFacingException("Kids movie rating must be one of ${KidsCeilings.MOVIE.joinToString { it.label }}")
         }
         if (isKids && tvCeiling !in KidsCeilings.TV) {
             throw UserFacingException("Kids TV rating must be one of ${KidsCeilings.TV.joinToString { it.label }}")
         }
-        return copy(name = trimmed)
+        copy(name = trimmed)
     }
 
-    private fun ProfileDraft.toEntity(id: Long, createdAtMillis: Long) = ProfileEntity(
-        id = id,
-        name = name,
-        avatarIndex = avatarIndex,
-        isKids = isKids,
-        movieCeiling = movieCeiling.takeIf { isKids },
-        tvCeiling = tvCeiling.takeIf { isKids },
-        allowUnrated = isKids && allowUnrated,
-        createdAtMillis = createdAtMillis,
-    )
-
-    companion object {
-        const val MAX_PROFILES = 5
-        const val MAX_NAME_LENGTH = 20
-        val AVATAR_COUNT: Int = ProfileAvatar.entries.size
+    /** [draft] as a row: Adult profiles store no ceilings and never allow unrated titles. */
+    fun entity(draft: ProfileDraft, id: Long, createdAtMillis: Long) = with(draft) {
+        ProfileEntity(
+            id = id,
+            name = name,
+            avatarIndex = avatarIndex,
+            isKids = isKids,
+            movieCeiling = movieCeiling.takeIf { isKids },
+            tvCeiling = tvCeiling.takeIf { isKids },
+            allowUnrated = isKids && allowUnrated,
+            createdAtMillis = createdAtMillis,
+        )
     }
 }

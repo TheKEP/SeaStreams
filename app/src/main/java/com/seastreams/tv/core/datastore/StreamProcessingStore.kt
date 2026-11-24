@@ -114,12 +114,15 @@ class StreamProcessingStore @Inject constructor(private val dataStore: DataStore
      * TV and portal editors tidy them. [backup] is expected to have passed [StreamProcessingBackupCodec.decode].
      */
     suspend fun importBackup(profileId: Long, backup: StreamProcessingBackup) {
+        dataStore.edit { prefs -> writeBackup(prefs, profileId, backup) }
+    }
+
+    /** [importBackup]'s writes inside a caller's edit (a full backup restore writes every profile in one edit). */
+    internal fun writeBackup(prefs: MutablePreferences, profileId: Long, backup: StreamProcessingBackup) {
         val settings = backup.toSettings()
-        dataStore.edit { prefs ->
-            write(prefs, ProfileSettingsKeys.STREAM_FILTERS, profileId, StreamFilters.serializer(), sanitised(settings.filters), StreamFilters(), settings.filteringEnabled)
-            write(prefs, ProfileSettingsKeys.STREAM_SORT, profileId, StreamSort.serializer(), tidy(settings.sort), StreamSort(), settings.sortingEnabled)
-            write(prefs, ProfileSettingsKeys.STREAM_FORMATTER, profileId, StreamFormatterChoice.serializer(), tidy(settings.formatter), StreamFormatterChoice(), settings.formattingEnabled)
-        }
+        write(prefs, ProfileSettingsKeys.STREAM_FILTERS, profileId, StreamFilters.serializer(), sanitised(settings.filters), StreamFilters(), settings.filteringEnabled)
+        write(prefs, ProfileSettingsKeys.STREAM_SORT, profileId, StreamSort.serializer(), tidy(settings.sort), StreamSort(), settings.sortingEnabled)
+        write(prefs, ProfileSettingsKeys.STREAM_FORMATTER, profileId, StreamFormatterChoice.serializer(), tidy(settings.formatter), StreamFormatterChoice(), settings.formattingEnabled)
     }
 
     private suspend fun <T> update(
