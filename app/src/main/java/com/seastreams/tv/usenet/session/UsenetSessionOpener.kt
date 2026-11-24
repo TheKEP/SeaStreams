@@ -106,8 +106,10 @@ class UsenetSessionOpener @Inject constructor(
         resources += Closeable { engine.bufferPool.trim() }
         val volumes = files.mapIndexed { i, file -> PostedVolume(file, file.file.filename ?: "file-$i") }
         val media = remembering(token) {
-            ReleaseAssembler(probes, performance.lazyRarResolution, performance.strictArchiveMembership).assemble(volumes)
+            ReleaseAssembler(probes, performance.lazyRarResolution, performance.strictArchiveMembership).assemble(volumes, nzb.password)
         }
+        // A decrypted 7z entry holds its key until the session closes.
+        (media.data as? Closeable)?.let(resources::add)
         val head = media.data.readUpTo(0, ContentSniffer.HEAD_BYTES)
         val container = ContentSniffer.sniff(head).takeUnless { it == MediaContainer.UNKNOWN } ?: ContentSniffer.byName(media.name)
         if (performance.verifyFileContents && ContentSniffer.sniff(head) == MediaContainer.UNKNOWN) {

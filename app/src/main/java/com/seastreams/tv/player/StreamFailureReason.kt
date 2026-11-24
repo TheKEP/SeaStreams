@@ -93,8 +93,12 @@ object StreamFailureReason {
         // Matched on the secret-free text, so a word inside a URL or token can never pick the reason.
         val clean = strip(message)
         val text = clean.lowercase()
+        val sevenZip = SEVEN_ZIP.containsMatchIn(text)
         return when {
-            SEVEN_ZIP.containsMatchIn(text) -> "7z archive not supported"
+            "password is wrong" in text -> "wrong archive password"
+            sevenZip && "compressed" in text -> "compressed 7z not supported"
+            sevenZip && "damaged" in text -> "damaged archive"
+            sevenZip -> "7z archive not supported"
             "zip archive" in text -> "zip archive not supported"
             "password-protected" in text || "encrypted" in text -> "password-protected archive"
             "compressed" in text -> "compressed RAR not supported"

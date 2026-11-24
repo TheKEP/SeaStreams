@@ -22,6 +22,9 @@ newPipeExtractor = "v0.27.1"
 desugarJdkLibs = "2.1.5"
 coil = "3.6.3"
 zxing = "3.5.4"
+# Usenet 7z directory reading (ARCHITECTURE §4). The SevenZipLayout adapter is pinned to this exact version.
+commonsCompress = "1.28.0"
+xz = "1.10"
 junitJupiter = "5.14.4"
 mockk = "1.14.12"
 turbine = "1.2.1"
@@ -70,6 +73,8 @@ desugar-jdk-libs = { group = "com.android.tools", name = "desugar_jdk_libs", ver
 coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
 coil-network-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coil" }
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
+commons-compress = { group = "org.apache.commons", name = "commons-compress", version.ref = "commonsCompress" }
+xz = { group = "org.tukaani", name = "xz", version.ref = "xz" }
 
 # Testing
 junit-bom = { group = "org.junit", name = "junit-bom", version.ref = "junitJupiter" }

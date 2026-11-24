@@ -27,8 +27,9 @@ data class UsenetSearchResult(val streams: List<StreamSource>, val failed: Boole
  * The built-in `Usenet` stream search (PRD §12): every enabled non-backup indexer is asked in parallel; the
  * *Backup only* ones only when none of those returned a release. Results are ranked by indexer priority tier
  * (lower first), then indexer order, then the indexer's own order; the same release (name + size) found by two
- * indexers is kept once, from the better tier. Passworded releases and ones known broken ([ReleaseHealthCache])
- * are dropped. Search reads only the Newznab XML: it never grabs an NZB (`t=get`), so indexer grab quotas are spent
+ * indexers is kept once, from the better tier. Passworded releases (`newznab:attr password`) are kept, because the
+ * NZB may carry the password that unlocks a 7z set, but rank after the clean releases of the same tier; ones known
+ * broken ([ReleaseHealthCache]) are dropped. Search reads only the Newznab XML: it never grabs an NZB (`t=get`), so indexer grab quotas are spent
  * only when a release is played. Each release becomes an opaque `seastreams-nntp://` stream.
  */
 @Singleton
@@ -53,12 +54,13 @@ class UsenetStreamSearch @Inject constructor(
         var answers = ask(primaries, target)
         if (answers.none { it.hits.isNotEmpty() } && backups.isNotEmpty()) answers = answers + ask(backups, target)
         val ranked = answers.sortedWith(compareBy({ it.backup }, { it.endpoint.priority }, { it.order }))
+            .flatMap { answer -> answer.hits.map { answer to it } }
+            // Stable: inside a tier, clean releases first, each group still in indexer order.
+            .sortedWith(compareBy({ it.first.backup }, { it.first.endpoint.priority }, { it.second.passworded }))
         val seen = HashSet<String>()
-        val streams = ranked.flatMap { answer ->
-            answer.hits.mapNotNull { item ->
-                if (!seen.add(ReleaseMatch.normalize(item.title) + "|" + item.sizeBytes / SIZE_BUCKET)) return@mapNotNull null
-                toStream(answer.endpoint, item)
-            }
+        val streams = ranked.mapNotNull { (answer, item) ->
+            if (!seen.add(ReleaseMatch.normalize(item.title) + "|" + item.sizeBytes / SIZE_BUCKET)) return@mapNotNull null
+            toStream(answer.endpoint, item)
         }
         UsenetSearchResult(streams, failed = answers.isNotEmpty() && answers.all { it.failed })
     }
@@ -80,7 +82,7 @@ class UsenetStreamSearch @Inject constructor(
         val caps = client.caps(endpoint)
         for (query in NewznabQueries.plan(caps, target)) {
             val found = client.search(endpoint, query)
-                .filter { !it.passworded && ReleaseMatch.matches(it.title, target, strict = !query.byId) }
+                .filter { ReleaseMatch.matches(it.title, target, strict = !query.byId) }
             if (found.isNotEmpty()) return found
         }
         return emptyList()

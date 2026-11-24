@@ -43,15 +43,26 @@ class MediaSelectionTest {
     }
 
     @Test
-    fun `a sample under 5 percent is excluded, so a 7z main release is refused instead of playing it`() {
+    fun `a sample under 5 percent is excluded, so the split 7z main release wins`() {
         val plan = MediaSelector.select(
             listOf(
-                ReleaseFile(0, "Movie.7z.001", 500_000_000),
-                ReleaseFile(1, "Movie.7z.002", 500_000_000),
+                ReleaseFile(0, "Movie.7z.002", 500_000_000),
+                ReleaseFile(1, "Movie.7z.001", 500_000_000),
                 ReleaseFile(2, "Movie-sample.mkv", 20_000_000),
+                ReleaseFile(3, "Movie.par2", 900_000_000),
             ),
         )
-        assertTrue(plan is MediaPlan.Refused && plan.reason.contains("7z"))
+        assertEquals(MediaPlan.SevenZip(listOf(1, 0)), plan)
+    }
+
+    @Test
+    fun `a single 7z is a 7z plan and a 7z set without its first volume or with a gap is refused`() {
+        assertEquals(VolumeName("movie", 0, VolumeStyle.SEVEN_ZIP), RarVolumeNames.parse("Movie.7z"))
+        assertEquals(MediaPlan.SevenZip(listOf(0)), MediaSelector.select(listOf(ReleaseFile(0, "Movie.7z", 1_000), ReleaseFile(1, "Movie.nfo", 10))))
+        val noFirst = MediaSelector.select(listOf(ReleaseFile(0, "Movie.7z.002", 1_000), ReleaseFile(1, "Movie.7z.003", 1_000)))
+        assertTrue(noFirst is MediaPlan.Refused)
+        val gap = MediaSelector.select(listOf(ReleaseFile(0, "Movie.7z.001", 1_000), ReleaseFile(1, "Movie.7z.003", 1_000)))
+        assertTrue(gap is MediaPlan.Refused)
     }
 
     @Test

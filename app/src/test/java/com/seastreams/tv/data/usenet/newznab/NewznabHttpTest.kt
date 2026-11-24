@@ -132,14 +132,16 @@ class NewznabHttpTest {
     private val movie = UsenetSearchTarget.Movie("tt15239678", "Dune Part Two", 2024)
 
     @Test
-    fun `better priority tiers come first, duplicates collapse, passworded releases drop, backups wait`() = runBlocking<Unit> {
+    fun `better priority tiers come first, duplicates collapse, passworded releases rank last, backups wait`() = runBlocking<Unit> {
         val result = search(listOf(row("slow", 5, sortOrder = 0), row("fast", 0, sortOrder = 1), row("spare", 0, backupOnly = true, sortOrder = 2)))
             .search(movie)
         assertFalse(result.failed)
-        // Each indexer returns the same 2160p release (the 1080p one is passworded): kept once, from the tier-0 indexer.
-        assertEquals(1, result.streams.size)
-        val stream = result.streams.single()
-        assertTrue(stream.description.contains("fast"))
+        // Each indexer returns the same two releases: kept once, from the tier-0 indexer. The passworded 1080p one is
+        // kept (its NZB may carry the 7z password) but ranks after the clean 2160p one.
+        assertEquals(2, result.streams.size)
+        assertTrue(result.streams.all { it.description.contains("fast") })
+        assertTrue(result.streams[1].description.startsWith("Dune Part Two 2024 1080p"))
+        val stream = result.streams.first()
         assertEquals("Usenet · 2160p", stream.label)
         assertEquals("usenet://builtin", stream.addonUrl)
         assertTrue(UsenetStreamRegistry.isUsenet(stream.url))
@@ -153,16 +155,18 @@ class NewznabHttpTest {
     @Test
     fun `backup-only indexers are searched when the others find nothing`() = runBlocking<Unit> {
         val result = search(listOf(row("empty1", 0), row("spare", 0, backupOnly = true, sortOrder = 1))).search(movie)
-        assertEquals(1, result.streams.size)
-        assertTrue(result.streams.single().description.contains("spare"))
+        assertEquals(2, result.streams.size)
+        assertTrue(result.streams.all { it.description.contains("spare") })
     }
 
     @Test
     fun `failing indexers are reported and releases known broken are dropped`() = runBlocking<Unit> {
         assertTrue(search(listOf(row("error1", 0))).search(movie).failed)
         val health = ReleaseHealthCache()
-        val first = search(listOf(row("fast", 0)), health).search(movie).streams.single()
+        val first = search(listOf(row("fast", 0)), health).search(movie).streams.first()
         health.record(checkNotNull(UsenetStreamRegistry.tokenOf(first.url)), ReleaseHealth.Broken("missing"))
-        assertTrue(search(listOf(row("fast", 0)), health).search(movie).streams.isEmpty())
+        val left = search(listOf(row("fast", 0)), health).search(movie).streams
+        assertEquals(1, left.size)
+        assertTrue(left.none { it.url == first.url })
     }
 }

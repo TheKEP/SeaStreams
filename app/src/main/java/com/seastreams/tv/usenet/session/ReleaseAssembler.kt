@@ -10,6 +10,7 @@ import com.seastreams.tv.usenet.archive.ObfuscatedSetResolver
 import com.seastreams.tv.usenet.archive.RandomAccessData
 import com.seastreams.tv.usenet.archive.RarArchive
 import com.seastreams.tv.usenet.archive.ReleaseFile
+import com.seastreams.tv.usenet.archive.SevenZipArchive
 import com.seastreams.tv.usenet.archive.Span
 import com.seastreams.tv.usenet.archive.readUpTo
 import java.util.concurrent.CompletableFuture
@@ -17,13 +18,23 @@ import java.util.concurrent.CompletionException
 import java.util.concurrent.Executor
 import kotlin.math.abs
 
-/** The bytes a release plays: [data] of the media file [name], read from the NZB files [files]. */
-class AssembledMedia(val name: String, val data: RandomAccessData, val files: List<Int>, val focus: ReadAheadFocus? = null)
+/**
+ * The bytes a release plays: [data] of the media file [name], read from the NZB files [files]. [follow] is the
+ * [JoinedData] the read-ahead tracks when [data] itself isn't one (a decrypted 7z entry).
+ */
+class AssembledMedia(
+    val name: String,
+    val data: RandomAccessData,
+    val files: List<Int>,
+    val focus: ReadAheadFocus? = null,
+    val follow: JoinedData? = null,
+)
 
 /**
  * Turns a release's posted files into one playable byte range (PRD §12): resolve obfuscated names, pick the media
  * ([MediaSelector]), then read it as a plain file, as `.001` splits joined end to end (a RAR or 7z signature inside
- * a split is read as RAR / refused), or as the stored entry of a RAR set ([RarArchive]). Middle volumes whose stated
+ * a split is read as that archive), as the stored entry of a RAR set ([RarArchive]), or as the stored (optionally
+ * AES-encrypted, unlocked with the NZB password) entry of a 7z set ([SevenZipArchive]). Middle volumes whose stated
  * size matches the second volume's borrow its article grid, so no probe is spent on them. Only the volume being read
  * runs a full read-ahead window ([ReadAheadFocus]); probes and header reads of the others fetch just what they touch.
  * Blocking.
@@ -34,7 +45,8 @@ class ReleaseAssembler(
     private val lazyRar: Boolean,
     private val strictMembership: Boolean,
 ) {
-    fun assemble(volumes: List<PostedVolume>): AssembledMedia {
+    /** [password] is the NZB's `<meta type="password">`: it only unlocks 7z sets and is never logged. */
+    fun assemble(volumes: List<PostedVolume>, password: String? = null): AssembledMedia {
         val focus = ReadAheadFocus(volumes)
         val names = ObfuscatedSetResolver.resolve(volumes) { tasks -> parallel(tasks) }
         volumes.forEachIndexed { i, volume -> volume.name = names[i] }
@@ -45,6 +57,7 @@ class ReleaseAssembler(
             is MediaPlan.Plain -> plan.file
             is MediaPlan.Split -> plan.files.last()
             is MediaPlan.Rar -> plan.files.last()
+            is MediaPlan.SevenZip -> plan.files.last()
         }
         volumes[last].file.prefetchTail()
         return when (plan) {
@@ -53,29 +66,41 @@ class ReleaseAssembler(
                 focus.focus(volumes[plan.file])
                 AssembledMedia(volumes[plan.file].name, volumes[plan.file], listOf(plan.file), focus)
             }
-            is MediaPlan.Split -> split(volumes, plan.files)
+            is MediaPlan.Split -> split(volumes, plan.files, password)
             is MediaPlan.Rar -> rar(volumes, plan.files)
+            is MediaPlan.SevenZip -> sevenZip(volumes, plan.files, password)
         }.let { media -> following(media, focus) }
     }
 
     private fun following(media: AssembledMedia, focus: ReadAheadFocus): AssembledMedia {
-        val data = media.data as? JoinedData ?: return media
-        focus.follow(data)
-        return AssembledMedia(media.name, data, media.files, focus)
+        val joined = media.follow ?: media.data as? JoinedData ?: return media
+        focus.follow(joined)
+        return AssembledMedia(media.name, media.data, media.files, focus, joined)
     }
 
-    private fun split(volumes: List<PostedVolume>, files: List<Int>): AssembledMedia {
+    private fun split(volumes: List<PostedVolume>, files: List<Int>, password: String?): AssembledMedia {
         val parts = files.map(volumes::get)
         when (ArchiveSignatures.detect(parts[0].readUpTo(0, ArchiveSignatures.PROBE_BYTES))) {
             ArchiveKind.RAR4, ArchiveKind.RAR5 -> return rar(volumes, files)
-            ArchiveKind.SEVEN_ZIP -> throw ArchiveRefusedException("7z archives can't be streamed")
+            ArchiveKind.SEVEN_ZIP -> return sevenZip(volumes, files, password)
             ArchiveKind.ZIP -> throw ArchiveRefusedException("Zip archives can't be streamed")
             ArchiveKind.NONE -> Unit
         }
+        val name = parts[0].name.substringBeforeLast('.')
+        return AssembledMedia(name, joined(parts), files)
+    }
+
+    /** A `.7z` or `.7z.NNN` byte-split set: joined end to end, then the stored entry is located inside. */
+    private fun sevenZip(volumes: List<PostedVolume>, files: List<Int>, password: String?): AssembledMedia {
+        val set = SevenZipArchive.open(joined(files.map(volumes::get)), password)
+        return AssembledMedia(set.entryName, set.data, files, follow = set.follow)
+    }
+
+    /** Raw byte splits end to end; every part's size is learned in parallel (middle parts borrow the first's grid). */
+    private fun joined(parts: List<PostedVolume>): JoinedData {
         shareGrid(parts, reference = 0)
         parallel(parts.drop(1).map { part -> { part.size(); Unit } })
-        val name = parts[0].name.substringBeforeLast('.')
-        return AssembledMedia(name, JoinedData(parts.map { Span(it, 0, it.size()) }), files)
+        return JoinedData(parts.map { Span(it, 0, it.size()) })
     }
 
     private fun rar(volumes: List<PostedVolume>, files: List<Int>): AssembledMedia {

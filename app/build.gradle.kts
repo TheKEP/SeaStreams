@@ -170,6 +170,9 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
     implementation(libs.zxing.core)
+    // Usenet stored / password-protected 7z (ARCHITECTURE §4, §10). xz decodes the LZMA-packed 7z header.
+    implementation(libs.commons.compress)
+    implementation(libs.xz)
 
     // Unit tests (JUnit 5 Jupiter)
     testImplementation(platform(libs.junit.bom))
