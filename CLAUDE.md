@@ -8,7 +8,7 @@ SeaStreams is a high-performance, native Kotlin Android TV streaming client comp
 - **UI:** Jetpack Compose for TV (`androidx.tv.material3.*`, `TvLazyRow`, `TvLazyVerticalGrid`). Never use standard mobile Compose buttons/cards where `androidx.tv` equivalents exist.
 - **Architecture:** Clean MVVM + Unidirectional Data Flow (`UI -> ViewModel -> UseCase/Repository -> Room/Ktor`).
 - **DI:** Hilt (`@HiltViewModel`, `@Singleton`).
-- **Playback:** AndroidX Media3 (`ExoPlayer`) + `NewPipeExtractor` (JitPack `com.github.TeamNewPipe:NewPipeExtractor`, backed by `OkHttpDownloader` for in-app trailer stream resolution).
+- **Playback:** AndroidX Media3 (`ExoPlayer`) + `NewPipeExtractor` (JitPack `com.github.TeamNewPipe:NewPipeExtractor`, backed by `OkHttpDownloader` for in-app trailer stream resolution). Its API 33-only `URLDecoder`/`URLEncoder` `Charset` calls are rewritten at build time to `UrlCodecCompat` (ARCHITECTURE §4), and any extractor `LinkageError` must be converted to an `IOException` (never crash; inline → artwork, Details → YouTube).
 - **Local Server:** Ktor Embedded Server (`CIO` engine) for the QR/LAN Web Portal.
 
 ## Strict Anti-Bloat & Anti-Hallucination Rules
