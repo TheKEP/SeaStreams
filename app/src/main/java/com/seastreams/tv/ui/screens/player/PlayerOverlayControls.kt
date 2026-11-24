@@ -35,6 +35,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -64,7 +67,8 @@ import java.util.Locale
  * play/pause and the seek bar only.
  */
 @Composable
-fun PlayerOverlayControls(state: PlayerUiState, viewModel: PlayerViewModel, initialFocus: HudFocus) {
+fun PlayerOverlayControls(state: PlayerUiState, viewModel: PlayerViewModel, initialFocus: HudFocus, onBottomBlockMeasured: (Dp) -> Unit = {}) {
+    val density = LocalDensity.current
     val progress by viewModel.progress.collectAsState()
     val manager by viewModel.manager.collectAsState()
     val playButton = remember { FocusRequester() }
@@ -100,7 +104,13 @@ fun PlayerOverlayControls(state: PlayerUiState, viewModel: PlayerViewModel, init
             }
             manager?.let { formatSummary(it) }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.8f)) }
         }
-        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 48.dp, vertical = 24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                // The Info panel ends just above this block's seek row (PlayerPanels.infoPanelBottomInset).
+                .onSizeChanged { onBottomBlockMeasured(with(density) { it.height.toDp() }) }
+                .padding(horizontal = 48.dp, vertical = HUD_BOTTOM_PADDING),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
             SeekRow(progress, viewModel, seekBar)
             PlayerActionBar(state, viewModel, playButton, panelButtons)
         }

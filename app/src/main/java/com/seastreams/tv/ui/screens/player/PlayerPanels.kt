@@ -41,9 +41,12 @@ import com.seastreams.tv.ui.screens.settings.dialogueLabel
 import com.seastreams.tv.ui.theme.SurfaceCard
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
 
-/** The open overlay, as a right-hand panel over the still-playing video. */
+/**
+ * The open overlay, as a right-hand panel over the still-playing video. [hudBottomBlock] is the measured height of the
+ * HUD's seek row + action bar block (`null` before it is measured), which the Info panel reaches down to.
+ */
 @Composable
-fun PlayerPanels(panel: PlayerPanel, state: PlayerUiState, viewModel: PlayerViewModel, modifier: Modifier) {
+fun PlayerPanels(panel: PlayerPanel, state: PlayerUiState, viewModel: PlayerViewModel, hudBottomBlock: Dp?, modifier: Modifier) {
     when (panel) {
         PlayerPanel.SUBTITLES -> SubtitlesPanel(state, viewModel, modifier)
         PlayerPanel.AUDIO -> PanelScaffold("Audio", modifier) { first -> audioItems(state, viewModel, first) }
@@ -63,7 +66,7 @@ fun PlayerPanels(panel: PlayerPanel, state: PlayerUiState, viewModel: PlayerView
             showRank = true,
         )
         PlayerPanel.EPISODES -> EpisodesPanel(state, viewModel, modifier)
-        PlayerPanel.INFO -> InfoPanel(viewModel, modifier)
+        PlayerPanel.INFO -> InfoPanel(viewModel, infoPanelBottomInset(hudBottomBlock), modifier)
     }
 }
 
@@ -177,6 +180,26 @@ internal val PANEL_BOTTOM_INSET = 150.dp
 
 /** The HUD's bottom block a panel must clear: vertical padding, seek row (~24 dp), spacing, action bar. */
 internal val HUD_BOTTOM_BLOCK = 24.dp + 24.dp + 14.dp + CIRCLE_SIZE + 24.dp
+
+/** The HUD bottom block's vertical padding (above the seek row and below the action bar). */
+internal val HUD_BOTTOM_PADDING = 24.dp
+
+/** Clear space between the Info card and the seek row / remaining-time text below it. */
+internal val INFO_PANEL_GAP = 12.dp
+
+/**
+ * Info's bottom inset before the HUD block is measured: bottom padding + action bar + spacing + seek row (~24 dp) +
+ * [INFO_PANEL_GAP]. It sits just above the seek row, lower than the other panels' [PANEL_BOTTOM_INSET].
+ */
+internal val INFO_PANEL_BOTTOM_INSET = HUD_BOTTOM_PADDING + CIRCLE_SIZE + 14.dp + 24.dp + INFO_PANEL_GAP
+
+/**
+ * The Info card ends [INFO_PANEL_GAP] above the top of the HUD's seek row: the measured block ([measured], padding
+ * included) minus its top padding. Measured, so a larger font scale (a taller time label) lifts the card instead of
+ * overlapping the `-2:44:28 / 2:52:35` text.
+ */
+internal fun infoPanelBottomInset(measured: Dp?): Dp =
+    measured?.takeIf { it > HUD_BOTTOM_PADDING }?.let { it - HUD_BOTTOM_PADDING + INFO_PANEL_GAP } ?: INFO_PANEL_BOTTOM_INSET
 
 /** Subtitle side padding; while a right-hand panel is open the cue is drawn left of it, never under it. */
 internal fun cueEndPadding(panel: PlayerPanel?): Dp =

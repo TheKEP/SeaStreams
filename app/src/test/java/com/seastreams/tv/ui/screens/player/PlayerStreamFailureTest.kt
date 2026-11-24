@@ -26,6 +26,10 @@ class PlayerStreamFailureTest {
             "This stream couldn't play. Automatic failover is off — pick another stream.",
             streamFailedMessage(index = 0, total = 1),
         )
+        assertEquals(
+            "Stream 3 of 12 couldn't play (password-protected archive). Automatic failover is off — pick another stream.",
+            streamFailedMessage(index = 2, total = 12, reason = "password-protected archive"),
+        )
     }
 
     @Test

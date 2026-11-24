@@ -45,6 +45,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
@@ -95,6 +96,7 @@ fun PlayerScreen(request: PlaybackRequest, viewModel: PlayerViewModel, onExit: (
     var hudFocus by remember { mutableStateOf(HudFocus.PLAY) }
     var keyPresses by remember { mutableIntStateOf(0) }
     val selectGate = remember { PlayerSelectKeyGate() }
+    var hudBottomBlock by remember { mutableStateOf<Dp?>(null) }
     val backGate = remember { PlayerBackKeyGate() }
     // The hidden-HUD state must keep a focused root, or the next Back / Enter would have nowhere to land.
     LaunchedEffect(state.hudVisible) { if (!state.hudVisible) retryEachFrame(RESTORE_FRAMES) { root.tryRequestFocus() } }
@@ -191,9 +193,9 @@ fun PlayerScreen(request: PlaybackRequest, viewModel: PlayerViewModel, onExit: (
             CenterIndicator(state, isTrailer = request is PlaybackRequest.Trailer, visual, Modifier.align(Alignment.Center))
             state.status?.let { StatusPill(it, Modifier.align(Alignment.TopCenter).padding(top = 28.dp)) }
             if (state.hudVisible) {
-                PlayerOverlayControls(state = state, viewModel = viewModel, initialFocus = hudFocus)
+                PlayerOverlayControls(state = state, viewModel = viewModel, initialFocus = hudFocus, onBottomBlockMeasured = { hudBottomBlock = it })
             }
-            state.panel?.let { panel -> PlayerPanels(panel, state, viewModel, Modifier.align(Alignment.CenterEnd)) }
+            state.panel?.let { panel -> PlayerPanels(panel, state, viewModel, hudBottomBlock, Modifier.align(Alignment.CenterEnd)) }
         }
     }
 }

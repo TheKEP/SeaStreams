@@ -17,6 +17,9 @@ enum class FallbackReason { TIMEOUT, ERROR }
  * and nothing advances: an error on the current stream calls [onStopped] with its index instead, and
  * the user picks the next stream by hand.
  *
+ * Each callback carries the brief failure detail ([StreamFailureReason]) of the stream that just failed, `null` for a
+ * timeout. After exhaustion or a stop there is no current stream, so a burst of late errors reports nothing more.
+ *
  * Pure coroutine logic (no ExoPlayer types) so the timing is unit-tested with virtual time. Calls come
  * from the main thread.
  */
@@ -24,9 +27,9 @@ class StreamFallbackController(
     private val scope: CoroutineScope,
     private val timeoutMs: () -> Long,
     private val failover: () -> Boolean,
-    private val onAdvance: (fromIndex: Int, toIndex: Int, reason: FallbackReason) -> Unit,
-    private val onExhausted: (reason: FallbackReason) -> Unit,
-    private val onStopped: (index: Int) -> Unit,
+    private val onAdvance: (fromIndex: Int, toIndex: Int, reason: FallbackReason, detail: String?) -> Unit,
+    private val onExhausted: (reason: FallbackReason, lastDetail: String?) -> Unit,
+    private val onStopped: (index: Int, detail: String?) -> Unit,
 ) {
     private var timer: Job? = null
     private var current = NO_STREAM
@@ -49,7 +52,7 @@ class StreamFallbackController(
         val started = index
         timer = scope.launch {
             delay(timeoutMs())
-            if (current == started && !readyOnce) advance(FallbackReason.TIMEOUT)
+            if (current == started && !readyOnce) advance(FallbackReason.TIMEOUT, detail = null)
         }
     }
 
@@ -60,17 +63,20 @@ class StreamFallbackController(
         timer = null
     }
 
-    /** A playback or decoder error on the current stream: move on at once, or stop when failover is off. */
-    fun onError() {
+    /**
+     * A playback or decoder error on the current stream ([detail]: its brief reason): move on at once, or stop when
+     * failover is off.
+     */
+    fun onError(detail: String? = null) {
         timer?.cancel()
         timer = null
         if (!enabled || current == NO_STREAM) return
         if (failoverActive) {
-            advance(FallbackReason.ERROR)
+            advance(FallbackReason.ERROR, detail)
         } else {
             val failed = current
             current = NO_STREAM
-            onStopped(failed)
+            onStopped(failed, detail)
         }
     }
 
@@ -81,14 +87,16 @@ class StreamFallbackController(
         current = NO_STREAM
     }
 
-    private fun advance(reason: FallbackReason) {
+    private fun advance(reason: FallbackReason, detail: String?) {
         val from = current
         val next = from + 1
         if (next >= total) {
             current = NO_STREAM
-            onExhausted(reason)
+            onExhausted(reason, detail)
         } else {
-            onAdvance(from, next, reason)
+            // Until the next stream is started, a duplicate error for this one must not advance twice.
+            current = NO_STREAM
+            onAdvance(from, next, reason, detail)
         }
     }
 

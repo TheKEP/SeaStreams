@@ -47,7 +47,8 @@ sealed interface PlayerEvent {
 
     data object Ended : PlayerEvent
 
-    data class Failed(val error: PlaybackException) : PlayerEvent
+    /** [generation]: the [SeaStreamsPlayerManager.generation] of the stream that failed (stale-event guard). */
+    data class Failed(val error: PlaybackException, val generation: Int) : PlayerEvent
 
     data object TracksChanged : PlayerEvent
 }
@@ -75,6 +76,14 @@ class SeaStreamsPlayerManager(
     val player get() = engine.player
     val trackSelector get() = engine.trackSelector
     val meter = ThroughputMeter()
+
+    /** The playing file's size in bytes, for the Info overlay's estimated bitrate. */
+    val contentLength = StreamContentLength()
+
+    /** Bumped each time a new source is handed to the player; a [PlayerEvent.Failed] carries the value it failed under. */
+    @Volatile
+    var generation: Int = 0
+        private set
 
     private val _events = MutableSharedFlow<PlayerEvent>(extraBufferCapacity = EVENT_BUFFER, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     val events: SharedFlow<PlayerEvent> = _events.asSharedFlow()
@@ -137,7 +146,7 @@ class SeaStreamsPlayerManager(
         }
 
         override fun onPlayerError(error: PlaybackException) {
-            _events.tryEmit(PlayerEvent.Failed(error))
+            _events.tryEmit(PlayerEvent.Failed(error, generation))
         }
 
         override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
@@ -212,7 +221,9 @@ class SeaStreamsPlayerManager(
 
     /** Plays one addon stream from [startPositionMs], with its `proxyHeaders` on every request. */
     fun playStream(stream: StreamSource, startPositionMs: Long) {
+        generation++
         meter.reset()
+        contentLength.reset()
         val readAhead = config.bufferProfile.rangeReadAhead(config.parallelConnections)
         val http = {
             ParallelRangeDataSource.Factory(client, config.parallelConnections, readAhead, meter).setDefaultRequestProperties(stream.headers)
@@ -220,7 +231,10 @@ class SeaStreamsPlayerManager(
         val item = MediaItem.Builder().setUri(stream.url).apply {
             if (stream.url.contains(".m3u8", ignoreCase = true)) setMimeType(MimeTypes.APPLICATION_M3U8)
         }.build()
-        val source = dataSources.mediaSourceFactory(stream, http, MeterTransferListener(meter)).createMediaSource(item)
+        // HLS/DASH segment lengths aren't the file size (and those streams report their bitrate).
+        val adaptive = ADAPTIVE_HINTS.any { stream.url.contains(it, ignoreCase = true) }
+        val track: (DataSource.Factory) -> DataSource.Factory = { if (adaptive) it else LengthTrackingDataSource.Factory(it, contentLength) }
+        val source = dataSources.mediaSourceFactory(stream, http, MeterTransferListener(meter), track).createMediaSource(item)
         _embeddedCues.value = emptyList()
         updateDynamicRange(track = null, decoderInput = null)
         player.setMediaSource(source, startPositionMs.coerceAtLeast(0))
@@ -231,7 +245,9 @@ class SeaStreamsPlayerManager(
     /** Plays a trailer: DASH/progressive video merged with its separate audio track when there is one. */
     @Throws(IOException::class)
     fun playTrailer(stream: TrailerStream) {
+        generation++
         meter.reset()
+        contentLength.reset()
         val dataSource = OkHttpDataSource.Factory(client).setTransferListener(MeterTransferListener(meter))
         player.volume = 1f
         updateDynamicRange(track = null, decoderInput = null)
@@ -265,6 +281,7 @@ class SeaStreamsPlayerManager(
 
     private companion object {
         const val EVENT_BUFFER = 32
+        val ADAPTIVE_HINTS = listOf(".m3u8", ".mpd")
         const val DEFAULT_ASPECT = 16f / 9f
         const val MICROS_PER_MILLI = 1_000L
     }
