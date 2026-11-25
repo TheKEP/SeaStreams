@@ -1,13 +1,14 @@
 package com.seastreams.tv.core.webserver
 
 /**
- * The portal's `Stream filters & formatter` section (PRD §13), appended after [PortalScript] and reusing its `h`,
- * `byId`, `toast` and `api` helpers. Per profile: keywords, release groups, regexes, seeder / age ranges, size and
- * bitrate limits per resolution (movies / series), and custom formatter templates with a live preview from
- * `POST /api/streams/format-preview`. Each section starts with its master toggle checkbox (`Enable stream filtering` /
- * `sorting` / `formatting`), saved as soon as it changes by posting only that flag, so typed edits are kept. `Export JSON`
- * downloads `GET /api/streams/export`; `Import JSON` posts a picked file's text to `POST /api/streams/import`. Values picked on the TV (resolutions, languages, sort order, …) are kept as they
- * are: a save sends them back unchanged. The form is built once per profile switch, so a refresh never wipes typing.
+ * The portal's `Stream filters, sorting & formatter` section (PRD §13), appended after [PortalScript] and reusing its
+ * `h`, `byId`, `toast` and `api` helpers. Per profile, everything the TV offers: the option-backed attribute groups,
+ * result limits and deduplicator ([PortalStreamFilterScript]), keywords, release groups, regexes, seeder / age ranges,
+ * size and bitrate limits per resolution (movies / series), all four sort lists ([PortalStreamSortScript]), and custom
+ * formatter templates with a live preview from `POST /api/streams/format-preview`. Each section starts with its master
+ * toggle checkbox (`Enable stream filtering` / `sorting` / `formatting`), saved as soon as it changes by posting only
+ * that flag, so typed edits are kept. `Export JSON` downloads `GET /api/streams/export`; `Import JSON` posts a picked
+ * file's text to `POST /api/streams/import`. The form is built once per profile switch, so a refresh never wipes typing.
  *
  * Note: this is a Kotlin raw string, so the script deliberately never uses the dollar sign.
  */
@@ -107,8 +108,8 @@ function limitTable(prefix, title, unit, resolutions) {
 function setupStreams() {
   const sec = byId('streams');
   sec.replaceChildren(
-    h('h2', null, 'Stream filters & formatter'),
-    h('p', { class: 'hint' }, 'Each profile has its own. Pick resolutions, qualities, languages and the sort order on the TV (Settings → UI); type patterns, limits and templates here.'),
+    h('h2', null, 'Stream filters, sorting & formatter'),
+    h('p', { class: 'hint' }, 'Each profile has its own. Everything here can also be changed on the TV (Settings → UI); a save here replaces that part for the profile.'),
     h('div', { class: 'row' }, h('label', { for: 'sp-profile' }, 'Editing'), h('select', { class: 'grow', id: 'sp-profile', 'aria-label': 'Profile' })),
     h('div', { id: 'sp-forms', hidden: true },
       h('h3', null, 'Backup'),
@@ -119,16 +120,18 @@ function setupStreams() {
         h('input', { type: 'file', id: 'sp-import-file', accept: 'application/json,.json', hidden: true })),
       h('h3', null, 'Filters'),
       spStage(SP_STAGES[0], 'Enable stream filtering'),
+      h('div', { id: 'sp-attrs' }),
       listGroup('kw', 'Keywords', 'Comma-separated words matched in the file name, release group or indexer (a space also matches . - _).', false),
       listGroup('rg', 'Release groups', 'Comma-separated group names, e.g. FraMeSToR, NTb.', false),
       listGroup('rx', 'Regex', 'One per line, written /pattern/flags. Flags: i ignore case, n negate (matches streams the pattern does NOT match). Preferred lines may start with a name: Remux = /remux/i', true),
       rangeGroup('sd', 'Seeders', ''),
       rangeGroup('ag', 'Age', '(hours)'),
       h('div', { id: 'sp-limits' }),
+      h('div', { id: 'sp-extra' }),
       h('div', { class: 'row', style: 'margin-top:12px' }, h('button', { class: 'primary', type: 'button', id: 'sp-save-filters' }, 'Save filters')),
       h('h3', null, 'Sorting'),
       spStage(SP_STAGES[1], 'Enable stream sorting'),
-      h('p', { class: 'hint' }, 'Sort criteria are picked on the TV (Settings → UI → Stream sorting).'),
+      h('div', { id: 'sp-sort' }),
       h('h3', null, 'Formatter'),
       spStage(SP_STAGES[2], 'Enable stream formatting'),
       h('p', { class: 'hint' }, 'Templates use the AIOStreams syntax, e.g. {stream.resolution::=2160p["4K"||""]}, {stream.size::rbytes}, {?…?} groups and {tools.newLine}.'),
@@ -156,7 +159,11 @@ function fillStreams() {
     const res = st.resolutions.filter((r) => r !== 'Unknown');
     byId('sp-limits').replaceChildren(limitTable('sz', 'Size', 'GB', res), limitTable('br', 'Bitrate (estimate: size ÷ runtime)', 'Mbps', res));
     byId('sp-fm-id').replaceChildren(...st.formatters.map((x) => h('option', { value: x.id }, x.label)));
+    setupStreamFilters(st);
+    setupStreamSort(st);
   }
+  fillStreamFilters(f);
+  fillStreamSort(st.sort);
   SP_LISTS.forEach((l) => {
     byId('kw-' + l[0]).value = f.keywords[l[0]].join(', ');
     byId('rg-' + l[0]).value = f.releaseGroups[l[0]].join(', ');
@@ -199,11 +206,20 @@ function schedulePreview() {
   SP.previewTimer = setTimeout(renderPreview, 300);
 }
 
+// One block per line, so no browser's handling of newlines next to a long unbreakable filename can open a gap between
+// the name and the description. Spaces inside a line are kept (pre-wrap); blank edge lines are dropped.
+function spPreviewText(id, text) {
+  const lines = String(text || '').split('\n');
+  while (lines.length && !lines[0].trim()) lines.shift();
+  while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+  byId(id).replaceChildren(...lines.map((line) => h('div', { class: 'pv-line' }, line)));
+}
+
 async function renderPreview() {
   const seq = ++SP.previewSeq;
   if (byId('sp-fm-id').value === 'ORIGINAL') {
-    byId('sp-pv-name').textContent = 'Torrentio 4k';
-    byId('sp-pv-desc').textContent = "The addon's own text, unchanged";
+    spPreviewText('sp-pv-name', 'Torrentio 4k');
+    spPreviewText('sp-pv-desc', "The addon's own text, unchanged");
     return;
   }
   const body = { name: byId('sp-fm-name').value, description: byId('sp-fm-desc').value, filename: byId('sp-fm-file').value || null };
@@ -211,10 +227,10 @@ async function renderPreview() {
     const r = await fetch('/api/streams/format-preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json();
     if (seq !== SP.previewSeq) return;
-    byId('sp-pv-name').textContent = r.ok ? d.name : '';
-    byId('sp-pv-desc').textContent = r.ok ? d.description : d.message;
+    spPreviewText('sp-pv-name', r.ok ? d.name : '');
+    spPreviewText('sp-pv-desc', r.ok ? d.description : d.message);
   } catch (e) {
-    if (seq === SP.previewSeq) byId('sp-pv-desc').textContent = 'Could not reach the TV';
+    if (seq === SP.previewSeq) spPreviewText('sp-pv-desc', 'Could not reach the TV');
   }
 }
 
@@ -240,6 +256,7 @@ function collectLimits(prefix, scale) {
 
 async function saveStreamFilters(button) {
   const f = JSON.parse(JSON.stringify(SP.st.filters));
+  collectStreamFilters(f);
   SP_LISTS.forEach((l) => {
     f.keywords[l[0]] = spCsv(byId('kw-' + l[0]).value);
     f.releaseGroups[l[0]] = spCsv(byId('rg-' + l[0]).value);

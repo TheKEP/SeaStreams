@@ -247,8 +247,9 @@ class PortalStreamRoutesTest {
         val preview = json.decodeFromString<FormatPreviewResponse>(post("/api/streams/format-preview", body).bodyAsText())
         assertEquals("  Torrentio   4K", preview.name)
         assertEquals("a  Torrentio b", preview.description)
-        // pre-line would collapse those runs of spaces in the browser.
-        assertTrue(PortalHtmlTemplate.render().contains(".pv-name { font-weight: 700; white-space: pre-wrap;"))
+        // pre-line would collapse those runs of spaces in the browser; each preview line (name and description) is a
+        // `.pv-line` block that keeps them.
+        assertTrue(PortalHtmlTemplate.render().contains(".preview .pv-line { white-space: pre-wrap;"))
     }
 
     @Test

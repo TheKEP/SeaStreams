@@ -22,8 +22,34 @@ class PortalScriptSyntaxTest {
         val script = scripts.single()
         assertFalse(script.contains("/*SCRIPT*/") || script.contains("/*AVATARS*/"), "placeholders left unreplaced")
         listOf("function render(", "function setupStreams(", "function exportStreams(", "function importStreams(", "function setupBackup(",
-            "function renderBackupProfiles(", "function restoreBackup(", "window.AVATARS = [")
+            "function renderBackupProfiles(", "function restoreBackup(", "window.AVATARS = [",
+            "function setupStreamFilters(", "function fillStreamFilters(", "function collectStreamFilters(",
+            "function setupStreamSort(", "function fillStreamSort(", "function saveStreamSort(")
             .forEach { assertTrue(script.contains(it), it) }
+        // The filter / sort builders load before the stream section script whose setup calls them.
+        assertTrue(script.indexOf("function setupStreamFilters(") < script.indexOf("function setupStreams("))
+        assertTrue(script.indexOf("function setupStreamSort(") < script.indexOf("function setupStreams("))
+    }
+
+    @Test
+    fun `the formatter preview stacks name and description compactly at every width`() {
+        // One block per line, so no engine's newline / long-filename wrapping can open a gap between name and description.
+        val script = scripts.single()
+        assertTrue(script.contains("function spPreviewText("))
+        assertFalse(script.contains("byId('sp-pv-name').textContent"), "the name must go through spPreviewText")
+        assertFalse(script.contains("byId('sp-pv-desc').textContent"), "the description must go through spPreviewText")
+        listOf(
+            ".preview { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px;\n  display: grid; gap: 4px; align-content: start; }",
+            ".preview > div { margin: 0; min-height: 0; min-width: 0; }",
+            ".preview .pv-line { white-space: pre-wrap;",
+        ).forEach { assertTrue(html.contains(it), it) }
+        assertFalse(html.contains("margin-top: 4px; font-size: 14px"), "the old description margin is back")
+    }
+
+    @Test
+    fun `Backup and restore is the last section of the page`() {
+        val sections = Regex("<section id=\"([^\"]+)\"").findAll(html).map { it.groupValues[1] }.toList()
+        assertEquals(listOf("tmdb", "profiles", "addons", "sources", "debrid", "streams", "import", "backup"), sections)
     }
 
     @Test
@@ -38,6 +64,8 @@ class PortalScriptSyntaxTest {
             "PortalScript" to PortalScript.JS,
             "PortalUsenetScript" to PortalUsenetScript.JS,
             "PortalDebridScript" to PortalDebridScript.JS,
+            "PortalStreamFilterScript" to PortalStreamFilterScript.JS,
+            "PortalStreamSortScript" to PortalStreamSortScript.JS,
             "PortalStreamScript" to PortalStreamScript.JS,
             "PortalBackupScript" to PortalBackupScript.JS,
         ).forEach { (name, js) ->
@@ -48,7 +76,10 @@ class PortalScriptSyntaxTest {
 
     @Test
     fun `no Kotlin interpolation artifacts reach the page`() {
-        listOf(PortalScript.JS, PortalUsenetScript.JS, PortalDebridScript.JS, PortalStreamScript.JS, PortalBackupScript.JS).forEach { js ->
+        listOf(
+            PortalScript.JS, PortalUsenetScript.JS, PortalDebridScript.JS, PortalStreamFilterScript.JS, PortalStreamSortScript.JS,
+            PortalStreamScript.JS, PortalBackupScript.JS,
+        ).forEach { js ->
             // The scripts are Kotlin raw strings: a dollar sign would be interpolated, so none may appear at all.
             assertFalse(js.contains('$'), js.lines().firstOrNull { it.contains('$') })
         }

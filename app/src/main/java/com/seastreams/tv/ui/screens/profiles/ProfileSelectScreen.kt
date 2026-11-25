@@ -5,6 +5,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -45,13 +46,14 @@ import com.seastreams.tv.ui.components.AvatarTile
 import com.seastreams.tv.ui.theme.FocusPill
 import com.seastreams.tv.ui.theme.TextSecondary
 import com.seastreams.tv.ui.theme.focusPillColors
-
-private val TileSize = 76.dp
-private val FocusedTileSize = 108.dp
+import com.seastreams.tv.ui.theme.tryRequestFocus
+import com.seastreams.tv.ui.theme.verticalListEdgeWrap
 
 /**
  * "Choose a Profile" (`docs/ui-references/profiles.png`): vertical profile column on the left with an
  * edit pencil beside the focused profile and a `+` tile (max 5 profiles), full-bleed artwork right.
+ * Avatars size themselves ([profileGateMetrics]) so five profiles and `+` fit the 540 dp viewport;
+ * `Up`/`Down` follow the two-way edge-stop-then-wrap rule between the first profile and the last row.
  */
 @Composable
 fun ProfileSelectScreen(
@@ -67,30 +69,53 @@ fun ProfileSelectScreen(
         if (state.profiles.isNotEmpty()) runCatching { initialFocus.requestFocus() }
     }
 
+    // Rows: every profile, then `+` while under the cap. Two-way edge-stop-then-wrap between the first and last row.
+    val slotCount = state.profiles.size + if (state.canAddProfile) 1 else 0
+    val lastIndex = slotCount - 1
+    val firstSlot = remember { FocusRequester() }
+    val lastSlot = remember { FocusRequester() }
+    val edge: (Int) -> Modifier = { index ->
+        Modifier.verticalListEdgeWrap(index, lastIndex, toFirst = { firstSlot.tryRequestFocus() }, toLast = { lastSlot.tryRequestFocus() })
+    }
+    val slotRequesters: (Int) -> Modifier = { index ->
+        Modifier
+            .then(if (index == 0) Modifier.focusRequester(firstSlot) else Modifier)
+            .then(if (index == lastIndex) Modifier.focusRequester(lastSlot) else Modifier)
+    }
+
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         ProfileGateBackdrop(state.backdropUrl, Modifier.align(Alignment.CenterEnd))
-        Column(
-            Modifier.fillMaxHeight().padding(start = 40.dp, top = 40.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
-        ) {
+        Column(Modifier.fillMaxHeight().padding(start = 40.dp, top = 28.dp, bottom = 16.dp)) {
             Text(
                 "Choose a Profile",
                 style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(start = 56.dp),
+                modifier = Modifier.padding(start = 56.dp, bottom = 12.dp),
             )
-            state.profiles.forEachIndexed { index, profile ->
-                ProfileRow(
-                    profile = profile,
-                    isActive = profile.id == state.activeProfileId,
-                    tileModifier = if (index == initialIndex) Modifier.focusRequester(initialFocus) else Modifier,
-                    onSelect = {
-                        viewModel.selectProfile(profile.id) { onProfileSelected(profile.id) }
-                    },
-                    onEdit = { onEditProfile(profile.id) },
-                    onFocused = { viewModel.prefetchHome(profile) },
-                )
+            // All five profiles and `+` must fit the 540 dp TV viewport: the rows size themselves to what is left.
+            BoxWithConstraints(Modifier.weight(1f)) {
+                val metrics = profileGateMetrics(slotCount, maxHeight)
+                Column(verticalArrangement = Arrangement.spacedBy(metrics.spacing)) {
+                    state.profiles.forEachIndexed { index, profile ->
+                        ProfileRow(
+                            profile = profile,
+                            isActive = profile.id == state.activeProfileId,
+                            metrics = metrics,
+                            rowModifier = edge(index),
+                            tileModifier = slotRequesters(index)
+                                .then(if (index == initialIndex) Modifier.focusRequester(initialFocus) else Modifier),
+                            onSelect = {
+                                viewModel.selectProfile(profile.id) { onProfileSelected(profile.id) }
+                            },
+                            onEdit = { onEditProfile(profile.id) },
+                            onFocused = { viewModel.prefetchHome(profile) },
+                        )
+                    }
+                    if (state.canAddProfile) {
+                        val index = state.profiles.size
+                        AddProfileTile(metrics, edge(index), slotRequesters(index), onAddProfile)
+                    }
+                }
             }
-            if (state.canAddProfile) AddProfileTile(onAddProfile)
         }
     }
 }
@@ -99,6 +124,8 @@ fun ProfileSelectScreen(
 private fun ProfileRow(
     profile: ProfileEntity,
     isActive: Boolean,
+    metrics: ProfileGateMetrics,
+    rowModifier: Modifier,
     tileModifier: Modifier,
     onSelect: () -> Unit,
     onEdit: () -> Unit,
@@ -106,10 +133,10 @@ private fun ProfileRow(
 ) {
     var rowHasFocus by remember { mutableStateOf(false) }
     var tileFocused by remember { mutableStateOf(false) }
-    val tileSize by animateDpAsState(if (tileFocused) FocusedTileSize else TileSize, label = "profileTileSize")
+    val tileSize by animateDpAsState(if (tileFocused) metrics.focusedTile else metrics.tile, label = "profileTileSize")
 
     Row(
-        Modifier.onFocusChanged { rowHasFocus = it.hasFocus },
+        rowModifier.onFocusChanged { rowHasFocus = it.hasFocus },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // Pencil stays focusable (Left from the tile) but is only drawn for the focused row.
@@ -122,7 +149,7 @@ private fun ProfileRow(
             Icon(Icons.Filled.Edit, contentDescription = "Edit ${profile.name}", modifier = Modifier.padding(10.dp))
         }
         Spacer(Modifier.width(16.dp))
-        Box(Modifier.size(FocusedTileSize), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(metrics.slot), contentAlignment = Alignment.Center) {
             ProfileTileSurface(
                 size = tileSize,
                 highlighted = isActive,
@@ -150,16 +177,16 @@ private fun ProfileRow(
 }
 
 @Composable
-private fun AddProfileTile(onClick: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+private fun AddProfileTile(metrics: ProfileGateMetrics, rowModifier: Modifier, tileModifier: Modifier, onClick: () -> Unit) {
+    Row(rowModifier, verticalAlignment = Alignment.CenterVertically) {
         Spacer(Modifier.width(56.dp))
-        Box(Modifier.size(FocusedTileSize), contentAlignment = Alignment.Center) {
-            ProfileTileSurface(size = TileSize, highlighted = false, onClick = onClick) {
+        Box(Modifier.size(metrics.slot), contentAlignment = Alignment.Center) {
+            ProfileTileSurface(size = metrics.tile, highlighted = false, onClick = onClick, modifier = tileModifier) {
                 Box(
-                    Modifier.size(TileSize).background(MaterialTheme.colorScheme.surfaceVariant),
+                    Modifier.size(metrics.tile).background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Icons.Filled.Add, contentDescription = "Add profile", modifier = Modifier.size(32.dp))
+                    Icon(Icons.Filled.Add, contentDescription = "Add profile", modifier = Modifier.size(metrics.tile * 0.42f))
                 }
             }
         }
@@ -179,7 +206,7 @@ private fun ProfileTileSurface(
         onClick = onClick,
         modifier = modifier.size(size),
         shape = ClickableSurfaceDefaults.shape(shape),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = PROFILE_TILE_FOCUS_SCALE),
         border = ClickableSurfaceDefaults.border(
             border = if (highlighted) Border(BorderStroke(2.dp, FocusPill.copy(alpha = 0.5f)), shape = shape) else Border.None,
             focusedBorder = Border(BorderStroke(4.dp, FocusPill), shape = shape),

@@ -10,7 +10,6 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -25,14 +24,13 @@ import com.seastreams.tv.ui.theme.ignoreInitialKeyUp
 import com.seastreams.tv.ui.theme.rememberListEdgeWrap
 import com.seastreams.tv.ui.theme.rememberReorderFocus
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
-import com.seastreams.tv.ui.theme.tryRequestFocus
 import com.seastreams.tv.ui.theme.verticalListEdgeWrap
-import kotlinx.coroutines.launch
 
 /**
  * A multi-select list (stream filter values, PRD §13): one toggle row per option; `OK` adds or removes it. With
  * [ordered] (Preferred lists, `aio-filters.png` *Preference order*) the chosen values come first, in their order, each
- * with `Move up` / `Move down`; a newly chosen value joins the end. Focus follows a row when it moves.
+ * with `Move up` / `Move down`; a newly chosen value joins the end. Focus follows a row by its value when it moves,
+ * whether by a move button or by its own toggle ([ReorderFocus][com.seastreams.tv.ui.theme.ReorderFocus]).
  *
  * D-pad: two-way edge-stop-then-wrap between the first and last row (every control of those rows owns the edge);
  * `Left`/`Right` move between a row's controls; `Back` is the Settings screen's panel BackHandler. The first row
@@ -52,29 +50,21 @@ fun MultiChoicePanel(
     val last = remember { FocusRequester() }
     val lastIndex = rows.lastIndex
     val wrap = rememberListEdgeWrap(listState, first, last, lastIndex)
-    val scope = rememberCoroutineScope()
-    val requesters = remember { HashMap<String, FocusRequester>() }
-    val requesterOf: (String) -> FocusRequester = { requesters.getOrPut(it) { FocusRequester() } }
     LaunchedEffect(Unit) { first.requestFocusAfterFrame() }
-    // Move up / Move down keep the moved value in view and its button focused once the new order is saved (the
-    // chosen values lead the rows, so a value's position is also its lazy index).
+    // A row that changes position keeps focus once the new order is saved and measured: Move up / Move down focus its
+    // button, and a toggle that re-sorts the row (chosen into the Preferred block, or dropped out of it) focuses the
+    // row itself. The chosen values lead the rows, so a value's position is also its lazy index.
     val reorder = rememberReorderFocus<String>(listState)
     val chosen = rows.filter { it.selected }.map { it.value }
-    if (ordered) reorder.Follow(chosen)
+    if (ordered) reorder.Follow(rows.map { it.value })
     val move: (String, Int) -> Unit = { value, offset ->
         reorder.onMove(value, offset, chosen)
         onChange(moved(selected, value, offset))
     }
 
-    val change: (String, List<String>) -> Unit = { focusValue, updated ->
+    val change: (String, List<String>) -> Unit = { value, updated ->
+        if (ordered) reorder.onReorder(value, rowIndexAfter(options, updated, ordered, value))
         onChange(updated)
-        val index = multiChoiceRows(options, updated, ordered).indexOfFirst { it.value == focusValue }
-        if (ordered && index >= 0) {
-            scope.launch {
-                listState.scrollToItem(index)
-                if (!requesterOf(focusValue).tryRequestFocus()) requesterOf(focusValue).requestFocusAfterFrame()
-            }
-        }
     }
     PanelColumn(title, listState) {
         itemsIndexed(rows, key = { _, row -> row.value }) { index, row ->
@@ -89,7 +79,7 @@ fun MultiChoicePanel(
                     onClick = { change(row.value, toggled(selected, row.value)) },
                     modifier = Modifier
                         .weight(1f)
-                        .focusRequester(requesterOf(row.value))
+                        .focusRequester(reorder.row(row.value))
                         .then(if (index == 0) Modifier.focusRequester(first).ignoreInitialKeyUp() else Modifier)
                         .then(if (index == lastIndex) Modifier.focusRequester(last) else Modifier)
                         .then(edge),
@@ -119,6 +109,10 @@ internal fun multiChoiceRows(options: List<String>, selected: List<String>, orde
         options.map { MultiChoiceRow(it, it in chosen) }
     }
 }
+
+/** Where [value]'s row sits once [updated] is saved (`-1` if it is not an option). */
+internal fun rowIndexAfter(options: List<String>, updated: List<String>, ordered: Boolean, value: String): Int =
+    multiChoiceRows(options, updated, ordered).indexOfFirst { it.value == value }
 
 /** [value] removed when chosen, else added at the end. */
 internal fun toggled(selected: List<String>, value: String): List<String> =

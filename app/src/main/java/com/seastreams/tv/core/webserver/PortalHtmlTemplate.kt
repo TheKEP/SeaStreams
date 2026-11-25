@@ -13,10 +13,23 @@ object PortalHtmlTemplate {
         val avatars = ProfileAvatar.entries.joinToString(",", "[", "]") { "{\"g\":\"${it.glyph}\",\"c\":\"${it.cssColor}\"}" }
         return HTML
             .replace("/*AVATARS*/", "window.AVATARS = $avatars;")
-            .replace("/*SCRIPT*/", PortalScript.JS + "\n" + PortalUsenetScript.JS + "\n" + PortalDebridScript.JS + "\n" + PortalStreamScript.JS +
-                    "\n" + PortalBackupScript.JS,
-            )
+            .replace("/*SCRIPT*/", SCRIPTS.joinToString("\n"))
     }
+
+    /**
+     * Every portal script, in load order. The stream filter / sort builders come before [PortalStreamScript], whose
+     * immediately-invoked setup calls them. Sections sit in page order: Backup & restore is last (PRD §8).
+     */
+    private val SCRIPTS: List<String>
+        get() = listOf(
+            PortalScript.JS,
+            PortalUsenetScript.JS,
+            PortalDebridScript.JS,
+            PortalStreamFilterScript.JS,
+            PortalStreamSortScript.JS,
+            PortalStreamScript.JS,
+            PortalBackupScript.JS,
+        )
 
     private val HTML = """
 <!doctype html>
@@ -88,9 +101,22 @@ table.ranges { width: 100%; border-collapse: collapse; font-size: 13px; }
 table.ranges th { color: var(--muted); font-weight: 500; text-align: left; padding: 4px 4px 4px 0; }
 table.ranges td { padding: 3px 4px 3px 0; }
 table.ranges input { padding: 7px 8px; }
-.preview { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
-.preview .pv-name { font-weight: 700; white-space: pre-wrap; overflow-wrap: anywhere; }
-.preview .pv-desc { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 4px; font-size: 14px; }
+.choice-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 4px 12px; margin-top: 6px; }
+.choice-grid .check { font-size: 14px; }
+.list-title { margin: 12px 0 0; font-size: 13px; color: var(--muted); }
+ol.ordered { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 6px; }
+ol.ordered li { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; background: var(--bg); border: 1px solid var(--line);
+  border-radius: 10px; padding: 6px 8px; }
+ol.ordered li .grow { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+ol.ordered li .sub { flex: 1 1 100%; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.tabs button[aria-pressed=true] { background: var(--accent); color: #0B0D12; border-color: var(--accent); }
+.preview { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px;
+  display: grid; gap: 4px; align-content: start; }
+.preview > div { margin: 0; min-height: 0; min-width: 0; }
+.preview .pv-name { font-weight: 700; }
+.preview .pv-desc { font-size: 14px; }
+.preview .pv-line { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; line-height: 1.4; margin: 0; }
 #toast { position: fixed; left: 16px; right: 16px; bottom: max(16px, env(safe-area-inset-bottom));
   max-width: 560px; margin: 0 auto; padding: 12px 16px; border-radius: 12px; background: var(--surface-2);
   border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(0,0,0,.4); opacity: 0;
@@ -160,8 +186,6 @@ table.ranges input { padding: 7px 8px; }
 
   <section id="streams"></section>
 
-  <section id="backup"></section>
-
   <section id="import">
     <h2>Import a list into a Library</h2>
     <p class="hint">One-time copy of every movie or show in an mdblist.com list into a profile's Library. Titles already there are skipped, Kids profiles only receive titles within their rating limits, and later changes to the list are not synced.</p>
@@ -176,6 +200,8 @@ table.ranges input { padding: 7px 8px; }
       </div>
     </form>
   </section>
+
+  <section id="backup"></section>
 </main>
 <div id="toast" role="status" aria-live="polite"></div>
 <script>
