@@ -64,6 +64,24 @@ class ReorderScrollTest {
     }
 
     @Test
+    fun `a value chosen far down a long list jumps up, and the list follows it so the row is visible and focused`() = runTest {
+        val list = ModelList(keys = (0 until 30).map { "opt$it" })
+        list.scrollToItem(12)
+        // Two values already chosen lead the list: the third one joins at index 2, out of the current viewport.
+        assertTrue(list.resort("opt12", to = 2))
+        assertEquals(2, list.keys.indexOf("opt12"))
+        assertTrue(list.fullyVisible(2), "row at 2 is clipped: ${list.span(2)}")
+    }
+
+    @Test
+    fun `a value removed from the chosen block drops back down and stays visible and focused`() = runTest {
+        val list = ModelList(keys = (0 until 30).map { "opt$it" })
+        assertTrue(list.resort("opt1", to = 20))
+        assertEquals(20, list.keys.indexOf("opt1"))
+        assertTrue(list.fullyVisible(20))
+    }
+
+    @Test
     fun `the padding strip does not count as visible`() {
         val layout = ListLayout(listOf(ItemSpan(4, offset = 380, size = 100)), contentStart = 0, contentEnd = 450)
         assertEquals(Reveal.By(30f), reveal(4, layout))

@@ -12,7 +12,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,9 +33,7 @@ import com.seastreams.tv.ui.theme.Follow
 import com.seastreams.tv.ui.theme.rememberListEdgeWrap
 import com.seastreams.tv.ui.theme.rememberReorderFocus
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
-import com.seastreams.tv.ui.theme.tryRequestFocus
 import com.seastreams.tv.ui.theme.verticalListEdgeWrap
-import kotlinx.coroutines.launch
 
 /**
  * `Stream sorting` (`aio-sorting.png`). The first row picks the list being edited (`‹ Global / Movies / Series /
@@ -56,23 +53,18 @@ fun StreamSortPanel(sort: StreamSort, onChange: ((StreamSort) -> StreamSort) -> 
     val last = remember { FocusRequester() }
     val lastIndex = rows.size
     val wrap = rememberListEdgeWrap(listState, first, last, lastIndex)
-    val coroutines = rememberCoroutineScope()
-    val requesters = remember { HashMap<SortKey, FocusRequester>() }
-    val requesterOf: (SortKey) -> FocusRequester = { requesters.getOrPut(it) { FocusRequester() } }
     LaunchedEffect(Unit) { first.requestFocusAfterFrame() }
-    // Move up / Move down keep the moved criterion in view and its button focused (lazy index + 1: the list picker).
+    // A criterion that changes position keeps focus once the new order is saved and measured (lazy index + 1: the
+    // list picker): Move up / Move down focus its button, and adding / removing it (it jumps to the end of the
+    // criteria in use, or back among the unused ones) focuses its row. The criteria in use lead `rows`, so their
+    // order decides the first / last reorderable position.
     val reorder = rememberReorderFocus<SortKey>(listState)
-    // Only the criteria in use move (they lead `rows`), so their order decides the first / last position.
-    reorder.Follow(criteria.map { it.key }, lazyKeyOf = { it.name }) { it + 1 }
+    reorder.Follow(rows.map { it.key }, lazyKeyOf = { it.name }) { it + 1 }
 
     val change: (SortKey, List<SortCriterion>) -> Unit = { key, updated ->
         val current = scope
+        reorder.onReorder(key, sortRowIndexAfter(updated, key))
         onChange { it.with(current, updated) }
-        val index = sortRows(updated).indexOfFirst { it.key == key } + 1
-        coroutines.launch {
-            listState.scrollToItem(index)
-            if (!requesterOf(key).tryRequestFocus()) requesterOf(key).requestFocusAfterFrame()
-        }
     }
     val stepScope: (Int) -> Unit = { delta -> scope = SortScope.entries[(scope.ordinal + delta).mod(SortScope.entries.size)] }
     PanelColumn("Stream sorting", listState) {
@@ -101,7 +93,7 @@ fun StreamSortPanel(sort: StreamSort, onChange: ((StreamSort) -> StreamSort) -> 
                     onClick = { change(row.key, toggledCriterion(criteria, row.key)) },
                     modifier = Modifier
                         .weight(1f)
-                        .focusRequester(requesterOf(row.key))
+                        .focusRequester(reorder.row(row.key))
                         .then(if (index == rows.lastIndex) Modifier.focusRequester(last) else Modifier)
                         .then(edge),
                 )
@@ -120,7 +112,11 @@ fun StreamSortPanel(sort: StreamSort, onChange: ((StreamSort) -> StreamSort) -> 
                         if (criterion.direction == SortDirection.DESC) SeaIcons.Sort else SeaIcons.SortAscending,
                         "Direction: ${criterion.direction.label}",
                         edge,
-                    ) { change(row.key, flipped(criteria, row.key)) }
+                    ) {
+                        // Flipping keeps the row in place, so focus simply stays on this button.
+                        val current = scope
+                        onChange { it.with(current, flipped(criteria, row.key)) }
+                    }
                 }
             }
         }
@@ -133,6 +129,9 @@ internal data class SortRow(val key: SortKey, val criterion: SortCriterion?)
 /** Criteria in use first (in order), then the rest in [SortKey] order. */
 internal fun sortRows(criteria: List<SortCriterion>): List<SortRow> =
     criteria.map { SortRow(it.key, it) } + SortKey.entries.filter { key -> criteria.none { it.key == key } }.map { SortRow(it, null) }
+
+/** Where [key]'s row sits among the criterion rows (without the list picker) once [updated] is saved. */
+internal fun sortRowIndexAfter(updated: List<SortCriterion>, key: SortKey): Int = sortRows(updated).indexOfFirst { it.key == key }
 
 internal fun toggledCriterion(criteria: List<SortCriterion>, key: SortKey): List<SortCriterion> =
     if (criteria.any { it.key == key }) criteria.filterNot { it.key == key } else criteria + SortCriterion(key)

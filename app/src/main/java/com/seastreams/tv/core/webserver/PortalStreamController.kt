@@ -6,9 +6,14 @@ import com.seastreams.tv.core.datastore.StreamProcessingStore
 import com.seastreams.tv.data.UserFacingException
 import com.seastreams.tv.data.backup.BackupFileNames
 import com.seastreams.tv.data.profile.ProfileRepository
+import com.seastreams.tv.domain.streams.DedupKey
+import com.seastreams.tv.domain.streams.DedupMode
 import com.seastreams.tv.domain.streams.FilterAttribute
+import com.seastreams.tv.domain.streams.FilterList
 import com.seastreams.tv.domain.streams.FormatterId
+import com.seastreams.tv.domain.streams.SortDirection
 import com.seastreams.tv.domain.streams.SortKey
+import com.seastreams.tv.domain.streams.SortScope
 import com.seastreams.tv.domain.streams.StreamFilters
 import com.seastreams.tv.domain.streams.StreamFormatterChoice
 import com.seastreams.tv.domain.streams.StreamSort
@@ -37,13 +42,19 @@ data class StreamPortalState(
     val sortKeys: List<StreamOptionDto>,
     val formatters: List<StreamOptionDto>,
     val presets: Map<String, FormatterTemplateDto>,
+    val filterLists: List<StreamOptionDto> = emptyList(),
+    val sortScopes: List<StreamOptionDto> = emptyList(),
+    val sortDirections: List<StreamOptionDto> = emptyList(),
+    val dedupModes: List<StreamOptionDto> = emptyList(),
+    val dedupKeys: List<StreamOptionDto> = emptyList(),
 )
 
+/** One filter group: [key] is the [FilterAttribute] name, [field] its [StreamFilters] property, [options] `null` for free text. */
 @Serializable
-data class StreamAttributeDto(val key: String, val label: String, val options: List<String>?)
+data class StreamAttributeDto(val key: String, val label: String, val options: List<String>?, val field: String = "")
 
 @Serializable
-data class StreamOptionDto(val id: String, val label: String)
+data class StreamOptionDto(val id: String, val label: String, val description: String = "")
 
 @Serializable
 data class FormatterTemplateDto(val name: String, val description: String)
@@ -73,7 +84,8 @@ data class StreamBackupFile(val fileName: String, val json: String)
 
 /**
  * Portal actions for per-profile stream filters, sorting and formatter (PRD §13). Every write names its profile, which
- * must exist, and only touches that profile's `p{id}/stream_*` keys. Regexes are validated before saving.
+ * must exist, and only touches that profile's `p{id}/stream_*` keys. Every filter and sort setting the TV offers is
+ * editable here; saves are validated and clamped first ([PortalStreamValidation]).
  */
 @Singleton
 class PortalStreamController @Inject constructor(
@@ -94,28 +106,32 @@ class PortalStreamController @Inject constructor(
             sortingEnabled = settings.sortingEnabled,
             formattingEnabled = settings.formattingEnabled,
             resolutions = ReleaseRegexTables.RESOLUTION_NAMES,
-            attributes = FilterAttribute.entries.map { StreamAttributeDto(it.name, it.label, it.options) },
-            sortKeys = SortKey.entries.map { StreamOptionDto(it.name, it.label) },
+            attributes = FilterAttribute.entries.map { StreamAttributeDto(it.name, it.label, it.options, attributeField(it)) },
+            sortKeys = SortKey.entries.map { StreamOptionDto(it.name, it.label, it.description) },
             formatters = FormatterId.entries.map { StreamOptionDto(it.name, it.label) },
             presets = FormatterId.entries.mapNotNull { id ->
                 PredefinedFormatters.templates(id)?.let { id.name to FormatterTemplateDto(it.name, it.description) }
             }.toMap(),
+            filterLists = FilterList.entries.map { StreamOptionDto(it.name.lowercase(), it.label) },
+            sortScopes = SortScope.entries.map { StreamOptionDto(it.name.lowercase(), it.label) },
+            sortDirections = SortDirection.entries.map { StreamOptionDto(it.name, it.label) },
+            dedupModes = DedupMode.entries.map { StreamOptionDto(it.name, it.label) },
+            dedupKeys = DedupKey.entries.map { StreamOptionDto(it.name, it.label) },
         )
     }
 
     suspend fun saveFilters(request: StreamFiltersRequest): String {
-        val filters = request.filters
-        requireChange(filters, request.filteringEnabled)
+        requireChange(request.filters, request.filteringEnabled)
         val name = requireProfile(request.profileId)
-        filters?.let(StreamProcessingBackupCodec::firstInvalidRegex)?.let { throw UserFacingException("Not a valid regex: $it") }
+        val filters = request.filters?.let(PortalStreamValidation::filters)
         store.updateFilters(request.profileId, request.filteringEnabled) { filters ?: it }
         return if (filters == null) toggled("Stream filtering", request.filteringEnabled, name) else "Stream filters saved for $name"
     }
 
     suspend fun saveSort(request: StreamSortRequest): String {
-        val sort = request.sort
-        requireChange(sort, request.sortingEnabled)
+        requireChange(request.sort, request.sortingEnabled)
         val name = requireProfile(request.profileId)
+        val sort = request.sort?.let(PortalStreamValidation::sort)
         store.updateSort(request.profileId, request.sortingEnabled) { sort ?: it }
         return if (sort == null) toggled("Stream sorting", request.sortingEnabled, name) else "Stream sorting saved for $name"
     }
@@ -156,6 +172,21 @@ class PortalStreamController @Inject constructor(
         val templates = FormatterTemplates(request.name.take(StreamProcessingStore.MAX_TEMPLATE_CHARS), request.description.take(StreamProcessingStore.MAX_TEMPLATE_CHARS))
         val display = FormatterPreview.render(templates, clock.millis(), request.filename?.take(MAX_FILENAME_CHARS))
         return FormatPreviewResponse(display.name, display.description)
+    }
+
+    /** The [StreamFilters] property holding [attribute], as the portal script reads and writes it. */
+    private fun attributeField(attribute: FilterAttribute): String = when (attribute) {
+        FilterAttribute.STREAM_TYPE -> "streamTypes"
+        FilterAttribute.RESOLUTION -> "resolutions"
+        FilterAttribute.QUALITY -> "qualities"
+        FilterAttribute.ENCODE -> "encodes"
+        FilterAttribute.VISUAL_TAG -> "visualTags"
+        FilterAttribute.AUDIO_TAG -> "audioTags"
+        FilterAttribute.AUDIO_CHANNEL -> "audioChannels"
+        FilterAttribute.LANGUAGE -> "languages"
+        FilterAttribute.SUBTITLE -> "subtitles"
+        FilterAttribute.RELEASE_GROUP -> "releaseGroups"
+        FilterAttribute.KEYWORD -> "keywords"
     }
 
     private fun requireChange(rules: Any?, enabled: Boolean?) {

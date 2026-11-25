@@ -22,7 +22,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -34,9 +33,9 @@ import com.seastreams.tv.ui.theme.SurfaceCard
 import com.seastreams.tv.ui.theme.TextSecondary
 import com.seastreams.tv.ui.theme.focusPillColors
 import com.seastreams.tv.ui.theme.ignoreInitialKeyUp
-import com.seastreams.tv.ui.theme.onDpadEdgeWrap
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
 import com.seastreams.tv.ui.theme.tryRequestFocus
+import com.seastreams.tv.ui.theme.verticalListEdgeWrap
 
 /** One choice in an [ActionMenu]. */
 data class MenuAction(val label: String, val onClick: () -> Unit)
@@ -50,8 +49,10 @@ class ActionMenuRequest(
 )
 
 /**
- * Centered long-press menu over a dimmed screen. Focus starts on the first action and can't leave the
- * menu; a fresh `Down` on the last action wraps to the first. Choosing an action or pressing `Back`
+ * Centered long-press menu over a dimmed screen (Episodes season / episode menus, Continue Watching). Focus
+ * starts on the first action and can't leave the menu. D-pad follows the two-way §1 edge-stop-then-wrap rule
+ * ([verticalListEdgeWrap]): a fresh `Up` on the first action wraps to the last, a fresh `Down` on the last
+ * wraps to the first, and a held key stops on the edge action. Choosing an action or pressing `Back`
  * hands focus back to [ActionMenuRequest.returnFocus] before [onClose] removes the menu, so the
  * opener is focused again (or the stream list, opened by the action, takes over from there).
  *
@@ -66,6 +67,8 @@ fun ActionMenu(request: ActionMenuRequest, onClose: () -> Unit) {
     }
     BackHandler(onBack = close)
     val first = remember { FocusRequester() }
+    val last = remember { FocusRequester() }
+    val lastIndex = request.actions.lastIndex
     LaunchedEffect(request) { first.requestFocusAfterFrame() }
 
     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)), contentAlignment = Alignment.Center) {
@@ -98,12 +101,12 @@ fun ActionMenu(request: ActionMenuRequest, onClose: () -> Unit) {
                         },
                         modifier = Modifier
                             .then(if (index == 0) Modifier.padding(top = 8.dp).focusRequester(first) else Modifier)
-                            .then(
-                                if (index == request.actions.lastIndex) {
-                                    Modifier.onDpadEdgeWrap(Key.DirectionDown) { first.tryRequestFocus() }
-                                } else {
-                                    Modifier
-                                },
+                            .then(if (index == lastIndex) Modifier.focusRequester(last) else Modifier)
+                            .verticalListEdgeWrap(
+                                index = index,
+                                lastIndex = lastIndex,
+                                toFirst = { first.tryRequestFocus() },
+                                toLast = { last.tryRequestFocus() },
                             ),
                     )
                 }

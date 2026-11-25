@@ -59,10 +59,25 @@ internal class ModelList(
         val to = (from + offset).coerceIn(0, keys.lastIndex)
         keys = keys.toMutableList().apply { add(to, removeAt(from)) }
         var focused: MoveButton? = null
-        followMove(this, PendingMove(key, offset, to), keys, to, key, awaitFrame = ::frame) { button ->
+        followMove(this, PendingMove(key, to, FollowTarget.Button(offset, keys.size)), to, key, awaitFrame = ::frame) { button ->
             focused = button
             span(to) != null
         }
         return focused
+    }
+
+    /**
+     * A toggle that re-sorts [key] to [to] (a value chosen into a Preferred list): saves the new order, follows it with
+     * [FollowTarget.Row], and returns whether the row itself got focus while laid out.
+     */
+    suspend fun resort(key: String, to: Int): Boolean {
+        val from = keys.indexOf(key)
+        keys = keys.toMutableList().apply { add(to, removeAt(from)) }
+        var rowFocused = false
+        val landed = followMove(this, PendingMove(key, to, FollowTarget.Row), to, key, awaitFrame = ::frame) { button ->
+            rowFocused = button == null && span(to) != null
+            rowFocused
+        }
+        return landed && rowFocused
     }
 }
