@@ -45,14 +45,17 @@ enum class ProgressSource {
 }
 
 /**
- * How one external playback ended. [positionMs]/[durationMs] are what to save (both `null` for
- * [ProgressSource.PRESERVED]); [completed] decides whether Auto-Play Next Episode runs.
+ * How one playback ended. [positionMs]/[durationMs] are what to save (both `null` for
+ * [ProgressSource.PRESERVED]); [completed] means watched (`>= 90%`, the checkmark rule). Only
+ * [endedNaturally] — the player reached the end on its own, never a `Back` exit — lets Auto-Play
+ * Next Episode run (PRD §9).
  */
 data class PlaybackOutcome(
     val positionMs: Long?,
     val durationMs: Long?,
     val completed: Boolean,
     val source: ProgressSource,
+    val endedNaturally: Boolean = false,
 )
 
 /** Turns an external player's result into watch progress (PRD §9 External Player Progress Preservation). */
@@ -60,6 +63,12 @@ object ExternalPlaybackProgress {
 
     /** Less time than this in the player (and no position reported) is treated as "didn't play". */
     const val MIN_ESTIMATE_ELAPSED_MS = 15_000L
+
+    /**
+     * A player that sends no `end_by` (VLC) has no completion signal: only a reported position within
+     * this much of its reported duration counts as having played to the end.
+     */
+    const val END_TOLERANCE_MS = 1_000L
 
     fun outcome(extras: ExternalPlayerExtras, launch: ExternalPlaybackLaunch, returnedAtMillis: Long): PlaybackOutcome {
         val duration = extras.durationMs?.takeIf { it > 0 } ?: launch.knownDurationMs.takeIf { it > 0 }
@@ -72,6 +81,7 @@ object ExternalPlaybackProgress {
                 durationMs = duration,
                 completed = extras.endedByCompletion || isCompleted(position, duration),
                 source = ProgressSource.REPORTED,
+                endedNaturally = extras.endedByCompletion || reachedEndWithoutEndBy(extras),
             )
         }
 
@@ -79,7 +89,13 @@ object ExternalPlaybackProgress {
         // the length is known and the user stayed long enough for the estimate to mean something.
         val elapsed = returnedAtMillis - launch.launchedAtMillis
         if (duration == null || elapsed < MIN_ESTIMATE_ELAPSED_MS) {
-            return PlaybackOutcome(null, null, completed = extras.endedByCompletion, source = ProgressSource.PRESERVED)
+            return PlaybackOutcome(
+                null,
+                null,
+                completed = extras.endedByCompletion,
+                source = ProgressSource.PRESERVED,
+                endedNaturally = extras.endedByCompletion,
+            )
         }
         val estimated = minOf(launch.startPositionMs.coerceAtLeast(0) + elapsed, duration)
         return PlaybackOutcome(
@@ -87,6 +103,16 @@ object ExternalPlaybackProgress {
             durationMs = duration,
             completed = extras.endedByCompletion || isCompleted(estimated, duration),
             source = ProgressSource.ESTIMATED,
+            // Time spent in the player says nothing about how it was left: only an explicit completion advances.
+            endedNaturally = extras.endedByCompletion,
         )
+    }
+
+    /** No `end_by` at all (VLC) and the player's own position/duration put it at the very end. */
+    private fun reachedEndWithoutEndBy(extras: ExternalPlayerExtras): Boolean {
+        if (extras.endBy != null) return false
+        val position = extras.positionMs ?: return false
+        val duration = extras.durationMs?.takeIf { it > 0 } ?: return false
+        return position >= duration - END_TOLERANCE_MS
     }
 }

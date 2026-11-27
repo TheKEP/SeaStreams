@@ -114,7 +114,8 @@ internal suspend fun PlayerViewModel.tick(manager: SeaStreamsPlayerManager) {
         refreshCue(manager)
         if (ticks % PROGRESS_EVERY_TICKS == 0) {
             _progress.value = PlayerProgress(position, player.duration.knownOrZero(), player.bufferedPosition)
-            val request = state.request
+            // Never the previous episode's position under a request whose stream isn't loaded yet.
+            val request = progressBinding.savable(state.request)
             if (request != null && player.isPlaying && kotlin.math.abs(position - lastSaveAtPosition) >= PlayerProgressTracker.SAVE_INTERVAL_MS) {
                 lastSaveAtPosition = position
                 progressTracker.save(request, position, player.duration.knownOrZero())

@@ -1,6 +1,7 @@
 package com.seastreams.tv.data.debrid.auth
 
 import com.seastreams.tv.core.util.ApplicationScope
+import com.seastreams.tv.core.util.toHex
 import com.seastreams.tv.data.UserFacingException
 import com.seastreams.tv.data.debrid.DebridServiceKind
 import com.seastreams.tv.data.debrid.DebridSourcesRepository
@@ -154,8 +155,7 @@ class DeviceAuthSessions @Inject constructor(
     }
 
     private fun newId(): String {
-        val bytes = ByteArray(ID_BYTES).also(random::nextBytes)
-        return bytes.joinToString("") { "%02x".format(it) }
+        return ByteArray(ID_BYTES).also(random::nextBytes).toHex()
     }
 
     private companion object {

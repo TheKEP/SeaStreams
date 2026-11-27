@@ -46,7 +46,8 @@ sealed interface PlayerEvent {
     /** The current stream drew its first video frame: initial loading is over (PRD §9). */
     data object FirstFrame : PlayerEvent
 
-    data object Ended : PlayerEvent
+    /** [generation]: the [SeaStreamsPlayerManager.generation] of the stream that ended (stale-event guard). */
+    data class Ended(val generation: Int) : PlayerEvent
 
     /** [generation]: the [SeaStreamsPlayerManager.generation] of the stream that failed (stale-event guard). */
     data class Failed(val error: PlaybackException, val generation: Int) : PlayerEvent
@@ -81,10 +82,28 @@ class SeaStreamsPlayerManager(
     /** The playing file's size in bytes, for the Info overlay's estimated bitrate. */
     val contentLength = StreamContentLength()
 
-    /** Bumped each time a new source is handed to the player; a [PlayerEvent.Failed] carries the value it failed under. */
+    /**
+     * Bumped when a new source is asked for ([beginSource], before any Usenet/Debrid preflight) and again when one
+     * is handed to the player. [PlayerEvent.Failed] / [PlayerEvent.Ended] carry the generation of the source the
+     * player actually held ([loadedGeneration]), so an event from the previous stream — even one raised while the
+     * next one is still in preflight — never matches.
+     */
     @Volatile
     var generation: Int = 0
         private set
+
+    @Volatile
+    private var loadedGeneration: Int = 0
+
+    /** A new source was asked for: from now on the loaded one's events are stale. */
+    fun beginSource() {
+        generation++
+    }
+
+    private fun loadNewSource() {
+        generation++
+        loadedGeneration = generation
+    }
 
     private val _events = MutableSharedFlow<PlayerEvent>(extraBufferCapacity = EVENT_BUFFER, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     val events: SharedFlow<PlayerEvent> = _events.asSharedFlow()
@@ -133,7 +152,7 @@ class SeaStreamsPlayerManager(
             _buffering.value = playbackState == Player.STATE_BUFFERING || playbackState == Player.STATE_IDLE
             when (playbackState) {
                 Player.STATE_READY -> _events.tryEmit(PlayerEvent.Ready)
-                Player.STATE_ENDED -> _events.tryEmit(PlayerEvent.Ended)
+                Player.STATE_ENDED -> _events.tryEmit(PlayerEvent.Ended(loadedGeneration))
                 else -> Unit
             }
         }
@@ -147,7 +166,7 @@ class SeaStreamsPlayerManager(
         }
 
         override fun onPlayerError(error: PlaybackException) {
-            _events.tryEmit(PlayerEvent.Failed(error, generation))
+            _events.tryEmit(PlayerEvent.Failed(error, loadedGeneration))
         }
 
         override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
@@ -222,7 +241,7 @@ class SeaStreamsPlayerManager(
 
     /** Plays one addon stream from [startPositionMs], with its `proxyHeaders` on every request. */
     fun playStream(stream: StreamSource, startPositionMs: Long) {
-        generation++
+        loadNewSource()
         meter.reset()
         contentLength.reset()
         val readAhead = config.bufferProfile.rangeReadAhead(config.parallelConnections)
@@ -246,7 +265,7 @@ class SeaStreamsPlayerManager(
     /** Plays a trailer: DASH/progressive video merged with its separate audio track when there is one. */
     @Throws(IOException::class)
     fun playTrailer(stream: TrailerStream) {
-        generation++
+        loadNewSource()
         meter.reset()
         contentLength.reset()
         val dataSource = OkHttpDataSource.Factory(client).setTransferListener(MeterTransferListener(meter))

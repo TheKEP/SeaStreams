@@ -5,7 +5,6 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
-import io.ktor.server.request.receiveText
 import io.ktor.server.response.header
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
@@ -57,8 +56,7 @@ internal fun Route.streamRoutes(controller: PortalStreamController) {
     post("/streams/import") {
         call.guarded {
             val profileId = call.request.queryParameters["profileId"]?.toLongOrNull() ?: throw UserFacingException("Pick a profile")
-            val body = call.receiveText()
-            if (body.length > MAX_BODY_CHARS) throw UserFacingException("Request too large")
+            val body = call.receiveBoundedText(MAX_BODY_CHARS)
             controller.importBackup(profileId, body)
         }
     }

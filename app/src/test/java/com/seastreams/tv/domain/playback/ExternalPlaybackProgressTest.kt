@@ -69,6 +69,20 @@ class ExternalPlaybackProgressTest {
     }
 
     @Test
+    fun `only a natural end counts as endedNaturally, never a Back exit however late`() {
+        assertTrue(outcome(mapOf("duration" to 7_200_000, "end_by" to "playback_completion")).endedNaturally)
+        // MX / Just Player Back: watched at 99.9%, but the user left.
+        val back = outcome(mapOf("position" to 7_199_500, "duration" to 7_200_000, "end_by" to "user"))
+        assertTrue(back.completed)
+        assertFalse(back.endedNaturally)
+        // VLC sends no end_by: only a position at the very end counts.
+        assertTrue(outcome(mapOf("extra_position" to 7_199_500L, "extra_duration" to 7_200_000L)).endedNaturally)
+        assertFalse(outcome(mapOf("extra_position" to 7_100_000L, "extra_duration" to 7_200_000L)).endedNaturally)
+        // VLC with no duration of its own: the TMDB runtime is too rough to call it the end.
+        assertFalse(outcome(mapOf("extra_position" to 7_199_500L)).endedNaturally)
+    }
+
+    @Test
     fun `end_by playback_completion completes and saves the full duration`() {
         val result = outcome(mapOf("position" to 100, "duration" to 7_200_000, "end_by" to "playback_completion"))
 

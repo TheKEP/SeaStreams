@@ -1,5 +1,6 @@
 package com.seastreams.tv.usenet.archive
 
+import com.seastreams.tv.testutil.oldRarExtension
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -18,7 +19,7 @@ class MediaSelectionTest {
         assertEquals(VolumeName("movie", 801, VolumeStyle.RAR_OLD), RarVolumeNames.parse("movie.z00"))
         assertEquals(VolumeName("movie.mkv", 0, VolumeStyle.SPLIT), RarVolumeNames.parse("Movie.mkv.001"))
         assertEquals(VolumeStyle.SEVEN_ZIP, RarVolumeNames.parse("Movie.7z.002")?.style)
-        assertEquals("s00", RarVolumeNames.oldExtension(101))
+        assertEquals("s00", oldRarExtension(101))
         assertEquals(null, RarVolumeNames.parse("Movie.mkv"))
     }
 
@@ -37,7 +38,7 @@ class MediaSelectionTest {
 
     @Test
     fun `an old-style set with s00 rollover is ordered by volume index`() {
-        val files = (0..102).map { i -> ReleaseFile(i, "rel." + RarVolumeNames.oldExtension(102 - i), 50_000_000) }
+        val files = (0..102).map { i -> ReleaseFile(i, "rel." + oldRarExtension(102 - i), 50_000_000) }
         val plan = MediaSelector.select(files) as MediaPlan.Rar
         assertEquals((0..102).map { 102 - it }, plan.files)
     }

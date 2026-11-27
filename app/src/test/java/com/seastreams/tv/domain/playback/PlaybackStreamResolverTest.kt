@@ -3,6 +3,7 @@ package com.seastreams.tv.domain.playback
 import com.seastreams.tv.data.details.TitleDetailsRepository
 import com.seastreams.tv.domain.model.EpisodeRef
 import com.seastreams.tv.domain.model.MediaType
+import com.seastreams.tv.domain.model.PlaybackRequest
 import com.seastreams.tv.domain.model.SeasonInfo
 import com.seastreams.tv.domain.model.StreamAddon
 import com.seastreams.tv.domain.model.StreamSource
@@ -60,6 +61,66 @@ class PlaybackStreamResolverTest {
 
         assertEquals(ShuffleMode.Show, next.shuffle.mode)
         assertEquals(listOf(EpisodeRef(1, 1), next.episode), next.shuffle.played)
+    }
+
+    /**
+     * One built-in natural completion, hop for hop: `STATE_ENDED` → AutoNextPolicy → resolver.next →
+     * `PlaybackRequest.Media(target = playback.target)` exactly as `PlayerSwitching.start` builds it.
+     */
+    private suspend fun naturalAutoNext(playing: PlaybackRequest.Media, random: Random): PlaybackRequest.Media {
+        assertTrue(AutoNextPolicy.afterBuiltInEnd(playing, autoPlayNextEpisode = true))
+        val found = resolver.next(playing.target, preferredAddonUrl = null, random = random)
+        assertTrue(found is NextEpisode.Found, "expected a next episode, got $found")
+        val playback = (found as NextEpisode.Found).playback
+        return PlaybackRequest.Media(playing.sessionId, playback.target, playback.resolution.streams, 0, playback.resolution.subtitles, 0)
+    }
+
+    @Test
+    fun `show shuffle survives consecutive natural completions in the built-in player`() = runTest {
+        val random = Random(21)
+        val first = EpisodeRef(1, 4)
+        var playing = PlaybackRequest.Media(1, target(first, ShuffleSession.start(ShuffleMode.Show, first)), emptyList(), 0, emptyList(), 0)
+        val played = mutableListOf(first)
+        repeat(6) {
+            playing = naturalAutoNext(playing, random)
+            assertEquals(ShuffleMode.Show, playing.shuffle, "still a show shuffle after natural completion ${it + 1}")
+            played += checkNotNull(playing.target.episode)
+        }
+        assertEquals(played.size, played.toSet().size, "no repeats before the pool is used up")
+        assertTrue(played.zipWithNext().any { (a, b) -> b != EpisodeRef(a.season, a.episode + 1) }, "not sequential: $played")
+    }
+
+    @Test
+    fun `season shuffle survives consecutive natural completions in the built-in player`() = runTest {
+        val random = Random(33)
+        val first = EpisodeRef(2, 2)
+        var playing = PlaybackRequest.Media(1, target(first, ShuffleSession.start(ShuffleMode.Season(2), first)), emptyList(), 0, emptyList(), 0)
+        val played = mutableListOf(first)
+        repeat(5) {
+            playing = naturalAutoNext(playing, random)
+            assertEquals(ShuffleMode.Season(2), playing.shuffle)
+            played += checkNotNull(playing.target.episode)
+        }
+        assertTrue(played.all { it.season == 2 })
+        assertEquals((1..6).map { EpisodeRef(2, it) }.toSet(), played.toSet(), "the whole season, once each")
+    }
+
+    @Test
+    fun `shuffle survives natural completions in an external player`() = runTest {
+        val random = Random(5)
+        val first = EpisodeRef(1, 2)
+        var current = target(first, ShuffleSession.start(ShuffleMode.Show, first))
+        val launch = ExternalPlaybackLaunch(startPositionMs = 0, knownDurationMs = 0, launchedAtMillis = 0)
+        repeat(6) {
+            val outcome = ExternalPlaybackProgress.outcome(
+                ExternalPlayerExtras.from(mapOf("end_by" to "playback_completion", "duration" to 2_700_000)),
+                launch,
+                returnedAtMillis = 2_700_000,
+            )
+            assertTrue(AutoNextPolicy.afterExternalReturn(current, outcome, autoPlayNextEpisode = true))
+            current = nextTarget(current, random)
+            assertEquals(ShuffleMode.Show, current.shuffle.mode)
+        }
     }
 
     @Test

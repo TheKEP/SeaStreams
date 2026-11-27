@@ -135,10 +135,13 @@ object SevenZipArchive {
             key.fill(0)
         }
         // Headers in the clear don't prove the password: the video's first bytes must decrypt to a known container.
-        val head = decrypted.readUpTo(0, minOf(size, ContentSniffer.HEAD_BYTES.toLong()).toInt())
-        if (ContentSniffer.sniff(head) == MediaContainer.UNKNOWN) {
+        // Any failure here (a wrong password, or an article missing under the first bytes) closes it, zeroing its key.
+        try {
+            val head = decrypted.readUpTo(0, minOf(size, ContentSniffer.HEAD_BYTES.toLong()).toInt())
+            if (ContentSniffer.sniff(head) == MediaContainer.UNKNOWN) throw ArchiveRefusedException("The 7z archive password is wrong")
+        } catch (e: Throwable) {
             decrypted.close()
-            throw ArchiveRefusedException("The 7z archive password is wrong")
+            throw e
         }
         return decrypted
     }

@@ -11,11 +11,9 @@ import android.view.KeyEvent
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.widget.EditText
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -36,12 +34,9 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.tv.material3.Border
-import androidx.tv.material3.ClickableSurfaceDefaults
-import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
+import com.seastreams.tv.ui.components.TextFieldSurface
 import com.seastreams.tv.ui.theme.FocusPill
-import com.seastreams.tv.ui.theme.OutlineDim
 import com.seastreams.tv.ui.theme.TextPrimary
 import com.seastreams.tv.ui.theme.TextSecondary
 import com.seastreams.tv.ui.theme.awaitNextFrame
@@ -116,7 +111,6 @@ fun SearchTextField(
     // A force-shown keyboard outlives the field unless closed: leaving Search mid-edit closes it.
     DisposableEffect(field) { onDispose { if (input.editing) field.endEditing() } }
 
-    val shape = RoundedCornerShape(12.dp)
     Surface(
         onClick = input::openKeyboard,
         modifier = modifier
@@ -124,17 +118,11 @@ fun SearchTextField(
             .focusRequester(surfaceFocus)
             .ignoreInitialKeyUp()
             // The EditText holds focus while editing, so keep the focus ring drawn on the field.
-            .then(if (input.editing) Modifier.border(2.dp, FocusPill, shape) else Modifier),
-        shape = ClickableSurfaceDefaults.shape(shape),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.background,
-            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-        ),
-        border = ClickableSurfaceDefaults.border(
-            border = Border(BorderStroke(1.dp, OutlineDim), shape = shape),
-            focusedBorder = Border(BorderStroke(2.dp, FocusPill), shape = shape),
-        ),
+            .then(if (input.editing) Modifier.border(2.dp, FocusPill, TextFieldSurface.Shape) else Modifier),
+        shape = TextFieldSurface.shape(),
+        scale = TextFieldSurface.scale(),
+        colors = TextFieldSurface.colors(),
+        border = TextFieldSurface.border(),
     ) {
         AndroidView(
             factory = { context -> field.create(context, placeholder) },

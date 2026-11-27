@@ -33,6 +33,9 @@ class PlayerSwitching @Inject constructor(
     private var episodesJob: Job? = null
     private var lastUsedJob: Job? = null
 
+    /** An episode switch (Next Episode, Auto-Play Next Episode or an Episodes pick) is still resolving. */
+    val inFlight: Boolean get() = switchJob?.isActive == true
+
     /** The last (target, stream) written as LAST USED, so a rebuffer's repeated `Ready` writes nothing. */
     private var recorded: Pair<PlaybackTarget, StreamSource>? = null
 
@@ -74,8 +77,10 @@ class PlayerSwitching @Inject constructor(
     }
 
     /**
-     * `Next Episode` ([auto] = false) or Auto-Play Next Episode ([auto] = true). Auto-next leaves the
-     * player when the show is finished or no stream is found; a manual press keeps the current episode.
+     * `Next Episode` ([auto] = false) or Auto-Play Next Episode ([auto] = true, only after `STATE_ENDED`).
+     * Both pick through [PlaybackStreamResolver.next] from the playing target, so its shuffle session carries
+     * on identically. Auto-next leaves the player when the show is finished or no stream is found; a manual
+     * press keeps the current episode.
      */
     fun playNextEpisode(vm: PlayerViewModel, auto: Boolean) {
         val media = vm._state.value.request as? PlaybackRequest.Media ?: return

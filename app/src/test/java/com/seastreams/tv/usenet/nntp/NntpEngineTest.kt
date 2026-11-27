@@ -144,6 +144,7 @@ class NntpEngineTest {
         val endpoint = primary.endpoint("P")
         warm.warm(endpoint, 1, local)
         assertEquals(1, warm.heldCount(endpoint))
+        assertTrue(warm.sweeperRunning)
         now.addAndGet(30_000)
         warm.sweep()
         assertEquals(1, primary.dateCommands.get())
@@ -151,6 +152,11 @@ class NntpEngineTest {
         now.addAndGet(30_000)
         warm.sweep()
         assertEquals(0, warm.heldCount(endpoint))
+        assertFalse(warm.sweeperRunning, "nothing left to keep alive: the sweeper thread ends")
+        warm.warm(endpoint, 1, local)
+        assertTrue(warm.sweeperRunning, "the next warm-up starts it again")
+        warm.retain(emptySet())
+        assertFalse(warm.sweeperRunning, "Clear Usenet settings / a removed provider stops it at once")
         warm.close()
     }
 

@@ -48,11 +48,4 @@ object RarVolumeNames {
         }
         return null
     }
-
-    /** `.rNN` index → extension (`1` → `r00`, `101` → `s00`): the inverse of [parse] for the old scheme. */
-    fun oldExtension(index: Int): String {
-        if (index == 0) return "rar"
-        val n = index - 1
-        return "${'r' + n / 100}${"%02d".format(n % 100)}"
-    }
 }

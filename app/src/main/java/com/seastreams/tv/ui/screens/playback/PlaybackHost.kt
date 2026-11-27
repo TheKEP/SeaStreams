@@ -45,6 +45,7 @@ import com.seastreams.tv.ui.screens.player.PlayerBackKeyGate
 import com.seastreams.tv.ui.screens.player.PlayerBackKeys
 import com.seastreams.tv.ui.screens.player.PlayerLoadingOverlay
 import com.seastreams.tv.ui.screens.player.PlayerScreen
+import com.seastreams.tv.ui.screens.player.PlayerViewModel
 import com.seastreams.tv.ui.theme.SelectKeys
 import com.seastreams.tv.ui.theme.SurfaceRaised
 import com.seastreams.tv.ui.theme.awaitNextFrame
@@ -102,7 +103,9 @@ fun PlaybackHost(viewModel: PlaybackViewModel, messages: TransientMessages, orig
         }
     }
     if (player != null) {
-        PlayerScreen(request = player, viewModel = activityViewModel(), onExit = viewModel::closePlayer)
+        val playerViewModel: PlayerViewModel = activityViewModel()
+        // In-player episode switches never reach this view model: the player's own request is what was playing last.
+        PlayerScreen(request = player, viewModel = playerViewModel, onExit = { viewModel.closePlayer(playerViewModel.state.value.request) })
     }
     if (loading != null && player == null) {
         StreamLookupLoading(loading, onCancel = viewModel::cancelLoading)

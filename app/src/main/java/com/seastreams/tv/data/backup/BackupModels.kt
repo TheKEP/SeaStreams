@@ -2,6 +2,7 @@ package com.seastreams.tv.data.backup
 
 import com.seastreams.tv.core.database.entity.LibrarySortOrder
 import com.seastreams.tv.core.datastore.StreamProcessingBackup
+import com.seastreams.tv.core.util.redacted
 import com.seastreams.tv.domain.usenet.UsenetPerformance
 import kotlinx.serialization.Serializable
 
@@ -37,7 +38,10 @@ data class AppBackup(
     val usenet: UsenetBackup = UsenetBackup(),
     val debrid: DebridBackup = DebridBackup(),
     val profiles: List<ProfileBackupEntry>,
-)
+) {
+    override fun toString(): String =
+        "AppBackup(v$version, $scope, credentials=$includesCredentials, tmdbApiKey=${redacted(tmdbApiKey)}, profiles=${profiles.size})"
+}
 
 @Serializable
 data class UsenetBackup(
@@ -64,7 +68,9 @@ data class NntpProviderBackup(
     val isBackup: Boolean = false,
     val enabled: Boolean = true,
     val sortOrder: Int = 0,
-)
+) {
+    override fun toString(): String = "NntpProviderBackup($name, $host:$port, tls=$tls, password=${redacted(password)})"
+}
 
 @Serializable
 data class IndexerBackup(
@@ -76,7 +82,9 @@ data class IndexerBackup(
     val backupOnly: Boolean = false,
     val enabled: Boolean = true,
     val sortOrder: Int = 0,
-)
+) {
+    override fun toString(): String = "IndexerBackup($name, $baseUrl, apiKey=${redacted(apiKey)})"
+}
 
 @Serializable
 data class DebridBackup(
@@ -98,7 +106,10 @@ data class DebridProviderBackup(
     val clientId: String? = null,
     val clientSecret: String? = null,
     val expiresAtMillis: Long? = null,
-)
+) {
+    override fun toString(): String = "DebridProviderBackup($providerType, $name, $authMethod, credential=${redacted(credential)}, " +
+        "refreshToken=${redacted(refreshToken)}, clientId=${redacted(clientId)}, clientSecret=${redacted(clientSecret)})"
+}
 
 /** One profile: its fields, General Settings, addon list and stream processing. */
 @Serializable

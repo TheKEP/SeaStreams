@@ -14,9 +14,6 @@ typealias DebridSearchTarget = UsenetSearchTarget
 /** A library item that may hold the title, and how strongly its name says so. */
 data class RankedItem(val item: DebridItem, val score: Int, val season: Int?)
 
-/** One playable file of the title, found in [item]. */
-data class DebridMatch(val item: DebridItem, val file: DebridFile, val score: Int)
-
 /**
  * Matches library items and their files against the movie or episode being resolved (PRD §14 *Matching*), pure.
  * Every folder level of an item's name is read with [ReleaseParser]:

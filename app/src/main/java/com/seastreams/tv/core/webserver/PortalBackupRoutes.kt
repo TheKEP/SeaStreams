@@ -4,7 +4,6 @@ import com.seastreams.tv.data.UserFacingException
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
-import io.ktor.server.request.receiveText
 import io.ktor.server.response.header
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
@@ -39,8 +38,7 @@ internal fun Route.backupRoutes(controller: PortalBackupController) {
     post("/backup/restore") {
         call.guardedJson(serializer<BackupRestoreResponse>(), MAX_BACKUP_CHARS) {
             val profileId = call.request.queryParameters["profileId"]?.toLongOrNull()
-            val body = call.receiveText()
-            if (body.length > MAX_BACKUP_CHARS) throw UserFacingException("That file is too large to be a seastreams backup")
+            val body = call.receiveBoundedText(MAX_BACKUP_CHARS, "That file is too large to be a seastreams backup")
             controller.restore(profileId, body)
         }
     }

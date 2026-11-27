@@ -1,7 +1,6 @@
 package com.seastreams.tv.player
 
 import android.util.Log
-import androidx.media3.common.MimeTypes
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.Renderer
@@ -20,17 +19,6 @@ import androidx.media3.exoplayer.Renderer
 object AudioRendererPolicy {
 
     const val EXTENSION_MODE: Int = DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
-
-    /** Codecs that need FFmpeg when they can be neither bitstreamed nor hardware-decoded. */
-    val SOFTWARE_FALLBACK_MIMES: Set<String> = setOf(
-        MimeTypes.AUDIO_AC3,
-        MimeTypes.AUDIO_E_AC3,
-        MimeTypes.AUDIO_E_AC3_JOC,
-        MimeTypes.AUDIO_TRUEHD,
-        MimeTypes.AUDIO_DTS,
-        MimeTypes.AUDIO_DTS_HD,
-        MimeTypes.AUDIO_DTS_EXPRESS,
-    )
 
     /** Downmix in-app only when the connected output reports at most two PCM channels. */
     fun downmixToStereo(deviceMaxPcmChannels: Int): Boolean = deviceMaxPcmChannels in 1..STEREO

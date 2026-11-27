@@ -2,39 +2,24 @@ package com.seastreams.tv.domain.playback
 
 import com.seastreams.tv.domain.model.PlaybackRequest
 
-/** How a built-in playback stopped. */
-enum class PlayerStop {
-    /** ExoPlayer reached `STATE_ENDED`. */
-    ENDED,
-
-    /** The user pressed `Back` with the HUD hidden. */
-    USER_EXIT,
-}
-
 /**
  * Auto-Play Next Episode (PRD §9): only TV episodes advance, only when the setting is on, and only
- * when the episode counts as finished (`>= 90%`, `STATE_ENDED`, or an external player's
- * `end_by == "playback_completion"`). Trailers never advance; leaving early never does either.
+ * when playback **ended on its own** — built-in `STATE_ENDED`, or an external player's natural end
+ * ([PlaybackOutcome.endedNaturally]). `Back` in any player always just leaves, whatever the position:
+ * at `>= 90%` it is saved as watched, but it never advances. Trailers and movies never advance.
  */
 object AutoNextPolicy {
 
-    fun shouldPlayNext(isEpisode: Boolean, completed: Boolean, autoPlayNextEpisode: Boolean): Boolean =
-        isEpisode && completed && autoPlayNextEpisode
+    fun shouldPlayNext(isEpisode: Boolean, endedNaturally: Boolean, autoPlayNextEpisode: Boolean): Boolean =
+        isEpisode && endedNaturally && autoPlayNextEpisode
 
-    /** Built-in player: [positionMs]/[durationMs] at the moment playback stopped. */
-    fun afterBuiltInStop(
-        request: PlaybackRequest,
-        stop: PlayerStop,
-        positionMs: Long,
-        durationMs: Long,
-        autoPlayNextEpisode: Boolean,
-    ): Boolean {
+    /** Built-in player: ExoPlayer reached `STATE_ENDED` for [request]. */
+    fun afterBuiltInEnd(request: PlaybackRequest, autoPlayNextEpisode: Boolean): Boolean {
         val media = request as? PlaybackRequest.Media ?: return false
-        val completed = stop == PlayerStop.ENDED || isCompleted(positionMs, durationMs)
-        return shouldPlayNext(media.target.episode != null, completed, autoPlayNextEpisode)
+        return shouldPlayNext(media.target.episode != null, endedNaturally = true, autoPlayNextEpisode)
     }
 
     /** External player: the [PlaybackOutcome] parsed from its result extras. */
     fun afterExternalReturn(target: PlaybackTarget, outcome: PlaybackOutcome, autoPlayNextEpisode: Boolean): Boolean =
-        shouldPlayNext(target.episode != null, outcome.completed, autoPlayNextEpisode)
+        shouldPlayNext(target.episode != null, outcome.endedNaturally, autoPlayNextEpisode)
 }

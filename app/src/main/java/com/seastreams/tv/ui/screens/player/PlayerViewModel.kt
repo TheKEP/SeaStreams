@@ -9,9 +9,7 @@ import com.seastreams.tv.core.datastore.SettingsDataStore
 import com.seastreams.tv.core.util.MILLIS_PER_SECOND
 import com.seastreams.tv.domain.model.EpisodeRef
 import com.seastreams.tv.domain.model.PlaybackRequest
-import com.seastreams.tv.domain.playback.AutoNextPolicy
 import com.seastreams.tv.domain.playback.PlayerProgressTracker
-import com.seastreams.tv.domain.playback.PlayerStop
 import com.seastreams.tv.domain.playback.SubtitleSource
 import com.seastreams.tv.player.DisplayHdrSupport
 import com.seastreams.tv.player.PlayerEngineConfig
@@ -90,6 +88,9 @@ class PlayerViewModel @Inject constructor(
     private var userExitPending = false
     internal val autoSync = AutoSyncSession()
 
+    /** Whose position ExoPlayer reports: progress is only ever saved for that request. */
+    internal val progressBinding = PlayerProgressBinding()
+
     /** The subtitle choice made for the playing title; `null` until one is made (reset per title). */
     internal var subtitleChoice: SubtitleChoice? = null
 
@@ -144,6 +145,7 @@ class PlayerViewModel @Inject constructor(
                 is PlaybackRequest.Trailer -> {
                     fallback.enabled = false
                     _state.update { it.copy(request = request, title = request.title) }
+                    progressBinding.bind(request)
                     runCatching { manager.playTrailer(request.stream) }.onFailure {
                         _messages.send("Trailer couldn't play")
                         exit()
@@ -156,6 +158,8 @@ class PlayerViewModel @Inject constructor(
     /** Plays [request] in the open player (first start, fallback, episode switch, auto-next). */
     internal fun startMedia(request: PlaybackRequest.Media) {
         val manager = _manager.value ?: return
+        // Until this request's stream is handed over, the player's position is still the previous episode's.
+        progressBinding.unbind()
         fallback.enabled = true
         autoSync.stop()
         autoSync.manualOverride = false
@@ -189,6 +193,8 @@ class PlayerViewModel @Inject constructor(
     internal fun playIndex(manager: SeaStreamsPlayerManager, index: Int, positionMs: Long) {
         val streams = _state.value.streams
         val stream = streams.getOrNull(index) ?: return
+        // Before any preflight: a late Ended/Failed from the stream being replaced is stale from here on.
+        manager.beginSource()
         if (_state.value.selectedSubtitle?.source == SubtitleSource.EMBEDDED) {
             _state.update { it.copy(selectedSubtitleId = null) }
             initialSubtitleDone = false
@@ -218,16 +224,8 @@ class PlayerViewModel @Inject constructor(
                 else -> fallback.onError(StreamFailureReason.fromPlayback(event.error))
             }
             PlayerEvent.TracksChanged -> refreshTracks(manager)
-            PlayerEvent.Ended -> onEnded(manager)
+            is PlayerEvent.Ended -> onEnded(manager, event.generation)
         }
-    }
-
-    private suspend fun onEnded(manager: SeaStreamsPlayerManager) {
-        val request = _state.value.request ?: return
-        val duration = manager.player.duration.knownOrZero()
-        progressTracker.saveFinished(request, duration)
-        val next = AutoNextPolicy.afterBuiltInStop(request, PlayerStop.ENDED, duration, duration, settings.player.autoPlayNextEpisode)
-        if (next) switching.playNextEpisode(this, auto = true) else exit()
     }
 
     // ---- HUD & transport ------------------------------------------------------------------------
@@ -247,7 +245,7 @@ class PlayerViewModel @Inject constructor(
 
     internal fun saveNow() {
         val manager = _manager.value ?: return
-        val request = _state.value.request ?: return
+        val request = progressBinding.savable(_state.value.request) ?: return
         val position = manager.player.currentPosition
         val duration = manager.player.duration.knownOrZero()
         viewModelScope.launch { progressTracker.save(request, position, duration) }
@@ -255,7 +253,7 @@ class PlayerViewModel @Inject constructor(
 
     // ---- Back & exit ------------------------------------------------------------------------------
 
-    /** `Back`: closes an open overlay, else hides the HUD, else leaves playback (auto-next when finished). */
+    /** `Back`: closes an open overlay, else hides the HUD, else leaves playback (never Auto-Play Next Episode). */
     fun back() {
         when (playerBackAction(_state.value)) {
             PlayerBackAction.CLOSE_PANEL -> closePanel()
@@ -265,11 +263,16 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    /**
+     * `Back` with the HUD hidden: saves progress (`>= 90%` counts as watched) and always leaves. It never
+     * starts Auto-Play Next Episode, and an episode switch still in flight is dropped by [exit]'s release.
+     */
     private fun userExit() {
-        // A second press while the exit's progress save runs must not save or auto-advance twice.
+        // A second press while the exit's progress save runs must not save twice.
         if (exiting || userExitPending) return
         val manager = _manager.value
-        val request = _state.value.request
+        // Only the request whose stream is loaded: right after an episode switch the position is the previous one's.
+        val request = progressBinding.savable(_state.value.request)
         if (manager == null || request == null) {
             exit()
             return
@@ -280,14 +283,10 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 progressTracker.save(request, position, duration)
-                if (AutoNextPolicy.afterBuiltInStop(request, PlayerStop.USER_EXIT, position, duration, settings.player.autoPlayNextEpisode)) {
-                    switching.playNextEpisode(this@PlayerViewModel, auto = true)
-                } else {
-                    exit()
-                }
             } finally {
                 userExitPending = false
             }
+            exit()
         }
     }
 
@@ -300,6 +299,8 @@ class PlayerViewModel @Inject constructor(
         exiting = true
         fallback.cancel()
         streamGate.cancel()
+        // An episode switch still resolving must not start (or save) anything after leaving.
+        switching.cancel()
         _state.update { it.copy(videoDetached = true) }
         _manager.value?.stop()
         _exits.trySend(Unit)
@@ -317,6 +318,7 @@ class PlayerViewModel @Inject constructor(
         sessionJob?.cancel()
         sessionJob = null
         switching.cancel()
+        progressBinding.unbind()
         streamGate.cancel()
         fallback.cancel()
         autoSync.clear()

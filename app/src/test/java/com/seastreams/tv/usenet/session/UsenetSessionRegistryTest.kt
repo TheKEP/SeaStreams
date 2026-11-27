@@ -35,14 +35,14 @@ class UsenetSessionRegistryTest {
 
     private val trimmed = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
-    private fun registry(idleMs: Long = 60_000, openDelay: Long = 0) = UsenetSessionRegistry(
+    private fun registry(idleMs: Long = 60_000, openDelay: Long = 0, maxSessions: Int = 4) = UsenetSessionRegistry(
         opener = { token ->
             opened.incrementAndGet()
             if (openDelay > 0) Thread.sleep(openDelay)
             UsenetSession(token, "Movie.mkv", ByteVolume("Movie.mkv", payload), emptyList(), idleMs, trim = { trimmed += token })
         },
         clock = { now },
-        maxSessions = 4,
+        maxSessions = maxSessions,
         reapPeriodMs = 0,
     )
 
@@ -75,6 +75,24 @@ class UsenetSessionRegistryTest {
         assertEquals(4, sessions.openCount())
         assertTrue(first[1].closed, "token 2 was the least recently used")
         assertFalse(first[0].closed)
+    }
+
+    @Test
+    fun `a reader of a session evicted while busy releases its own count, never the reopened session's`() {
+        val sessions = registry(idleMs = 1_000, maxSessions = 1)
+        val evicted = sessions.acquire(token(1))
+        sessions.acquire(token(2)) // over the limit with both busy: token 1 is closed under its reader
+        assertTrue(evicted.closed)
+        val reopened = sessions.acquire(token(1))
+        assertFalse(reopened === evicted)
+        sessions.release(evicted.token) // the evicted reader finishes; the reopened session is still being read
+        now += 1_000
+        sessions.reap()
+        assertFalse(reopened.closed, "the reopened session still has its reader")
+        sessions.release(reopened.token)
+        now += 1_000
+        sessions.reap()
+        assertTrue(reopened.closed)
     }
 
     @Test

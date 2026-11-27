@@ -32,7 +32,4 @@ class CircuitBreaker(
 
     @Synchronized
     fun isOpen(): Boolean = openUntil > clock()
-
-    @Synchronized
-    fun remainingMs(): Long = (openUntil - clock()).coerceAtLeast(0)
 }

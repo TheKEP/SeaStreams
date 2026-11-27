@@ -69,6 +69,8 @@ class PlayerStreamGate @Inject constructor(private val preflight: StreamPrefligh
 internal fun PlayerViewModel.handOff(manager: SeaStreamsPlayerManager, index: Int, positionMs: Long) {
     val streams = _state.value.streams
     manager.playStream(streams.getOrNull(index) ?: return, positionMs)
+    // From here the player's position is this request's (see PlayerProgressBinding).
+    progressBinding.bind(_state.value.request)
     fallback.onStreamStarted(index, streams.size)
 }
 

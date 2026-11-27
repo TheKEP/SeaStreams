@@ -10,18 +10,20 @@ import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.contentType
 import io.ktor.server.request.host
 import io.ktor.server.request.path
-import io.ktor.server.request.receiveText
+import io.ktor.server.request.receiveChannel
 import io.ktor.server.response.header
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
+import io.ktor.utils.io.readAvailable
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
+import java.io.ByteArrayOutputStream
 
 internal val portalJson = Json {
     ignoreUnknownKeys = true
@@ -106,14 +108,33 @@ internal suspend fun <T> ApplicationCall.mutateWithBody(deserializer: KSerialize
 
 /** Reads and decodes a JSON body of at most [MAX_BODY_CHARS]; a bad body throws a [UserFacingException]. */
 internal suspend fun <T> ApplicationCall.receiveJson(deserializer: KSerializer<T>): T {
-    val body = receiveText()
-    if (body.length > MAX_BODY_CHARS) throw UserFacingException("Request too large")
+    val body = receiveBoundedText(MAX_BODY_CHARS)
     return try {
         portalJson.decodeFromString(deserializer, body)
     } catch (e: SerializationException) {
         throw UserFacingException("Malformed request")
     }
 }
+
+/**
+ * The request body as UTF-8 text, read in slices and refused with [UserFacingException]([tooLarge]) as soon as it passes
+ * [maxBytes]. The cap holds for a chunked upload too, which declares no `Content-Length` for [acceptsJsonPost] to check,
+ * so no body is ever buffered whole before its size is known.
+ */
+internal suspend fun ApplicationCall.receiveBoundedText(maxBytes: Int, tooLarge: String = "Request too large"): String {
+    val channel = receiveChannel()
+    val body = ByteArrayOutputStream()
+    val slice = ByteArray(BODY_SLICE_BYTES)
+    while (true) {
+        val read = channel.readAvailable(slice, 0, slice.size)
+        if (read < 0) break
+        if (body.size().toLong() + read > maxBytes) throw UserFacingException(tooLarge)
+        body.write(slice, 0, read)
+    }
+    return body.toString(Charsets.UTF_8.name())
+}
+
+private const val BODY_SLICE_BYTES = 8 * 1024
 
 /**
  * The trusted-host, JSON content-type and declared-size checks every JSON POST passes; when one fails it answers the

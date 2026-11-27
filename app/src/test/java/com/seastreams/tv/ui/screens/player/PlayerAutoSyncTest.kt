@@ -45,7 +45,7 @@ class PlayerAutoSyncTest {
         assertEquals(1_300L, playing.withDetectedOffset(1_340).subtitleOffsetMs)
         assertEquals(-60_000L, playing.withDetectedOffset(-75_000).subtitleOffsetMs)
         val shown = playing.withDetectedOffset(1_300).copy(subtitleSyncStatus = locked)
-        assertTrue(shown.subtitleOffsetAuto)
+        assertTrue(shown.subtitleSyncStatus is AutoSyncStatus.Locked)
         assertEquals("Auto", shown.subtitleSyncStatus.hudCaption())
     }
 
@@ -80,14 +80,14 @@ class PlayerAutoSyncTest {
         val nudged = playing.withDetectedOffset(1_300).copy(subtitleSyncStatus = locked).withManualStep(+1)
         assertEquals(1_400L, nudged.subtitleOffsetMs)
         assertEquals(AutoSyncStatus.Manual, nudged.subtitleSyncStatus)
-        assertFalse(nudged.subtitleOffsetAuto)
+        assertFalse(nudged.subtitleSyncStatus is AutoSyncStatus.Locked)
         assertEquals(1_300L, nudged.withManualStep(-1).subtitleOffsetMs)
     }
 
     @Test
     fun `with auto-sync off the control starts at 0_0s and steps manually`() {
         assertEquals(0L, playing.subtitleOffsetMs)
-        assertFalse(playing.subtitleOffsetAuto)
+        assertFalse(playing.subtitleSyncStatus is AutoSyncStatus.Locked)
         assertEquals(-100L, playing.withManualStep(-1).subtitleOffsetMs)
         assertEquals(60_000L, playing.copy(subtitleOffsetMs = 60_000).withManualStep(+1).subtitleOffsetMs)
     }

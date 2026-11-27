@@ -2,6 +2,7 @@ package com.seastreams.tv.data.setup
 
 import com.seastreams.tv.BuildConfig
 import com.seastreams.tv.core.datastore.SettingsDataStore
+import com.seastreams.tv.core.util.redacted
 import com.seastreams.tv.data.profile.ProfileDraft
 import com.seastreams.tv.data.profile.ProfileRepository
 import dagger.Module
@@ -13,7 +14,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /** Whether to seed a developer profile, and the TMDB key (from `local.properties`) to seed it with. */
-data class DebugSeedConfig(val enabled: Boolean, val tmdbApiKey: String)
+data class DebugSeedConfig(val enabled: Boolean, val tmdbApiKey: String) {
+    override fun toString(): String = "DebugSeedConfig(enabled=$enabled, tmdbApiKey=${redacted(tmdbApiKey)})"
+}
 
 @Module
 @InstallIn(SingletonComponent::class)

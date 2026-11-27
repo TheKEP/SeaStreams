@@ -1,5 +1,6 @@
 package com.seastreams.tv.data.usenet
 
+import com.seastreams.tv.core.util.redacted
 import com.seastreams.tv.data.UserFacingException
 import java.net.URI
 import java.net.URISyntaxException
@@ -49,7 +50,9 @@ data class ProviderDraft(
     val priority: Int = 0,
     val isBackup: Boolean = false,
     val enabled: Boolean = true,
-)
+) {
+    override fun toString(): String = "ProviderDraft($name, $host:$port, tls=$tls, password=${redacted(password)})"
+}
 
 /** Fields of an indexer being added or edited. A `null` or blank [apiKey] on edit keeps the stored one. */
 data class IndexerDraft(
@@ -60,7 +63,9 @@ data class IndexerDraft(
     val priority: Int = 0,
     val backupOnly: Boolean = false,
     val enabled: Boolean = true,
-)
+) {
+    override fun toString(): String = "IndexerDraft($name, $baseUrl, apiKey=${redacted(apiKey)})"
+}
 
 const val DEFAULT_MAX_CONNECTIONS = 20
 const val DEFAULT_PIPELINE_DEPTH = 2

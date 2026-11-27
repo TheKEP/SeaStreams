@@ -106,7 +106,7 @@ class PortalStreamController @Inject constructor(
             sortingEnabled = settings.sortingEnabled,
             formattingEnabled = settings.formattingEnabled,
             resolutions = ReleaseRegexTables.RESOLUTION_NAMES,
-            attributes = FilterAttribute.entries.map { StreamAttributeDto(it.name, it.label, it.options, attributeField(it)) },
+            attributes = FilterAttribute.entries.map { StreamAttributeDto(it.name, it.label, it.options, it.field) },
             sortKeys = SortKey.entries.map { StreamOptionDto(it.name, it.label, it.description) },
             formatters = FormatterId.entries.map { StreamOptionDto(it.name, it.label) },
             presets = FormatterId.entries.mapNotNull { id ->
@@ -172,21 +172,6 @@ class PortalStreamController @Inject constructor(
         val templates = FormatterTemplates(request.name.take(StreamProcessingStore.MAX_TEMPLATE_CHARS), request.description.take(StreamProcessingStore.MAX_TEMPLATE_CHARS))
         val display = FormatterPreview.render(templates, clock.millis(), request.filename?.take(MAX_FILENAME_CHARS))
         return FormatPreviewResponse(display.name, display.description)
-    }
-
-    /** The [StreamFilters] property holding [attribute], as the portal script reads and writes it. */
-    private fun attributeField(attribute: FilterAttribute): String = when (attribute) {
-        FilterAttribute.STREAM_TYPE -> "streamTypes"
-        FilterAttribute.RESOLUTION -> "resolutions"
-        FilterAttribute.QUALITY -> "qualities"
-        FilterAttribute.ENCODE -> "encodes"
-        FilterAttribute.VISUAL_TAG -> "visualTags"
-        FilterAttribute.AUDIO_TAG -> "audioTags"
-        FilterAttribute.AUDIO_CHANNEL -> "audioChannels"
-        FilterAttribute.LANGUAGE -> "languages"
-        FilterAttribute.SUBTITLE -> "subtitles"
-        FilterAttribute.RELEASE_GROUP -> "releaseGroups"
-        FilterAttribute.KEYWORD -> "keywords"
     }
 
     private fun requireChange(rules: Any?, enabled: Boolean?) {

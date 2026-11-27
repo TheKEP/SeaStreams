@@ -1,11 +1,14 @@
 package com.seastreams.tv.core.webserver
 
+import com.seastreams.tv.core.util.redacted
 import kotlinx.serialization.Serializable
 
 // Request bodies posted by the portal page (JSON). Ratings travel as their labels, e.g. "PG-13".
 
 @Serializable
-data class TmdbKeyRequest(val apiKey: String)
+data class TmdbKeyRequest(val apiKey: String) {
+    override fun toString(): String = "TmdbKeyRequest(apiKey=${redacted(apiKey)})"
+}
 
 @Serializable
 data class ProfileRequest(

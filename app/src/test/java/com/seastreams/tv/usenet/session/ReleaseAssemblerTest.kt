@@ -2,8 +2,8 @@ package com.seastreams.tv.usenet.session
 
 import com.seastreams.tv.testutil.FakeNntpServer
 import com.seastreams.tv.testutil.RarTestBuilder
+import com.seastreams.tv.testutil.oldRarExtension
 import com.seastreams.tv.usenet.archive.ArchiveRefusedException
-import com.seastreams.tv.usenet.archive.RarVolumeNames
 import com.seastreams.tv.usenet.archive.readAll
 import com.seastreams.tv.usenet.nntp.DefaultSocketOpener
 import com.seastreams.tv.usenet.nntp.NntpEngine
@@ -85,7 +85,7 @@ class ReleaseAssemblerTest {
     fun `an old-style RAR4 set rolls over from r99 to s00`() {
         val small = Random(5).nextBytes(103 * 100)
         val volumes = RarTestBuilder.rar4("Show.S01E01.mkv", small, 100).mapIndexed { i, bytes ->
-            posted("show." + RarVolumeNames.oldExtension(i), bytes)
+            posted("show." + oldRarExtension(i), bytes)
         }
         for (lazy in listOf(true, false)) {
             val media = assembler(lazy = lazy).assemble(volumes)

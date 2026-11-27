@@ -6,8 +6,11 @@ import com.seastreams.tv.domain.model.MediaItem
 import com.seastreams.tv.domain.model.MediaType
 import com.seastreams.tv.domain.model.TitleDetails
 import com.seastreams.tv.domain.playback.EpisodeNavigator
+import com.seastreams.tv.domain.playback.PlaybackTarget
 import com.seastreams.tv.domain.playback.ProgressPoint
+import com.seastreams.tv.domain.playback.ShuffleMode
 import com.seastreams.tv.ui.components.MetadataFormat
+import kotlin.random.Random
 
 sealed interface DetailsContent {
     data object Loading : DetailsContent
@@ -32,16 +35,42 @@ data class DetailsUiState(
     val progress: List<ProgressPoint> = emptyList(),
     /** `true` once the progress collector has emitted for this title (even an empty list). */
     val progressLoaded: Boolean = false,
+    /**
+     * The last shuffled episode played from this app session (`PlaybackViewModel.shuffleResume`), any title or
+     * profile: only [shuffleContinuation] decides whether it applies here.
+     */
+    val shuffleResume: PlaybackTarget? = null,
 ) {
     val details: TitleDetails? get() = (content as? DetailsContent.Loaded)?.details
 
     val isShow: Boolean get() = media?.mediaType == MediaType.TV
+
+    /**
+     * What the primary button plays while a `Shuffle` / `Shuffle Season` session of this show is active (PRD §6):
+     * the last shuffled episode while it is unfinished (even one left at 0 s, which saved no progress), else the
+     * session's next pick — seeded by the session, so the label and what `Play` starts always agree. The session
+     * travels on the returned target. `null` (sequential next-up) without a session, or once its pool is used up.
+     */
+    val shuffleContinuation: PlaybackTarget?
+        get() {
+            val resume = shuffleResume ?: return null
+            val details = details ?: return null
+            val episode = resume.episode ?: return null
+            if (!isShow || resume.shuffle.mode == ShuffleMode.None) return null
+            if (resume.profileId != profileId || resume.details.ref != details.ref) return null
+            val current = resume.copy(details = details)
+            if (progress.firstOrNull { it.episode == episode }?.completed != true) return current
+            val random = Random(resume.shuffle.played.hashCode() * SEED_PRIME + episode.hashCode())
+            val pick = EpisodeNavigator.next(episode, details.seasons, details.lastAired, resume.shuffle, random) ?: return null
+            return current.copy(episode = pick.episode, episodeTitle = null, episodeRuntimeMinutes = null, shuffle = pick.session)
+        }
 
     /** The episode `Play` starts for a show; `null` for movies or before seasons are known. */
     val nextUpEpisode: EpisodeRef?
         get() {
             val details = details ?: return null
             if (!isShow) return null
+            shuffleContinuation?.episode?.let { return it }
             return EpisodeNavigator.nextUp(progress, details.seasons, details.lastAired)
         }
 
@@ -85,6 +114,8 @@ data class DetailsUiState(
 
     val libraryLabel: String get() = libraryButtonLabel(inLibrary)
 }
+
+private const val SEED_PRIME = 31
 
 /** PRD §6: saved titles offer removal, everything else offers adding. */
 fun libraryButtonLabel(inLibrary: Boolean): String = if (inLibrary) "Remove from library" else "Add to library"

@@ -64,11 +64,6 @@ class AddonRepository @Inject constructor(
         }
     }
 
-    /** Seeds [BuiltInAddons] for [profileId]. Already-present URLs are left untouched. */
-    suspend fun seedDefaults(profileId: Long) = orderLock.withLock {
-        addonDao.insertIfAbsent(BuiltInAddons.defaults(profileId, clock.millis()))
-    }
-
     /** Re-adds the protected TMDB provider (at the bottom) to any profile that lacks it. */
     suspend fun ensureBuiltIns() = orderLock.withLock {
         addonDao.profileIdsMissing(BuiltInAddons.TMDB_URL).forEach { profileId ->

@@ -155,7 +155,7 @@ object TemplateFields {
                 "season" to release.seasons.firstOrNull()?.toLong(),
                 "episode" to release.episodes.firstOrNull()?.toLong(),
             ),
-            "user" to FilterAttribute.entries.filter { it != FilterAttribute.KEYWORD }.associate { userKey(it) to userValues(f, it) } +
+            "user" to FilterAttribute.entries.filter { it != FilterAttribute.KEYWORD }.associate { it.field to userValues(f, it) } +
                 ("keywords" to userValues(f, FilterAttribute.KEYWORD)),
         )
     }
@@ -198,20 +198,6 @@ object TemplateFields {
         ContentKind.MOVIE -> "movie"
         ContentKind.SERIES -> "series"
         ContentKind.ANIME -> "anime.series"
-    }
-
-    private fun userKey(attribute: FilterAttribute): String = when (attribute) {
-        FilterAttribute.STREAM_TYPE -> "streamTypes"
-        FilterAttribute.RESOLUTION -> "resolutions"
-        FilterAttribute.QUALITY -> "qualities"
-        FilterAttribute.ENCODE -> "encodes"
-        FilterAttribute.VISUAL_TAG -> "visualTags"
-        FilterAttribute.AUDIO_TAG -> "audioTags"
-        FilterAttribute.AUDIO_CHANNEL -> "audioChannels"
-        FilterAttribute.LANGUAGE -> "languages"
-        FilterAttribute.SUBTITLE -> "subtitles"
-        FilterAttribute.RELEASE_GROUP -> "releaseGroups"
-        FilterAttribute.KEYWORD -> "keywords"
     }
 
     private const val APP_NAME = "seastreams"

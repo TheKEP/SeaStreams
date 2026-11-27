@@ -1,9 +1,5 @@
 package com.seastreams.tv.usenet.nntp
 
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicReference
-
 /**
  * Deterministic HIGH/LOW share: when both classes wait, `1 - highShare` of picks go to LOW (rolling
  * accumulator), so background work progresses without starving playback. `highShare = 1` = strict priority.
@@ -74,27 +70,6 @@ class PrioritySemaphore(val capacity: Int, highShare: Double = 1.0) {
         }
         if (granted) onGrant(Permit(this))
         return Cancellable { synchronized(this) { high.remove(waiter) || low.remove(waiter) } }
-    }
-
-    /** Blocks for a permit; an interrupt is reported as [java.io.InterruptedIOException]. */
-    fun acquireBlocking(priority: FetchPriority): Permit {
-        val latch = CountDownLatch(1)
-        val permit = AtomicReference<Permit?>()
-        val abandoned = AtomicBoolean(false)
-        val ticket = acquire(priority) {
-            permit.set(it)
-            if (abandoned.get()) permit.getAndSet(null)?.release()
-            latch.countDown()
-        }
-        try {
-            latch.await()
-        } catch (e: InterruptedException) {
-            abandoned.set(true)
-            ticket.cancel()
-            permit.getAndSet(null)?.release()
-            throw interruptedIo(e)
-        }
-        return checkNotNull(permit.get())
     }
 
     fun throttleTo(permits: Int) {

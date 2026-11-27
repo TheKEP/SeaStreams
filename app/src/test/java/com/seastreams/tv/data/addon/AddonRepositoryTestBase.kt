@@ -71,6 +71,9 @@ abstract class AddonRepositoryTestBase {
         repository = AddonRepository(dao, profileDao, StremioAddonClient(http), clock, usenetAddonState(usenetConfigured), debridAddonState(debridListed))
     }
 
+    /** Seeds [profileId]'s built-in defaults the way `ProfileRepository.create` does; present URLs are left untouched. */
+    protected suspend fun seedDefaults(profileId: Long) = dao.insertIfAbsent(BuiltInAddons.defaults(profileId, clock.millis()))
+
     @AfterEach
     fun tearDownRepository() {
         http.close()

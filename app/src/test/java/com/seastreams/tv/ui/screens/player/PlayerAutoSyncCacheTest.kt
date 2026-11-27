@@ -76,7 +76,7 @@ class PlayerAutoSyncCacheTest {
         assertEquals(1_600L, restored.subtitleOffsetMs, "the user's offset, not the pre-nudge 1.3 s")
         assertEquals(SyncRate.PAL_TO_FILM, restored.subtitleRate)
         assertEquals(AutoSyncStatus.Manual, restored.subtitleSyncStatus)
-        assertFalse(restored.subtitleOffsetAuto)
+        assertFalse(restored.subtitleSyncStatus is AutoSyncStatus.Locked)
         assertEquals("+1.6s · Manual · 25→23.976 fps", syncInfoText(restored.subtitleOffsetMs, restored.subtitleSyncStatus, restored.subtitleRate))
     }
 

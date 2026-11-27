@@ -6,10 +6,9 @@ import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
 import com.seastreams.tv.core.datastore.DolbyVisionPlayback
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
-import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
@@ -37,13 +36,13 @@ class DolbyVisionCompatTest {
     @ParameterizedTest
     @ValueSource(strings = ["dvhe.07.06", "dvh1.07.06", "DVHE.07.09", "dvhe.07.06,hev1.2.4.L153"])
     fun `profile 7 codecs are recognised`(codecs: String) {
-        assertTrue(DolbyVisionCompat.isProfile7(MimeTypes.VIDEO_DOLBY_VISION, codecs))
+        assertEquals(DolbyVisionPolicy.PROFILE_7, DolbyVisionCompat.profileOf(MimeTypes.VIDEO_DOLBY_VISION, codecs))
     }
 
     @ParameterizedTest
     @ValueSource(strings = ["dvhe.08.06", "dvh1.05.06", "dvav.09.05", "hev1.2.4.L153.B0", ""])
     fun `other profiles and plain HEVC are not profile 7`(codecs: String) {
-        assertFalse(DolbyVisionCompat.isProfile7(MimeTypes.VIDEO_DOLBY_VISION, codecs))
+        assertNotEquals(DolbyVisionPolicy.PROFILE_7, DolbyVisionCompat.profileOf(MimeTypes.VIDEO_DOLBY_VISION, codecs))
     }
 
     @ParameterizedTest

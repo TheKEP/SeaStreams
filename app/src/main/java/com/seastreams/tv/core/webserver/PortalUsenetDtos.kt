@@ -1,5 +1,6 @@
 package com.seastreams.tv.core.webserver
 
+import com.seastreams.tv.core.util.redacted
 import com.seastreams.tv.domain.usenet.UsenetPerformance
 import kotlinx.serialization.Serializable
 
@@ -21,7 +22,9 @@ data class ProviderRequest(
     val priority: Int = 0,
     val isBackup: Boolean = false,
     val enabled: Boolean = true,
-)
+) {
+    override fun toString(): String = "ProviderRequest($id, $name, $host:$port, tls=$tls, password=${redacted(password)})"
+}
 
 /** [id] = `null` adds an indexer. */
 @Serializable
@@ -34,7 +37,9 @@ data class IndexerRequest(
     val priority: Int = 0,
     val backupOnly: Boolean = false,
     val enabled: Boolean = true,
-)
+) {
+    override fun toString(): String = "IndexerRequest($id, $name, $baseUrl, apiKey=${redacted(apiKey)})"
+}
 
 @Serializable
 data class SourceIdRequest(val id: Long)

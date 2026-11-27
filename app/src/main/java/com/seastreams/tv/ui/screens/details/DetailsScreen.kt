@@ -67,6 +67,10 @@ fun DetailsScreen(
     onBack: () -> Unit,
 ) {
     LaunchedEffect(profileId, item.ref) { viewModel.open(profileId, item) }
+    // Play / Resume continue an active Shuffle / Shuffle Season of this show while its Details page stays open (PRD §6).
+    val shuffleResume by playback.shuffleResume.target.collectAsState()
+    LaunchedEffect(shuffleResume) { viewModel.setShuffleResume(shuffleResume) }
+    DisposableEffect(profileId, item.ref) { onDispose { playback.shuffleResume.forget(profileId, item.ref) } }
     val latest by viewModel.state.collectAsState()
     // Ignore a previous title's state for the frame before open() resets it.
     val state = if (latest.media?.ref == item.ref && latest.profileId == profileId) latest else DetailsUiState(profileId, item)

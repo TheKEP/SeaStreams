@@ -72,7 +72,8 @@ class DetailsViewModel @Inject constructor(
 
     private fun restart(profileId: Long, item: MediaItem) {
         loadJob?.cancel()
-        _state.value = DetailsUiState(profileId = profileId, media = item)
+        // The remembered shuffle is session-wide; shuffleContinuation applies it only to its own title.
+        _state.value = DetailsUiState(profileId = profileId, media = item, shuffleResume = _state.value.shuffleResume)
         loadJob = viewModelScope.launch { load(profileId, item) }
     }
 
@@ -115,7 +116,8 @@ class DetailsViewModel @Inject constructor(
     /**
      * What `Play` starts ([episode] overrides the next-up episode, e.g. for Shuffle), once the title
      * and its IMDb id are loaded. [shuffle] starts a shuffle session (`Shuffle` passes [ShuffleMode.Show])
-     * that Next Episode / Auto-Play Next Episode follow; `Play`/`Resume` stay sequential. `null` when
+     * that Next Episode / Auto-Play Next Episode follow. `Play`/`Resume` are sequential, except that while a
+     * shuffle of this show is active they continue it ([DetailsUiState.shuffleContinuation]). `null` when
      * the title couldn't be loaded. Waits for the title, its IMDb id and its saved progress.
      */
     suspend fun awaitPlayTarget(episode: EpisodeRef? = null, shuffle: ShuffleMode = ShuffleMode.None): PlaybackTarget? {
@@ -126,10 +128,15 @@ class DetailsViewModel @Inject constructor(
         }
         val details = ready.details ?: return null
         val profileId = ready.profileId ?: return null
+        // Play / Resume during an active shuffle of this show continues it, session and all (PRD §6).
+        if (episode == null && shuffle == ShuffleMode.None) ready.shuffleContinuation?.let { return it.copy(imdbId = ready.imdbId ?: it.imdbId) }
         val chosen = if (ready.isShow) episode ?: ready.nextUpEpisode ?: return null else null
         val session = chosen?.let { ShuffleSession.start(shuffle, it) } ?: ShuffleSession.Sequential
         return PlaybackTarget(profileId, details, ready.imdbId, chosen, shuffle = session)
     }
+
+    /** The last shuffled episode played (`PlaybackViewModel.shuffleResume`); `null` once that shuffle ended. */
+    fun setShuffleResume(target: PlaybackTarget?) = _state.update { it.copy(shuffleResume = target) }
 
     /** A random aired episode for `Shuffle`; `null` for movies or before seasons are known. */
     fun shuffleEpisode(): EpisodeRef? {

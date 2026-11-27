@@ -180,19 +180,22 @@ data class StreamFilters(
     }
 }
 
-/** The list-valued filter groups; [options] is `null` for free text (typed in the Web Portal). */
-enum class FilterAttribute(val label: String, val options: List<String>?) {
-    STREAM_TYPE("Stream type", StreamKindNames),
-    RESOLUTION("Resolution", ReleaseRegexTables.RESOLUTION_NAMES),
-    QUALITY("Quality", ReleaseRegexTables.QUALITY_NAMES),
-    ENCODE("Encode", ReleaseRegexTables.ENCODE_NAMES),
-    VISUAL_TAG("Visual tag", ReleaseRegexTables.VISUAL_TAG_NAMES),
-    AUDIO_TAG("Audio tag", ReleaseRegexTables.AUDIO_TAG_NAMES),
-    AUDIO_CHANNEL("Audio channel", ReleaseRegexTables.AUDIO_CHANNEL_NAMES),
-    LANGUAGE("Language", ReleaseRegexTables.LANGUAGE_NAMES),
-    SUBTITLE("Subtitle", ReleaseRegexTables.LANGUAGE_NAMES),
-    RELEASE_GROUP("Release group", null),
-    KEYWORD("Keyword", null),
+/**
+ * The list-valued filter groups; [options] is `null` for free text (typed in the Web Portal). [field] is the
+ * [StreamFilters] property holding the group, the name the portal scripts and the formatter's `user` fields use.
+ */
+enum class FilterAttribute(val label: String, val options: List<String>?, val field: String) {
+    STREAM_TYPE("Stream type", StreamKindNames, "streamTypes"),
+    RESOLUTION("Resolution", ReleaseRegexTables.RESOLUTION_NAMES, "resolutions"),
+    QUALITY("Quality", ReleaseRegexTables.QUALITY_NAMES, "qualities"),
+    ENCODE("Encode", ReleaseRegexTables.ENCODE_NAMES, "encodes"),
+    VISUAL_TAG("Visual tag", ReleaseRegexTables.VISUAL_TAG_NAMES, "visualTags"),
+    AUDIO_TAG("Audio tag", ReleaseRegexTables.AUDIO_TAG_NAMES, "audioTags"),
+    AUDIO_CHANNEL("Audio channel", ReleaseRegexTables.AUDIO_CHANNEL_NAMES, "audioChannels"),
+    LANGUAGE("Language", ReleaseRegexTables.LANGUAGE_NAMES, "languages"),
+    SUBTITLE("Subtitle", ReleaseRegexTables.LANGUAGE_NAMES, "subtitles"),
+    RELEASE_GROUP("Release group", null, "releaseGroups"),
+    KEYWORD("Keyword", null, "keywords"),
 }
 
 private val StreamKindNames: List<String> get() = StreamKind.entries.map { it.label }

@@ -1,6 +1,5 @@
 package com.seastreams.tv.player
 
-import androidx.media3.common.MimeTypes
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.Renderer
@@ -52,15 +51,6 @@ class AudioRendererPolicyTest {
     fun `the NextLib FFmpeg audio renderer is on the classpath`() {
         val renderer = Class.forName("io.github.anilbeesetti.nextlib.media3ext.ffdecoder.FfmpegAudioRenderer")
         assertTrue(Renderer::class.java.isAssignableFrom(renderer))
-    }
-
-    @Test
-    fun `Dolby, TrueHD and DTS families have the software fallback`() {
-        listOf(
-            MimeTypes.AUDIO_AC3, MimeTypes.AUDIO_E_AC3, MimeTypes.AUDIO_E_AC3_JOC, MimeTypes.AUDIO_TRUEHD,
-            MimeTypes.AUDIO_DTS, MimeTypes.AUDIO_DTS_HD, MimeTypes.AUDIO_DTS_EXPRESS,
-        ).forEach { assertTrue(it in AudioRendererPolicy.SOFTWARE_FALLBACK_MIMES, it) }
-        assertFalse(MimeTypes.AUDIO_AAC in AudioRendererPolicy.SOFTWARE_FALLBACK_MIMES)
     }
 
     @Test

@@ -56,7 +56,7 @@ class NntpSchedulingTest {
     @Test
     fun `semaphore serves HIGH before LOW at the streaming share`() {
         val semaphore = PrioritySemaphore(capacity = 1, highShare = 0.8)
-        val held = semaphore.acquireBlocking(FetchPriority.HIGH)
+        val held = semaphore.grantNow(FetchPriority.HIGH)
         val order = ArrayList<FetchPriority>()
         val permits = ArrayList<Permit>()
         repeat(10) { semaphore.acquire(FetchPriority.LOW) { p -> order += FetchPriority.LOW; permits += p } }
@@ -72,7 +72,7 @@ class NntpSchedulingTest {
     @Test
     fun `strict priority with share 1, throttle and restore`() {
         val semaphore = PrioritySemaphore(capacity = 3, highShare = 1.0)
-        val a = semaphore.acquireBlocking(FetchPriority.LOW)
+        val a = semaphore.grantNow(FetchPriority.LOW)
         semaphore.throttleTo(1)
         val granted = ArrayList<String>()
         semaphore.acquire(FetchPriority.LOW) { granted += "low"; it.release() }
@@ -87,26 +87,16 @@ class NntpSchedulingTest {
     }
 
     @Test
-    fun `an interrupted acquire reports InterruptedIOException and leaks no permit`() {
+    fun `a waiting acquire that is cancelled is never granted and leaks no permit`() {
         val semaphore = PrioritySemaphore(capacity = 1)
-        val held = semaphore.acquireBlocking(FetchPriority.HIGH)
-        val error = AtomicReference<Throwable>()
-        val started = CountDownLatch(1)
-        val thread = Thread {
-            started.countDown()
-            try {
-                semaphore.acquireBlocking(FetchPriority.HIGH)
-            } catch (e: Throwable) {
-                error.set(e)
-            }
-        }
-        thread.start()
-        started.await()
-        while (semaphore.waiting == 0) Thread.sleep(1)
-        thread.interrupt()
-        thread.join(2_000)
-        assertTrue(error.get() is InterruptedIOException)
+        val held = semaphore.grantNow(FetchPriority.HIGH)
+        var granted = false
+        val ticket = semaphore.acquire(FetchPriority.HIGH) { granted = true; it.release() }
+        assertEquals(1, semaphore.waiting)
+        ticket.cancel()
+        assertEquals(0, semaphore.waiting)
         held.release()
+        assertFalse(granted)
         assertEquals(0, semaphore.inUse)
     }
 
@@ -194,4 +184,11 @@ class NntpSchedulingTest {
         val long = NntpStatus(502, "x".repeat(400)).describe()
         assertTrue(long.length < 170 && long.endsWith("…"))
     }
+}
+
+/** A permit granted at once (the semaphore must have one free). */
+private fun PrioritySemaphore.grantNow(priority: FetchPriority): Permit {
+    var granted: Permit? = null
+    acquire(priority) { granted = it }
+    return checkNotNull(granted) { "no permit was free" }
 }

@@ -10,6 +10,7 @@ import com.seastreams.tv.domain.model.MediaType
 import com.seastreams.tv.domain.model.SeasonInfo
 import com.seastreams.tv.domain.playback.PlaybackProgressRecorder
 import com.seastreams.tv.domain.playback.ProgressPoint
+import com.seastreams.tv.domain.playback.PlaybackTarget
 import com.seastreams.tv.domain.playback.ShuffleMode
 import com.seastreams.tv.domain.playback.ShuffleSession
 import com.seastreams.tv.testutil.FakeLibraryDao
@@ -263,6 +264,29 @@ class DetailsViewModelTest {
         val play = vm.awaitPlayTarget()
         assertEquals(EpisodeRef(1, 1), play?.episode)
         assertEquals(ShuffleSession.Sequential, play?.shuffle)
+    }
+
+    @Test
+    fun `Play continues a remembered shuffle of this show with its session, and survives a retry`() = runTest(UnconfinedTestDispatcher()) {
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
+        val show = testDetails(12, MediaType.TV, seasons = listOf(SeasonInfo(1, "Season 1", 4), SeasonInfo(2, "Season 2", 4)))
+        coEvery { titles.load(show.ref, profile.toAgeRestriction()) } returns show
+        coEvery { titles.imdbIdForDetails(show.ref) } returns "tt0000012"
+        val vm = viewModel()
+        vm.open(1, show.media)
+        val session = ShuffleSession(ShuffleMode.Show, listOf(EpisodeRef(1, 2), EpisodeRef(2, 3)))
+        vm.setShuffleResume(PlaybackTarget(1, show, imdbId = null, EpisodeRef(2, 3), shuffle = session))
+
+        val play = vm.awaitPlayTarget()
+        assertEquals(EpisodeRef(2, 3), play?.episode)
+        assertEquals(session, play?.shuffle)
+        assertEquals("tt0000012", play?.imdbId)
+
+        vm.retry()
+        assertEquals(EpisodeRef(2, 3), vm.awaitPlayTarget()?.episode)
+
+        val reshuffle = vm.awaitPlayTarget(EpisodeRef(1, 1), ShuffleMode.Show)
+        assertEquals(ShuffleSession(ShuffleMode.Show, listOf(EpisodeRef(1, 1))), reshuffle?.shuffle, "Shuffle still starts fresh")
     }
 
     @Test

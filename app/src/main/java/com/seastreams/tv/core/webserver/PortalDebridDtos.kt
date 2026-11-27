@@ -1,5 +1,6 @@
 package com.seastreams.tv.core.webserver
 
+import com.seastreams.tv.core.util.redacted
 import kotlinx.serialization.Serializable
 
 /** A service the portal can add (PRD §14). [deviceSignIn] is set only when its code sign-in is available. */
@@ -45,11 +46,15 @@ data class DebridProviderRequest(
     val kind: String,
     val apiKey: String? = null,
     val name: String? = null,
-)
+) {
+    override fun toString(): String = "DebridProviderRequest($id, $kind, apiKey=${redacted(apiKey)})"
+}
 
 /** `Test`: a typed [apiKey] (with [kind]) is tested as is; otherwise the saved account [id]. */
 @Serializable
-data class DebridTestRequest(val id: Long? = null, val kind: String? = null, val apiKey: String? = null)
+data class DebridTestRequest(val id: Long? = null, val kind: String? = null, val apiKey: String? = null) {
+    override fun toString(): String = "DebridTestRequest($id, $kind, apiKey=${redacted(apiKey)})"
+}
 
 @Serializable
 data class DebridAuthStartRequest(val kind: String)

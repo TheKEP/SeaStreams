@@ -24,31 +24,19 @@ class AutoNextPolicyTest {
 
     @Test
     fun `ExoPlayer - an episode that plays to the end advances`() {
-        assertTrue(AutoNextPolicy.afterBuiltInStop(media(episode), PlayerStop.ENDED, durationMs, durationMs, autoPlayNextEpisode = true))
-    }
-
-    @Test
-    fun `ExoPlayer - leaving at 90 percent or later counts as finished`() {
-        val atNinety = (durationMs * 0.9).toLong()
-        assertTrue(AutoNextPolicy.afterBuiltInStop(media(episode), PlayerStop.USER_EXIT, atNinety, durationMs, autoPlayNextEpisode = true))
-    }
-
-    @Test
-    fun `ExoPlayer - an early exit saves progress without advancing`() {
-        val early = (durationMs * 0.89).toLong()
-        assertFalse(AutoNextPolicy.afterBuiltInStop(media(episode), PlayerStop.USER_EXIT, early, durationMs, autoPlayNextEpisode = true))
+        assertTrue(AutoNextPolicy.afterBuiltInEnd(media(episode), autoPlayNextEpisode = true))
     }
 
     @Test
     fun `ExoPlayer - nothing advances with the setting off`() {
-        assertFalse(AutoNextPolicy.afterBuiltInStop(media(episode), PlayerStop.ENDED, durationMs, durationMs, autoPlayNextEpisode = false))
+        assertFalse(AutoNextPolicy.afterBuiltInEnd(media(episode), autoPlayNextEpisode = false))
     }
 
     @Test
     fun `ExoPlayer - movies and trailers never advance`() {
-        assertFalse(AutoNextPolicy.afterBuiltInStop(media(movie), PlayerStop.ENDED, durationMs, durationMs, autoPlayNextEpisode = true))
+        assertFalse(AutoNextPolicy.afterBuiltInEnd(media(movie), autoPlayNextEpisode = true))
         val trailer = PlaybackRequest.Trailer(2, "Trailer", TrailerStream(TrailerSource("https://v"), TrailerSource("https://a"), 1080))
-        assertFalse(AutoNextPolicy.afterBuiltInStop(trailer, PlayerStop.ENDED, durationMs, durationMs, autoPlayNextEpisode = true))
+        assertFalse(AutoNextPolicy.afterBuiltInEnd(trailer, autoPlayNextEpisode = true))
     }
 
     // ---- External players ------------------------------------------------------------------------
@@ -65,16 +53,33 @@ class AutoNextPolicyTest {
     }
 
     @Test
-    fun `external - a reported position at 90 percent advances`() {
+    fun `external - Back at 95 percent saves it as watched but never advances`() {
         val outcome = externalOutcome(mapOf("position" to (durationMs * 0.95).toInt(), "duration" to durationMs.toInt(), "end_by" to "user"))
-        assertTrue(AutoNextPolicy.afterExternalReturn(episode, outcome, autoPlayNextEpisode = true))
+        assertTrue(outcome.completed, "still watched")
+        assertFalse(AutoNextPolicy.afterExternalReturn(episode, outcome, autoPlayNextEpisode = true))
     }
 
     @Test
-    fun `external - elapsed runtime completion advances when the player sends no position`() {
+    fun `external - Back at the very last second with end_by user never advances`() {
+        val outcome = externalOutcome(mapOf("position" to durationMs.toInt(), "duration" to durationMs.toInt(), "end_by" to "user"))
+        assertFalse(AutoNextPolicy.afterExternalReturn(episode, outcome, autoPlayNextEpisode = true))
+    }
+
+    @Test
+    fun `external - VLC (no end_by) advances only when its position is at the very end`() {
+        val atEnd = externalOutcome(mapOf("extra_position" to durationMs - 400, "extra_duration" to durationMs))
+        assertTrue(AutoNextPolicy.afterExternalReturn(episode, atEnd, autoPlayNextEpisode = true))
+
+        val backAt95 = externalOutcome(mapOf("extra_position" to (durationMs * 0.95).toLong(), "extra_duration" to durationMs))
+        assertTrue(backAt95.completed, "still watched")
+        assertFalse(AutoNextPolicy.afterExternalReturn(episode, backAt95, autoPlayNextEpisode = true))
+    }
+
+    @Test
+    fun `external - an elapsed-time estimate marks it watched but can't tell Back from the end, so never advances`() {
         val outcome = externalOutcome(emptyMap(), returnedAt = durationMs)
         assertTrue(outcome.completed)
-        assertTrue(AutoNextPolicy.afterExternalReturn(episode, outcome, autoPlayNextEpisode = true))
+        assertFalse(AutoNextPolicy.afterExternalReturn(episode, outcome, autoPlayNextEpisode = true))
     }
 
     @Test

@@ -128,6 +128,25 @@ class SevenZipArchiveTest {
     }
 
     @Test
+    fun `a failed read of the encrypted video's first bytes stays a retryable IOException`() {
+        val bytes = SevenZipFixtures.bytes("encrypted-content.7z")
+        // The signature header (first 32 bytes) and the directory (last few hundred) read fine; the pack stream between
+        // them, the encrypted video, has a missing article.
+        val flaky = object : RandomAccessData {
+            override fun size(): Long = bytes.size.toLong()
+            override fun read(position: Long, target: ByteArray, offset: Int, length: Int): Int {
+                if (position < bytes.size - DIRECTORY_TAIL && position + length > 32) throw IOException("article missing")
+                val n = minOf(length.toLong(), bytes.size - position).toInt()
+                System.arraycopy(bytes, position.toInt(), target, offset, n)
+                return n
+            }
+        }
+        val error = assertThrows<IOException> { SevenZipArchive.open(JoinedData(listOf(Span(flaky, 0, flaky.size()))), PASSWORD) }
+        assertFalse(error is ArchiveRefusedException, "a missing article is not a wrong password")
+        assertEquals("article missing", error.message)
+    }
+
+    @Test
     fun `AES parameters above the TV's key-derivation budget are refused`() {
         val properties = byteArrayOf((0xC0 or 24).toByte(), 0x00, 0x01, 0x02)
         assertThrows<ArchiveRefusedException> { SevenZipAesParams.parse(properties) }
@@ -148,3 +167,6 @@ class SevenZipArchiveTest {
         assertThrows<IllegalArgumentException> { joined.slice(170, 20) }
     }
 }
+
+/** Bytes at the end of the small encrypted fixture that hold its directory (header + file list). */
+private const val DIRECTORY_TAIL = 256

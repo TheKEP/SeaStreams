@@ -33,8 +33,8 @@ class PerProfileAddonsTest : AddonRepositoryTestBase() {
 
     @BeforeEach
     fun seedBoth() = runTest {
-        repository.seedDefaults(PROFILE_A)
-        repository.seedDefaults(PROFILE_B)
+        seedDefaults(PROFILE_A)
+        seedDefaults(PROFILE_B)
     }
 
     @Test

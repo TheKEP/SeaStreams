@@ -17,7 +17,8 @@ fun interface SessionOpener {
  * The open Usenet sessions (ARCHITECTURE §10): at most [maxSessions] (4) releases stay open; ExoPlayer and the
  * loopback proxy open and close many readers over one release, so each [acquire] / [release] pair shares one
  * session per token. Concurrent first opens of a token wait for one open. Past the limit the least recently used
- * idle session is closed (or the least recently used one, if all are busy). The idle reaper closes sessions nobody
+ * idle session is closed (or the least recently used one, if all are busy: its entry and reader count stay, so the
+ * next acquire of that token reopens it under the same count). The idle reaper closes sessions nobody
  * has read for their *Stream idle timeout*.
  */
 @Singleton
@@ -106,7 +107,12 @@ class UsenetSessionRegistry internal constructor(
             open.entries.filter { it.key != keep }
                 .sortedWith(compareBy({ it.value.refs > 0 }, { it.value.lastUsed }))
                 .take(excess)
-                .mapNotNull { (token, entry) -> entries.remove(token)?.let { entry.session } }
+                .mapNotNull { (token, entry) ->
+                    // A busy entry stays registered (its session closed), so its readers' release(token) still balances
+                    // its own refs; dropping it would let them decrement the entry a later acquire reopens instead.
+                    if (entry.refs == 0) entries.remove(token)
+                    entry.session
+                }
         }
         victims.forEach { it.close() }
     }

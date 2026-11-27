@@ -55,7 +55,6 @@ fun TvTextField(
     val surfaceFocus = remember { FocusRequester() }
     val fieldFocus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
-    val shape = RoundedCornerShape(12.dp)
 
     Column(modifier) {
         if (label != null) Text(label, style = MaterialTheme.typography.labelLarge, color = TextSecondary)
@@ -65,16 +64,10 @@ fun TvTextField(
                 .fillMaxWidth()
                 .padding(top = if (label != null) 6.dp else 0.dp)
                 .focusRequester(surfaceFocus),
-            shape = ClickableSurfaceDefaults.shape(shape),
-            scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
-            colors = ClickableSurfaceDefaults.colors(
-                containerColor = MaterialTheme.colorScheme.background,
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-            ),
-            border = ClickableSurfaceDefaults.border(
-                border = Border(BorderStroke(1.dp, OutlineDim), shape = shape),
-                focusedBorder = Border(BorderStroke(2.dp, FocusPill), shape = shape),
-            ),
+            shape = TextFieldSurface.shape(),
+            scale = TextFieldSurface.scale(),
+            colors = TextFieldSurface.colors(),
+            border = TextFieldSurface.border(),
         ) {
             BasicTextField(
                 value = value,
@@ -109,4 +102,30 @@ fun TvTextField(
             keyboard?.show()
         }
     }
+}
+
+/**
+ * The look [TvTextField] and the Search field share: a 12dp rounded surface, background → surfaceVariant fill on focus,
+ * a 1.02 focus scale and a 1dp [OutlineDim] outline that becomes a 2dp [FocusPill] ring.
+ */
+internal object TextFieldSurface {
+    val Shape = RoundedCornerShape(12.dp)
+
+    @Composable
+    fun shape() = ClickableSurfaceDefaults.shape(Shape)
+
+    @Composable
+    fun scale() = ClickableSurfaceDefaults.scale(focusedScale = 1.02f)
+
+    @Composable
+    fun colors() = ClickableSurfaceDefaults.colors(
+        containerColor = MaterialTheme.colorScheme.background,
+        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+    )
+
+    @Composable
+    fun border() = ClickableSurfaceDefaults.border(
+        border = Border(BorderStroke(1.dp, OutlineDim), shape = Shape),
+        focusedBorder = Border(BorderStroke(2.dp, FocusPill), shape = Shape),
+    )
 }

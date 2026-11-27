@@ -140,8 +140,6 @@ data class PlayerUiState(
     /** The `- 0.0s +` sync control shows only for an active external (addon) track. */
     val externalSubtitleActive: Boolean get() = selectedSubtitle?.source == SubtitleSource.EXTERNAL
 
-    /** [subtitleOffsetMs] was set by auto-sync and not nudged since. */
-    val subtitleOffsetAuto: Boolean get() = subtitleSyncStatus is AutoSyncStatus.Locked
 
     /**
      * HUD speed change (session only). Switching to a speed other than Standard turns session passthrough

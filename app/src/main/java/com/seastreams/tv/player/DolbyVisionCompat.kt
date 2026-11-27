@@ -33,8 +33,6 @@ object DolbyVisionCompat {
         }
     }
 
-    fun isProfile7(sampleMimeType: String?, codecs: String?): Boolean = profileOf(sampleMimeType, codecs) == DolbyVisionPolicy.PROFILE_7
-
     /**
      * The HEVC codecs string for the base layer: `dvh1` (parameter sets in the sample entry) maps to
      * `hvc1`, `dvhe` (in-band) to `hev1`; Main10 profile, tier/level picked from the DV level.

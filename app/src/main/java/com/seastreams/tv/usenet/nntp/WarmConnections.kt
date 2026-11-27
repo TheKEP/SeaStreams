@@ -54,6 +54,9 @@ class WarmConnections(
 
     fun heldCount(endpoint: NntpEndpoint): Int = synchronized(this) { held[endpoint.fingerprint]?.size ?: 0 }
 
+    /** Whether the keep-alive sweeper thread exists (it stops once nothing is held or opening). */
+    internal val sweeperRunning: Boolean get() = synchronized(this) { sweeper != null }
+
     /** Keep-alive + expiry pass; runs every few seconds on the sweeper, and directly in tests. */
     fun sweep() {
         val now = clock()
@@ -90,6 +93,7 @@ class WarmConnections(
             val keep = synchronized(this) { holdLocked(key) && held.getOrPut(key) { ArrayDeque() }.add(entry) }
             if (!keep) entry.connection.close()
         }
+        synchronized(this) { stopSweeperIfIdleLocked() }
     }
 
     /** Closes the warm connections of providers whose fingerprint is not in [keep]. */
@@ -97,7 +101,7 @@ class WarmConnections(
         val dropped = synchronized(this) {
             wanted = keep
             val gone = held.keys.filter { it !in keep }
-            gone.flatMap { held.remove(it).orEmpty().map(Held::connection) }
+            gone.flatMap { held.remove(it).orEmpty().map(Held::connection) }.also { stopSweeperIfIdleLocked() }
         }
         dropped.forEach { it.close() }
     }
@@ -130,6 +134,13 @@ class WarmConnections(
 
     /** Whether a connection for [key] may be held: not closed, and the provider is still configured. */
     private fun holdLocked(key: String): Boolean = !closed && wanted?.contains(key) != false
+
+    /** Nothing held and no dial in flight: the sweeper thread ends ([warm] starts a new one when needed). */
+    private fun stopSweeperIfIdleLocked() {
+        if (held.values.any { it.isNotEmpty() } || opening.values.any { it > 0 }) return
+        sweeper?.shutdown()
+        sweeper = null
+    }
 
     private fun startSweeperLocked() {
         if (sweeper != null) return

@@ -94,8 +94,9 @@ sealed interface PlaybackEvent {
  * streams from every enabled addon, then auto-plays the `LAST USED` stream when the fresh list holds
  * it, else the top one (preferred addon first) — [LastUsedStreamRecorder.autoPlayIndex] — or opens the
  * stream list; a long-press on `Play` always opens the list. Streams open in the built-in player ([PlaybackUiState.player]) or go to the
- * configured external player; when that returns, its result is saved as watch progress and, for a
- * finished episode, Auto-Play Next Episode starts the next one. Details trailers always use the
+ * configured external player; when that returns, its result is saved as watch progress and, for an
+ * episode that played to its end (never a `Back` exit, `PlaybackOutcome.endedNaturally`), Auto-Play Next
+ * Episode starts the next one. Details trailers always use the
  * built-in player, falling back to YouTube only when extraction fails.
  */
 @HiltViewModel
@@ -120,6 +121,9 @@ class PlaybackViewModel @Inject constructor(
     private var lookup: Job? = null
     private var pickerContext: ResolvedPlayback? = null
     private var nextSessionId = 1L
+
+    /** The last shuffled episode played, so Details' primary button continues that shuffle (PRD §6). */
+    val shuffleResume = ShuffleResume()
 
     /** The playback handed to an external player and not returned yet. */
     private var active: ActivePlayback? = null
@@ -228,14 +232,18 @@ class PlaybackViewModel @Inject constructor(
         }
     }
 
-    /** The built-in player exited (Back, trailer end, or nothing left to play). */
-    fun closePlayer() = _state.update { it.copy(player = null) }
+    /** The built-in player exited (Back, trailer end, or nothing left to play) while playing [last]. */
+    fun closePlayer(last: PlaybackRequest? = null) {
+        (last as? PlaybackRequest.Media)?.let { shuffleResume.remember(it.target) }
+        _state.update { it.copy(player = null) }
+    }
 
     /** The external player returned; [extras] are its result extras (empty when it sent none). */
     fun onExternalResult(extras: Map<String, Any?>) {
         externalUrls.get().finish()
         val playback = active ?: return
         active = null
+        shuffleResume.remember(playback.target)
         viewModelScope.launch {
             val outcome = ExternalPlaybackProgress.outcome(ExternalPlayerExtras.from(extras), playback.launch, clock.millis())
             recorder.record(playback.target, outcome)

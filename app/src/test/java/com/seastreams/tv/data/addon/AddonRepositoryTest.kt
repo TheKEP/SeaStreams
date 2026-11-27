@@ -42,18 +42,18 @@ class AddonRepositoryTest : AddonRepositoryTestBase() {
 
     @Test
     fun `seeding installs TMDB and OpenSubtitles enabled, and never overwrites`() = runTest {
-        repository.seedDefaults(p)
+        seedDefaults(p)
         assertEquals(listOf(BuiltInAddons.TMDB_URL, BuiltInAddons.OPENSUBTITLES_URL), urls(p))
         assertTrue(dao.ordered(p).all { it.enabled && it.profileId == p })
 
         dao.rename(p, BuiltInAddons.OPENSUBTITLES_URL, "Subs")
-        repository.seedDefaults(p)
+        seedDefaults(p)
         assertEquals("Subs", row(p, BuiltInAddons.OPENSUBTITLES_URL).customName)
     }
 
     @Test
     fun `install fetches the manifest and appends it to the end`() = runTest {
-        repository.seedDefaults(p)
+        seedDefaults(p)
         val installed = repository.install(p, server.url("/good"))
 
         assertEquals(server.url("/good/manifest.json"), installed.manifestUrl)
@@ -132,7 +132,7 @@ class AddonRepositoryTest : AddonRepositoryTestBase() {
 
     @Test
     fun `built-in TMDB cannot be removed or disabled but can be renamed`() = runTest {
-        repository.seedDefaults(p)
+        seedDefaults(p)
         assertThrows<UserFacingException> { repository.remove(p, BuiltInAddons.TMDB_URL) }
         assertThrows<UserFacingException> { repository.setEnabled(p, BuiltInAddons.TMDB_URL, false) }
         repository.setEnabled(p, BuiltInAddons.OPENSUBTITLES_URL, false)
