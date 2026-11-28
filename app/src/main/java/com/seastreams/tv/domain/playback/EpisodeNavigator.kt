@@ -41,11 +41,19 @@ object EpisodeNavigator {
      */
     fun nextUp(progress: List<ProgressPoint>, seasons: List<SeasonInfo>, lastAired: EpisodeRef?): EpisodeRef? {
         val first = seasons.filter { it.episodeCount > 0 }.minByOrNull { it.number }?.let { EpisodeRef(it.number, 1) }
-        val latest = progress.filter { it.episode != null }.maxByOrNull { it.updatedAtMillis } ?: return first
+        val latest = latest(progress) ?: return first
         val episode = latest.episode ?: return first
         if (!latest.completed) return episode
         return next(episode, seasons, lastAired) ?: episode
     }
+
+    /**
+     * The show's most recently watched episode record. Records saved together (`Mark watched` on a season) share a
+     * timestamp, so a tie goes to the later episode. Home's Next Up cards and Details' `Play` both start from it.
+     */
+    fun latest(progress: List<ProgressPoint>): ProgressPoint? =
+        progress.filter { it.episode != null }
+            .maxWithOrNull(compareBy<ProgressPoint>({ it.updatedAtMillis }, { it.episode }))
 
     /** A uniformly random aired episode across every regular season (`Shuffle`); `null` when there are none. */
     fun shuffle(seasons: List<SeasonInfo>, lastAired: EpisodeRef?, random: Random = Random.Default): EpisodeRef? =

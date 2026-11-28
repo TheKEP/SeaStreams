@@ -1,6 +1,7 @@
 package com.seastreams.tv.data.backup
 
 import com.seastreams.tv.core.database.entity.LibraryItemEntity
+import com.seastreams.tv.core.database.entity.NextUpDismissalEntity
 import com.seastreams.tv.core.database.entity.WatchProgressEntity
 import com.seastreams.tv.domain.model.MediaType
 import kotlinx.serialization.Serializable
@@ -79,4 +80,25 @@ object WatchProgressMerge {
 
     private fun completion(row: WatchProgressEntity): Double =
         if (row.durationMs <= 0) 0.0 else row.positionMs.toDouble() / row.durationMs
+}
+
+/** A Next Up card removed from Continue Watching (Milestone 13); one per show. */
+@Serializable
+data class NextUpDismissalBackup(
+    val tmdbId: Int,
+    val seasonNumber: Int,
+    val episodeNumber: Int,
+    val lastAiredSeason: Int? = null,
+    val lastAiredEpisode: Int? = null,
+    val dismissedAtMillis: Long,
+) {
+    fun toEntity(profileId: Long) = NextUpDismissalEntity(
+        profileId, tmdbId, seasonNumber, episodeNumber, lastAiredSeason, lastAiredEpisode, dismissedAtMillis,
+    )
+
+    companion object {
+        fun of(e: NextUpDismissalEntity) = NextUpDismissalBackup(
+            e.tmdbId, e.seasonNumber, e.episodeNumber, e.lastAiredSeason, e.lastAiredEpisode, e.dismissedAtMillis,
+        )
+    }
 }

@@ -52,4 +52,12 @@ class EpisodeNavigatorTest {
     fun `shuffle of a show without episodes picks nothing`() {
         assertNull(EpisodeNavigator.shuffle(emptyList(), null))
     }
+
+    @Test
+    fun `next up after a whole season marked watched at once continues after its last episode`() {
+        val marked = (1..3).map { ProgressPoint(EpisodeRef(1, it), positionMs = 100, durationMs = 100, updatedAtMillis = 5) }
+
+        assertEquals(EpisodeRef(1, 3), EpisodeNavigator.latest(marked.reversed())?.episode)
+        assertEquals(EpisodeRef(2, 1), EpisodeNavigator.nextUp(marked, seasons, null))
+    }
 }

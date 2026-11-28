@@ -49,6 +49,7 @@ internal object ProfileSettingsKeys {
     val AUTO_STREAM_FAILOVER = ScopedKey("player_auto_stream_failover", ::booleanPreferencesKey)
     val FALLBACK_TIMEOUT_SECONDS = ScopedKey("player_fallback_timeout_s", ::intPreferencesKey)
     val AUTO_PLAY_FROM_CONTINUE_WATCHING = ScopedKey("player_autoplay_continue_watching", ::booleanPreferencesKey)
+    val SHOW_NEXT_UP_IN_CONTINUE_WATCHING = ScopedKey("home_next_up_continue_watching", ::booleanPreferencesKey)
     val BLUR_UNWATCHED_THUMBNAILS = ScopedKey("player_blur_unwatched", ::booleanPreferencesKey)
     val HDR_WHITE_DIMMING = ScopedKey("player_hdr_white_dimming", ::booleanPreferencesKey)
     val AUTO_PLAY_NEXT_EPISODE = ScopedKey("player_autoplay_next_episode", ::booleanPreferencesKey)
@@ -88,7 +89,7 @@ internal object ProfileSettingsKeys {
 
     val ALL: List<ScopedKey<*>> = listOf(
         EXTERNAL_PLAYER, AUTO_PLAY_TOP_STREAM, PREFERRED_AUTOPLAY_ADDON, AUTO_STREAM_FAILOVER, FALLBACK_TIMEOUT_SECONDS,
-        AUTO_PLAY_FROM_CONTINUE_WATCHING, BLUR_UNWATCHED_THUMBNAILS, HDR_WHITE_DIMMING, AUTO_PLAY_NEXT_EPISODE,
+        AUTO_PLAY_FROM_CONTINUE_WATCHING, SHOW_NEXT_UP_IN_CONTINUE_WATCHING, BLUR_UNWATCHED_THUMBNAILS, HDR_WHITE_DIMMING, AUTO_PLAY_NEXT_EPISODE,
         CONVERT_DV_PROFILE_7, DOLBY_VISION_PLAYBACK, BUFFER_PROFILE, PARALLEL_CONNECTIONS, AUTO_PLAY_TRAILERS, MUTE_AUTO_PLAY_TRAILERS,
         TRAILER_DELAY_SECONDS, DEFAULT_PLAYBACK_SPEED, BACKGROUND_COLOR,
         PASSTHROUGH_ENABLED, DIALOGUE_BOOST, NIGHT_MODE, AUDIO_DELAY_MS, VOLUME_BOOST, PREFERRED_AUDIO_LANGUAGE,
@@ -130,6 +131,8 @@ internal class ProfileSettingsReader(private val prefs: Preferences, private val
             fallbackTimeoutSeconds = clampFallbackTimeout(get(FALLBACK_TIMEOUT_SECONDS) ?: defaults.fallbackTimeoutSeconds),
             autoPlayFromContinueWatching =
                 get(AUTO_PLAY_FROM_CONTINUE_WATCHING) ?: defaults.autoPlayFromContinueWatching,
+            showNextUpInContinueWatching =
+                get(SHOW_NEXT_UP_IN_CONTINUE_WATCHING) ?: defaults.showNextUpInContinueWatching,
             defaultPlaybackSpeed = enumOrDefault(get(DEFAULT_PLAYBACK_SPEED), defaults.defaultPlaybackSpeed),
             blurUnwatchedThumbnails = get(BLUR_UNWATCHED_THUMBNAILS) ?: defaults.blurUnwatchedThumbnails,
             hdrWhiteDimming = get(HDR_WHITE_DIMMING) ?: defaults.hdrWhiteDimming,
@@ -205,6 +208,7 @@ internal class ProfileSettingsWriter(private val prefs: MutablePreferences, priv
         set(AUTO_STREAM_FAILOVER, updated.autoStreamFailover)
         set(FALLBACK_TIMEOUT_SECONDS, clampFallbackTimeout(updated.fallbackTimeoutSeconds))
         set(AUTO_PLAY_FROM_CONTINUE_WATCHING, updated.autoPlayFromContinueWatching)
+        set(SHOW_NEXT_UP_IN_CONTINUE_WATCHING, updated.showNextUpInContinueWatching)
         set(DEFAULT_PLAYBACK_SPEED, updated.defaultPlaybackSpeed.name)
         set(BLUR_UNWATCHED_THUMBNAILS, updated.blurUnwatchedThumbnails)
         set(HDR_WHITE_DIMMING, updated.hdrWhiteDimming)

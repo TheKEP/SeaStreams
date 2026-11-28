@@ -11,6 +11,8 @@ import com.seastreams.tv.domain.model.ContinueWatchingItem
 import com.seastreams.tv.domain.usecase.ContinueWatchingActions
 import com.seastreams.tv.domain.usecase.GetContinueWatchingUseCase
 import com.seastreams.tv.domain.usecase.GetHomeCatalogsUseCase
+import com.seastreams.tv.domain.usecase.GetNextUpUseCase
+import com.seastreams.tv.domain.usecase.NextUpPolicy
 import com.seastreams.tv.ui.screens.catalog.CatalogWarmupManager
 import com.seastreams.tv.ui.navigation.WhileUiSubscribed
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -42,6 +44,7 @@ class HomeViewModel @Inject constructor(
     private val settings: SettingsDataStore,
     private val homeCatalogs: GetHomeCatalogsUseCase,
     private val continueWatching: GetContinueWatchingUseCase,
+    private val nextUp: GetNextUpUseCase,
     private val imagePrewarmer: HomeImagePrewarmer,
     private val catalogWarmup: CatalogWarmupManager,
     private val continueWatchingActions: ContinueWatchingActions,
@@ -79,7 +82,10 @@ class HomeViewModel @Inject constructor(
         catalogWarmup.schedule(profile)
     }
 
-    /** Continue Watching `Remove`: hides [item] but keeps its progress (the row updates from the database). */
+    /**
+     * Continue Watching `Remove`: hides [item] but keeps its progress (the row updates from the database). A Next Up
+     * card stays hidden until the show is watched again or a newer episode airs.
+     */
     fun removeFromContinueWatching(profileId: Long, item: ContinueWatchingItem) {
         viewModelScope.launch { continueWatchingActions.remove(profileId, item) }
     }
@@ -91,7 +97,7 @@ class HomeViewModel @Inject constructor(
 
     private fun contentFor(profile: ProfileEntity): Flow<HomeUiState> = combine(
         heroFor(profile),
-        continueWatching.observe(profile).onStart { emit(emptyList()) },
+        continueWatchingFor(profile),
         homeCatalogs.observeRows(profile),
         settings.settings.map { it.player.autoPlayFromContinueWatching }.distinctUntilChanged(),
     ) { hero, resume, rows, autoPlay ->
@@ -103,6 +109,12 @@ class HomeViewModel @Inject constructor(
             autoPlayFromContinueWatching = autoPlay,
         )
     }.onStart { emit(HomeUiState(profile = profile)) }
+
+    /** In-progress and Next Up cards, both already age-filtered by their use cases, merged into one row. */
+    private fun continueWatchingFor(profile: ProfileEntity): Flow<List<ContinueWatchingItem>> = combine(
+        continueWatching.observe(profile).onStart { emit(emptyList()) },
+        nextUp.observe(profile).onStart { emit(emptyList()) },
+    ) { inProgress, next -> NextUpPolicy.merge(inProgress, next) }
 
     private fun heroFor(profile: ProfileEntity): Flow<HeroState> = flow {
         emit(HeroState.Loading)

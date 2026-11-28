@@ -208,6 +208,8 @@ data class TmdbExternalIds(
 data class TmdbEpisodeRef(
     @SerialName("season_number") val seasonNumber: Int = 0,
     @SerialName("episode_number") val episodeNumber: Int = 0,
+    /** `yyyy-MM-dd`; used to rank a newly aired Next Up episode on Continue Watching. */
+    @SerialName("air_date") val airDate: String? = null,
 )
 
 /** One episode from `/tv/{id}/season/{n}`. */

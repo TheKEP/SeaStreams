@@ -4,6 +4,7 @@ import com.seastreams.tv.core.database.dao.AddonDao
 import com.seastreams.tv.core.database.dao.DebridProviderDao
 import com.seastreams.tv.core.database.dao.LibraryDao
 import com.seastreams.tv.core.database.dao.NewznabIndexerDao
+import com.seastreams.tv.core.database.dao.NextUpDismissalDao
 import com.seastreams.tv.core.database.dao.ProfileDao
 import com.seastreams.tv.core.database.dao.UsenetProviderDao
 import com.seastreams.tv.core.database.dao.WatchProgressDao
@@ -48,6 +49,7 @@ class BackupExporter @Inject constructor(
     private val clock: Clock,
     private val library: LibraryDao,
     private val watchProgress: WatchProgressDao,
+    private val nextUpDismissals: NextUpDismissalDao,
 ) {
 
     suspend fun export(scope: BackupScope, profileId: Long?, includeCredentials: Boolean): BackupFile = withContext(io) {
@@ -87,6 +89,7 @@ class BackupExporter @Inject constructor(
         streams = streams.exportBackup(profile.id),
         library = library.getAll(profile.id).sortedBy { it.addedAtMillis }.map(LibraryItemBackup::of),
         watchProgress = watchProgress.getAll(profile.id).map(WatchProgressBackup::of),
+        nextUpDismissals = nextUpDismissals.getAll(profile.id).sortedBy { it.tmdbId }.map(NextUpDismissalBackup::of),
     )
 
     private suspend fun usenet(secrets: Boolean): UsenetBackup {

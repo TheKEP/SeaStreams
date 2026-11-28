@@ -471,6 +471,28 @@
 
 ---
 
+## Milestone 13: Next Up in Continue Watching (`feat/next-up-continue-watching`)
+**Prompt for Claude Code:**
+> Read `CLAUDE.md`, `PRD.md` (§3, §8, §11) and `ARCHITECTURE.md` (§1, §13). Execute **Milestone 13**:
+> 1. **Room v10:** add `next_up_dismissals` (`NextUpDismissalEntity` / `NextUpDismissalDao`) with a manual `NextUpDismissalsMigration` whose SQL is Room's exported createSql. Also add `WatchProgressDao.observeLatestShowActivity` (each show's newest episode record plus an `inLibrary` flag).
+> 2. **Domain:** add `NextUpPolicy` (pure candidates / next episode / activity time / dismissal / merge) and `GetNextUpUseCase` (HTTP-cached `/tv/{id}` via `TitleDetailsRepository.load`, age-checked, never `/external_ids`). `EpisodeNavigator.latest` breaks timestamp ties so Details and Home pick the same episode.
+> 3. **Home:** `HomeViewModel` merges in-progress and Next Up cards (activity order, cap 10). Next Up cards show the badge but no progress bar. Their long-press menu = `View details`, `Remove`. `Remove` records a dismissal.
+> 4. **Settings & Backup:** add a per-profile `Show next up in continue watching` toggle (`p{id}/home_next_up_continue_watching`, default on) to the codec, Settings → Playback and `GeneralSettingsBackup`. Add `ProfileBackupEntry.nextUpDismissals` to export, validation and the restore merge (the newer removal wins).
+> 5. **Tests:** policy rules, use case (watched non-Library show, Library show, Kids gate, load failure, toggle, dismissal, no `/external_ids`), actions, menu and focus, the migration, and the backup round-trip and restore.
+>
+> Run `./gradlew testDebugUnitTest` and `./gradlew assembleDebug`.
+
+**Acceptance Criteria:**
+- Finishing an episode (`>= 90%`) of any show, in the Library or not, replaces its in-progress card with a `Next Up` card for the next aired episode (`S1:E3` → `S1:E4`; a finale → `S2:E1` once aired). The card shows the `S7:E10` badge and no progress bar.
+- A caught-up Library show (or a recently watched one) gets a `Next Up` card when its next episode airs. An unwatched Library show never shows `S1:E1`. Shows that ended, or whose next episode hasn't aired, show nothing.
+- Continue Watching stays capped at 10 cards and sorted by most recent activity (last watch, or the air day of a newly aired next episode). A show never has both kinds of card.
+- Home never calls `/external_ids`. Each candidate show costs at most one HTTP-cached `/tv/{id}` lookup. Kids profiles only see shows within their current ceiling, enforced before `HomeViewModel`.
+- `OK` on a `Next Up` card auto-plays that exact episode from the start (lazy `/external_ids` for that title), or opens Details when auto-play is off. Details `Play` then targets the same episode.
+- Long-press `Remove` hides the card without touching watch history. It stays hidden across Home reloads until any episode of the show is watched again or a newer episode airs. Focus moves to the neighbouring card (§3 removal focus), and `View details` + `Back` returns focus to the card.
+- Turning `Show next up in continue watching` off leaves only in-progress cards. The toggle is per profile and is included in profile/app backups, as are removed `Next Up` cards. Files from before M13 still restore.
+
+---
+
 ## Post-Launch Workflow (Every new feature or change)
 1. Create a Git Branch First: Before making any changes to a working app, tell Claude Code:
 

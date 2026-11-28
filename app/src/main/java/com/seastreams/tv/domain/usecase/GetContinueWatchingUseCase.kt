@@ -57,6 +57,7 @@ class GetContinueWatchingUseCase @Inject constructor(
             seasonNumber = row.seasonNumber,
             episodeNumber = row.episodeNumber,
             progress = (row.positionMs.toFloat() / row.durationMs).coerceIn(0f, 1f),
+            activityAtMillis = row.updatedAtMillis,
         )
     }
 

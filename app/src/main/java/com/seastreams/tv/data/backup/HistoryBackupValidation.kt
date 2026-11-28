@@ -4,7 +4,7 @@ import com.seastreams.tv.core.util.enumByNameOrNull
 import com.seastreams.tv.domain.model.MediaType
 
 /**
- * Checks a profile's backed-up Library and Watch Progress before anything is written (`AppBackupCodec.decode`). Every
+ * Checks a profile's backed-up Library, Watch Progress and removed Next Up cards before anything is written (`AppBackupCodec.decode`). Every
  * failure names the profile ([label]) and the entry, and throws [InvalidAppBackupException].
  */
 internal object HistoryBackupValidation {
@@ -41,6 +41,20 @@ internal object HistoryBackupValidation {
         }
         val keys = entry.watchProgress.map { listOf(it.tmdbId, it.mediaType, it.seasonNumber, it.episodeNumber) }
         if (keys.toSet().size != keys.size) fail("$label lists the same watch progress entry twice")
+        checkDismissals(label, entry.nextUpDismissals)
+    }
+
+    private fun checkDismissals(label: String, dismissals: List<NextUpDismissalBackup>) {
+        if (dismissals.size > MAX_LIBRARY_ITEMS) fail("$label: more than $MAX_LIBRARY_ITEMS removed Next Up cards")
+        dismissals.forEachIndexed { i, d ->
+            val where = "$label: removed Next Up card ${i + 1}"
+            if (d.tmdbId <= 0) fail("$where has an invalid TMDB id")
+            if (d.seasonNumber <= 0 || d.episodeNumber <= 0) fail("$where has an invalid season or episode")
+            val aired = listOf(d.lastAiredSeason, d.lastAiredEpisode)
+            if (aired.count { it == null } == 1 || aired.any { it != null && it <= 0 }) fail("$where has an invalid latest episode")
+            if (d.dismissedAtMillis < 0) fail("$where has an invalid date")
+        }
+        if (dismissals.map { it.tmdbId }.toSet().size != dismissals.size) fail("$label removes the same Next Up show twice")
     }
 
     /** The parsed media type, once id, type, title and poster path are valid. */

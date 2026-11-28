@@ -1,6 +1,7 @@
 package com.seastreams.tv.data.backup
 
 import com.seastreams.tv.core.database.dao.LibraryDao
+import com.seastreams.tv.core.database.dao.NextUpDismissalDao
 import com.seastreams.tv.core.database.dao.ProfileDao
 import com.seastreams.tv.core.database.dao.WatchProgressDao
 import com.seastreams.tv.domain.filter.AgeRestrictionEngine
@@ -19,12 +20,14 @@ internal data class RestoredHistory(val libraryItems: Int, val watchProgress: In
  *   current limits, judged exactly as `GetLibraryUseCase` judges them on screen (CLAUDE.md rule 6).
  * - **Watch Progress:** each record is written only when [WatchProgressMerge] prefers it to the TV's own, so a TV in
  *   use is never rewound. (Records carry no rating; `GetContinueWatchingUseCase` age-filters them when shown.)
+ * - **Removed Next Up cards:** per show, the more recent removal wins (the TV's own on a tie).
  */
 internal class BackupHistoryWriter @Inject constructor(
     private val profiles: ProfileDao,
     private val library: LibraryDao,
     private val watchProgress: WatchProgressDao,
     private val ageEngine: AgeRestrictionEngine,
+    private val nextUpDismissals: NextUpDismissalDao,
 ) {
 
     suspend fun write(profileId: Long, entry: ProfileBackupEntry): RestoredHistory {
@@ -40,6 +43,11 @@ internal class BackupHistoryWriter @Inject constructor(
             .map { it.toEntity(profileId, HistoryBackupValidation.mediaType(it.mediaType)) }
             .filter { WatchProgressMerge.backupWins(local[it.key()], it) }
         if (winners.isNotEmpty()) watchProgress.upsertAll(winners)
+
+        val dismissed = nextUpDismissals.getAll(profileId).associateBy { it.tmdbId }
+        val newer = entry.nextUpDismissals.map { it.toEntity(profileId) }
+            .filter { backup -> dismissed[backup.tmdbId].let { it == null || backup.dismissedAtMillis > it.dismissedAtMillis } }
+        if (newer.isNotEmpty()) nextUpDismissals.upsertAll(newer)
 
         return RestoredHistory(added, winners.size)
     }

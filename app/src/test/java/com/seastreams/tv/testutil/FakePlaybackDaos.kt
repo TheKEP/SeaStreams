@@ -3,6 +3,7 @@ package com.seastreams.tv.testutil
 import com.seastreams.tv.core.database.dao.LastUsedStreamDao
 import com.seastreams.tv.core.database.dao.LibraryDao
 import com.seastreams.tv.core.database.dao.LibraryItemWithActivity
+import com.seastreams.tv.core.database.dao.ShowActivity
 import com.seastreams.tv.core.database.dao.WatchProgressDao
 import com.seastreams.tv.core.database.entity.LastUsedStreamEntity
 import com.seastreams.tv.core.database.entity.LibraryItemEntity
@@ -13,6 +14,7 @@ import com.seastreams.tv.domain.model.SeasonInfo
 import com.seastreams.tv.domain.model.TitleDetails
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 
@@ -70,8 +72,20 @@ class FakeLastUsedStreamDao : LastUsedStreamDao {
 }
 
 /** In-memory [WatchProgressDao] keyed like the Room table. */
-class FakeWatchProgressDao : WatchProgressDao {
+/** [library] backs [observeLatestShowActivity]'s `inLibrary` flag; without one nothing is in the Library. */
+class FakeWatchProgressDao(private val library: FakeLibraryDao? = null) : WatchProgressDao {
     val rows = MutableStateFlow<List<WatchProgressEntity>>(emptyList())
+
+    /** Mirrors the Room query: each show's newest regular-episode record(s), newest first. */
+    override fun observeLatestShowActivity(profileId: Long, mediaType: MediaType): Flow<List<ShowActivity>> =
+        combine(rows, library?.rows ?: MutableStateFlow(emptyList())) { list, saved ->
+            val inLibrary = saved.filter { it.profileId == profileId && it.mediaType == mediaType }.map { it.tmdbId }.toSet()
+            list.filter { it.profileId == profileId && it.mediaType == mediaType && it.seasonNumber > 0 && it.episodeNumber > 0 }
+                .groupBy { it.tmdbId }.values
+                .flatMap { show -> show.filter { it.updatedAtMillis == show.maxOf { r -> r.updatedAtMillis } } }
+                .sortedByDescending { it.updatedAtMillis }
+                .map { ShowActivity(it.tmdbId, it.seasonNumber, it.episodeNumber, it.positionMs, it.durationMs, it.updatedAtMillis, it.tmdbId in inLibrary) }
+        }
 
     private fun WatchProgressEntity.key() = listOf(profileId, tmdbId, mediaType, seasonNumber, episodeNumber)
 

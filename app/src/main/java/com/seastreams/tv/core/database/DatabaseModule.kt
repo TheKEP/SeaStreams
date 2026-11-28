@@ -7,6 +7,7 @@ import com.seastreams.tv.core.database.dao.DebridProviderDao
 import com.seastreams.tv.core.database.dao.LastUsedStreamDao
 import com.seastreams.tv.core.database.dao.LibraryDao
 import com.seastreams.tv.core.database.dao.NewznabIndexerDao
+import com.seastreams.tv.core.database.dao.NextUpDismissalDao
 import com.seastreams.tv.core.database.dao.ProfileDao
 import com.seastreams.tv.core.database.dao.UsenetProviderDao
 import com.seastreams.tv.core.database.dao.WatchProgressDao
@@ -31,6 +32,7 @@ object DatabaseModule {
                 UsenetSourcesMigration,
                 DebridSourcesMigration,
                 LastUsedStreamUrlMigration,
+                NextUpDismissalsMigration,
             )
             .build()
 
@@ -57,4 +59,7 @@ object DatabaseModule {
 
     @Provides
     fun provideDebridProviderDao(db: SeaStreamsDatabase): DebridProviderDao = db.debridProviderDao()
+
+    @Provides
+    fun provideNextUpDismissalDao(db: SeaStreamsDatabase): NextUpDismissalDao = db.nextUpDismissalDao()
 }

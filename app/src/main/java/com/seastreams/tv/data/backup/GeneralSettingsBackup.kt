@@ -71,6 +71,8 @@ data class PlayerBackup(
     val autoPlayTrailers: Boolean = PLAYER.autoPlayTrailers,
     val muteAutoPlayTrailers: Boolean = PLAYER.muteAutoPlayTrailers,
     val trailerAutoPlayDelaySeconds: Int = PLAYER.trailerAutoPlayDelaySeconds,
+    /** Absent in files from before Next Up (Milestone 13): restores the default (on). */
+    val showNextUpInContinueWatching: Boolean = PLAYER.showNextUpInContinueWatching,
 ) {
     fun toSettings() = PlayerSettings(
         playerChoice = PlayerChoice.fromStorage(player),
@@ -90,6 +92,7 @@ data class PlayerBackup(
         autoPlayTrailers = autoPlayTrailers,
         muteAutoPlayTrailers = muteAutoPlayTrailers,
         trailerAutoPlayDelaySeconds = trailerAutoPlayDelaySeconds,
+        showNextUpInContinueWatching = showNextUpInContinueWatching,
     )
 
     companion object {
@@ -98,7 +101,7 @@ data class PlayerBackup(
             s.autoStreamFailover, s.fallbackTimeoutSeconds, s.autoPlayFromContinueWatching, s.defaultPlaybackSpeed.name,
             s.blurUnwatchedThumbnails, s.convertDvProfile7ToHdr, s.dolbyVisionPlayback.name, s.hdrWhiteDimming,
             s.playbackBufferProfile.name, s.parallelStreamConnections, s.autoPlayTrailers, s.muteAutoPlayTrailers,
-            s.trailerAutoPlayDelaySeconds,
+            s.trailerAutoPlayDelaySeconds, s.showNextUpInContinueWatching,
         )
     }
 }

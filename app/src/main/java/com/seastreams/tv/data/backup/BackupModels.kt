@@ -122,6 +122,8 @@ data class ProfileBackupEntry(
     val library: List<LibraryItemBackup> = emptyList(),
     /** Resume points, watched state and Continue Watching removals. Absent in older files: restores nothing. */
     val watchProgress: List<WatchProgressBackup> = emptyList(),
+    /** Removed Next Up cards. Absent in files from before Milestone 13: restores nothing. */
+    val nextUpDismissals: List<NextUpDismissalBackup> = emptyList(),
 )
 
 @Serializable
