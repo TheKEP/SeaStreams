@@ -62,6 +62,10 @@ internal object ProfileSettingsKeys {
     val TRAILER_DELAY_SECONDS = ScopedKey("player_trailer_delay_s", ::intPreferencesKey)
     val DEFAULT_PLAYBACK_SPEED = ScopedKey("player_default_speed", ::stringPreferencesKey)
     val BACKGROUND_COLOR = ScopedKey("ui_background_color", ::intPreferencesKey)
+    val SKIP_INTRO_RECAP = ScopedKey("player_skip_intro_recap", ::stringPreferencesKey)
+    val SKIP_CREDITS = ScopedKey("player_skip_credits", ::stringPreferencesKey)
+    val NEXT_EPISODE_PROMPT = ScopedKey("player_next_episode_prompt", ::booleanPreferencesKey)
+    val ONLINE_SKIP_TIMES = ScopedKey("player_skip_online_lookup", ::booleanPreferencesKey)
 
     val PASSTHROUGH_ENABLED = ScopedKey("audio_passthrough", ::booleanPreferencesKey)
     val DIALOGUE_BOOST = ScopedKey("audio_dialogue_boost", ::stringPreferencesKey)
@@ -92,6 +96,7 @@ internal object ProfileSettingsKeys {
         AUTO_PLAY_FROM_CONTINUE_WATCHING, SHOW_NEXT_UP_IN_CONTINUE_WATCHING, BLUR_UNWATCHED_THUMBNAILS, HDR_WHITE_DIMMING, AUTO_PLAY_NEXT_EPISODE,
         CONVERT_DV_PROFILE_7, DOLBY_VISION_PLAYBACK, BUFFER_PROFILE, PARALLEL_CONNECTIONS, AUTO_PLAY_TRAILERS, MUTE_AUTO_PLAY_TRAILERS,
         TRAILER_DELAY_SECONDS, DEFAULT_PLAYBACK_SPEED, BACKGROUND_COLOR,
+        SKIP_INTRO_RECAP, SKIP_CREDITS, NEXT_EPISODE_PROMPT, ONLINE_SKIP_TIMES,
         PASSTHROUGH_ENABLED, DIALOGUE_BOOST, NIGHT_MODE, AUDIO_DELAY_MS, VOLUME_BOOST, PREFERRED_AUDIO_LANGUAGE,
         SUBTITLE_MODE, SUBTITLE_LANGUAGE, HIDE_NON_PREFERRED_SUBTITLES, CLEAN_SDH, SUBTITLE_FONT_SCALE,
         SUBTITLE_BOLD, SUBTITLE_ITALIC, SUBTITLE_TEXT_COLOR, SUBTITLE_EDGE_TYPE, SUBTITLE_BACKGROUND_OPACITY,
@@ -143,6 +148,10 @@ internal class ProfileSettingsReader(private val prefs: Preferences, private val
             muteAutoPlayTrailers = get(MUTE_AUTO_PLAY_TRAILERS) ?: defaults.muteAutoPlayTrailers,
             trailerAutoPlayDelaySeconds =
                 clampTrailerDelay(get(TRAILER_DELAY_SECONDS) ?: defaults.trailerAutoPlayDelaySeconds),
+            skipIntroRecap = enumOrDefault(get(SKIP_INTRO_RECAP), defaults.skipIntroRecap),
+            skipCredits = enumOrDefault(get(SKIP_CREDITS), defaults.skipCredits),
+            nextEpisodePrompt = get(NEXT_EPISODE_PROMPT) ?: defaults.nextEpisodePrompt,
+            onlineSkipTimes = get(ONLINE_SKIP_TIMES) ?: defaults.onlineSkipTimes,
         )
     }
 
@@ -217,6 +226,10 @@ internal class ProfileSettingsWriter(private val prefs: MutablePreferences, priv
         set(AUTO_PLAY_TRAILERS, updated.autoPlayTrailers)
         set(MUTE_AUTO_PLAY_TRAILERS, updated.muteAutoPlayTrailers)
         set(TRAILER_DELAY_SECONDS, clampTrailerDelay(updated.trailerAutoPlayDelaySeconds))
+        set(SKIP_INTRO_RECAP, updated.skipIntroRecap.name)
+        set(SKIP_CREDITS, updated.skipCredits.name)
+        set(NEXT_EPISODE_PROMPT, updated.nextEpisodePrompt)
+        set(ONLINE_SKIP_TIMES, updated.onlineSkipTimes)
     }
 
     fun audio(updated: AudioSettings) = with(ProfileSettingsKeys) {

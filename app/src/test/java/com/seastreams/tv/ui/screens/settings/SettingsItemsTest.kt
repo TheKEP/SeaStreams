@@ -31,6 +31,7 @@ class SettingsItemsTest {
             ),
             SettingsCategory.PLAYBACK to listOf(
                 "Player", "Auto-play top stream", "Preferred auto-play addon", "Auto-play next episode",
+                "Next episode prompt", "Skip intro & recap", "Skip credits", "Online skip times (IntroDB)",
                 "Auto-play from continue watching", "Show next up in continue watching", "Default playback speed", "Automatic stream failover", "Failover timeout duration",
                 "Playback buffer profile", "Parallel stream connections", "Convert Dolby Vision Profile 7 to HDR",
                 "Dolby Vision playback", "HDR white dimming",

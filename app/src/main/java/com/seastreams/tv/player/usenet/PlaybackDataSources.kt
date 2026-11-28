@@ -46,6 +46,16 @@ class PlaybackDataSources @Inject constructor(
         else -> DefaultMediaSourceFactory(wrap(http()))
     }
 
+    /**
+     * A plain reader for small header probes (Matroska chapters, PRD §9 skip prompts) beside playback: Debrid
+     * tokens resolve exactly as in [mediaSourceFactory]; `null` for Usenet, whose connections belong to playback.
+     */
+    fun probeFactory(stream: StreamSource, http: DataSource.Factory): DataSource.Factory? = when {
+        UsenetStreamRegistry.isUsenet(stream.url) -> null
+        DebridStreamRegistry.isDebrid(stream.url) -> ResolvingDataSource.Factory(http, ::resolveDebrid)
+        else -> http
+    }
+
     /** `seastreams-debrid://<token>` → its HTTPS link; a refused or unknown token fails the load (failover moves on). */
     @Throws(IOException::class)
     private fun resolveDebrid(spec: DataSpec): DataSpec {

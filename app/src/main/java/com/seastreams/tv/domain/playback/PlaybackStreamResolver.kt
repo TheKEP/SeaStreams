@@ -58,12 +58,24 @@ class PlaybackStreamResolver @Inject constructor(
      * [finished]'s shuffle session (sequential, show-wide or single-season) and carries it forward.
      */
     suspend fun next(finished: PlaybackTarget, preferredAddonUrl: String?, random: Random = Random.Default): NextEpisode {
-        val episode = finished.episode ?: return NextEpisode.CaughtUp
+        val pick = pickNext(finished, random) ?: return NextEpisode.CaughtUp
+        return NextEpisode.Found(resolvePick(finished, pick, preferredAddonUrl))
+    }
+
+    /**
+     * Which episode follows [finished] (no network): the player's Next episode prompt shows it, and the same pick
+     * is then played, so a shuffle draws once and its session advances once. `null` when caught up.
+     */
+    fun pickNext(finished: PlaybackTarget, random: Random = Random.Default): NextPick? {
+        val episode = finished.episode ?: return null
         val details = finished.details
-        val pick = EpisodeNavigator.next(episode, details.seasons, details.lastAired, finished.shuffle, random)
-            ?: return NextEpisode.CaughtUp
-        val target = PlaybackTarget(finished.profileId, details, finished.imdbId, pick.episode, shuffle = pick.session)
-        return NextEpisode.Found(resolve(target, preferredAddonUrl))
+        return EpisodeNavigator.next(episode, details.seasons, details.lastAired, finished.shuffle, random)
+    }
+
+    /** Resolves [pick] (from [pickNext] on [finished]) with its streams, carrying the shuffle session forward. */
+    suspend fun resolvePick(finished: PlaybackTarget, pick: NextPick, preferredAddonUrl: String?): ResolvedPlayback {
+        val target = PlaybackTarget(finished.profileId, finished.details, finished.imdbId, pick.episode, shuffle = pick.session)
+        return resolve(target, preferredAddonUrl)
     }
 
     /** One season's episodes for the in-player Episodes browser; empty when TMDB can't be reached. */

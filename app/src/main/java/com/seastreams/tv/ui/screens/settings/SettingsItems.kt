@@ -130,6 +130,8 @@ enum class ChoiceKind {
     DOLBY_VISION,
     PLAYBACK_SPEED,
     VOLUME_BOOST,
+    SKIP_INTRO_RECAP,
+    SKIP_CREDITS,
 }
 
 /** Callbacks the lists need; kept apart from the ViewModel so the builders stay plain functions. */

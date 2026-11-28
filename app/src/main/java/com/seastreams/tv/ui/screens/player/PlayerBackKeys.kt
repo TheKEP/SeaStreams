@@ -14,10 +14,16 @@ enum class PlayerBackAction {
     /** Tier 1, a sub-overlay is open: close it and refocus its bar button; playback continues. */
     CLOSE_PANEL,
 
-    /** Tier 2, the main HUD is showing: hide only the HUD; playback continues. */
+    /**
+     * Tier 2, a Skip / Next episode prompt is showing (focused or not, HUD shown or hidden): dismiss it for the rest
+     * of its stretch (a running countdown stops); playback continues.
+     */
+    DISMISS_PROMPT,
+
+    /** Tier 3, the main HUD is showing: hide only the HUD; playback continues. */
     HIDE_HUD,
 
-    /** Tier 3, the HUD is hidden: leave playback. */
+    /** Tier 4, no overlay, prompt or HUD: leave playback. */
     EXIT,
 
     /**
@@ -29,6 +35,7 @@ enum class PlayerBackAction {
 
 fun playerBackAction(state: PlayerUiState): PlayerBackAction = when {
     state.panel != null -> PlayerBackAction.CLOSE_PANEL
+    state.prompt != null -> PlayerBackAction.DISMISS_PROMPT
     state.hudVisible -> PlayerBackAction.HIDE_HUD
     state.initialLoading -> PlayerBackAction.CANCEL_LOADING
     else -> PlayerBackAction.EXIT
@@ -52,3 +59,13 @@ fun PlayerPanel.onActionBar(state: PlayerUiState): Boolean = when {
 
 /** The bar button that takes focus when [closed] closes, or `null` for `Play/Pause` (its pill isn't shown). */
 fun panelReturnFocus(closed: PlayerPanel, state: PlayerUiState): PlayerPanel? = closed.takeIf { it.onActionBar(state) }
+
+/** Where focus goes when the prompt goes away (dismissed with `Back`, acted on, or timed out). */
+enum class PromptFocusRestore { ROOT, PLAY_PAUSE }
+
+/** `null` when the prompt didn't hold focus (nothing to restore); else the root with the HUD hidden, `Play / Pause` with it shown. */
+fun promptFocusRestore(promptWasFocused: Boolean, hudVisible: Boolean): PromptFocusRestore? = when {
+    !promptWasFocused -> null
+    hudVisible -> PromptFocusRestore.PLAY_PAUSE
+    else -> PromptFocusRestore.ROOT
+}

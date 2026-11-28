@@ -5,7 +5,7 @@ import com.seastreams.tv.domain.model.EpisodeRef
 import com.seastreams.tv.domain.model.PlaybackRequest
 import com.seastreams.tv.domain.model.StreamSource
 import com.seastreams.tv.domain.playback.LastUsedStreamRecorder
-import com.seastreams.tv.domain.playback.NextEpisode
+import com.seastreams.tv.domain.playback.NextPick
 import com.seastreams.tv.domain.playback.PlaybackProgressRecorder
 import com.seastreams.tv.domain.playback.PlaybackStreamResolver
 import com.seastreams.tv.domain.playback.PlaybackTarget
@@ -35,6 +35,9 @@ class PlayerSwitching @Inject constructor(
 
     /** An episode switch (Next Episode, Auto-Play Next Episode or an Episodes pick) is still resolving. */
     val inFlight: Boolean get() = switchJob?.isActive == true
+
+    /** The next episode picked for the playing target: the Next episode prompt shows it and `Next Episode` plays it. */
+    private var preview: Pair<PlaybackTarget, NextPick?>? = null
 
     /** The last (target, stream) written as LAST USED, so a rebuffer's repeated `Ready` writes nothing. */
     private var recorded: Pair<PlaybackTarget, StreamSource>? = null
@@ -77,25 +80,37 @@ class PlayerSwitching @Inject constructor(
     }
 
     /**
-     * `Next Episode` ([auto] = false) or Auto-Play Next Episode ([auto] = true, only after `STATE_ENDED`).
-     * Both pick through [PlaybackStreamResolver.next] from the playing target, so its shuffle session carries
-     * on identically. Auto-next leaves the player when the show is finished or no stream is found; a manual
-     * press keeps the current episode.
+     * The episode after [target] (sequential or the session's shuffle), picked once per target and kept, so the
+     * Next episode prompt's preview is exactly what plays. `null` when caught up (or not an episode).
      */
-    fun playNextEpisode(vm: PlayerViewModel, auto: Boolean) {
+    fun previewNext(target: PlaybackTarget): NextPick? {
+        preview?.let { (previewed, pick) -> if (previewed === target) return pick }
+        return resolver.pickNext(target).also { preview = target to it }
+    }
+
+    /**
+     * `Next Episode` ([auto] = false), Auto-Play Next Episode ([auto] = true, after `STATE_ENDED`) and the Next
+     * episode prompt / its countdown ([finished] = true: the episode is saved as watched first). All play the
+     * [previewNext] pick from the playing target, so its shuffle session carries on identically. Auto-next leaves
+     * the player when the show is finished or no stream is found; a manual press keeps the current episode.
+     */
+    fun playNextEpisode(vm: PlayerViewModel, auto: Boolean, finished: Boolean = false) {
         val media = vm._state.value.request as? PlaybackRequest.Media ?: return
-        if (!auto) vm.saveNow()
+        when {
+            finished -> vm.saveFinishedNow()
+            !auto -> vm.saveNow()
+        }
         switchJob?.cancel()
         switchJob = vm.viewModelScope.launch {
-            vm._state.update { it.copy(status = "Finding the next episode…", panel = null, hudVisible = false) }
-            when (val next = resolver.next(media.target, vm.settings.player.preferredAutoPlayAddonUrl)) {
-                NextEpisode.CaughtUp -> {
-                    vm._state.update { it.copy(status = null) }
-                    vm._messages.send("You're all caught up on ${media.title}")
-                    if (auto) vm.exit()
-                }
-                is NextEpisode.Found -> start(vm, next.playback, leaveWhenEmpty = auto)
+            vm._state.update { it.copy(status = "Finding the next episode…", panel = null, hudVisible = false, prompt = null) }
+            val pick = previewNext(media.target)
+            if (pick == null) {
+                vm._state.update { it.copy(status = null) }
+                vm._messages.send("You're all caught up on ${media.title}")
+                if (auto) vm.exit()
+                return@launch
             }
+            start(vm, resolver.resolvePick(media.target, pick, vm.settings.player.preferredAutoPlayAddonUrl), leaveWhenEmpty = auto)
         }
     }
 
@@ -163,5 +178,6 @@ class PlayerSwitching @Inject constructor(
         lastUsedJob?.cancel()
         lastUsedJob = null
         recorded = null
+        preview = null
     }
 }

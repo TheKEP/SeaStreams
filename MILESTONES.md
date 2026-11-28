@@ -491,6 +491,28 @@
 - Long-press `Remove` hides the card without touching watch history. It stays hidden across Home reloads until any episode of the show is watched again or a newer episode airs. Focus moves to the neighbouring card (§3 removal focus), and `View details` + `Back` returns focus to the card.
 - Turning `Show next up in continue watching` off leaves only in-progress cards. The toggle is per profile and is included in profile/app backups, as are removed `Next Up` cards. Files from before M13 still restore.
 
+## Milestone 14: Player Skip & Next Episode Prompts (`feat/player-skip-and-next-prompts`)
+**Prompt for Claude Code:**
+> Read `CLAUDE.md`, `PRD.md` (§1, §8, §9, §10, §11) and `ARCHITECTURE.md` (§1, §7, §8, §13, §14). Execute **Milestone 14**:
+> 1. **Sources:** `data/skip/`: `IntroDbClient` (keyless `GET api.introdb.app/segments`, any failure → empty), `EbmlChapterParser` + `MatroskaChapterReader` (≤ 2 bounded range reads, never Usenet) and `SkipSegmentRepository` (IntroDB LRU). No new dependencies.
+> 2. **Domain:** `domain/playback/skip/`: `ChapterSegmentClassifier`, `SkipSegmentMerger`, `PlayerPromptPolicy` (Skip intro, Skip recap, Skip to post-credits, Skip credits, Next episode) and `PromptTimers` (8 s window, auto-skip once, 10 s countdown). Split `PlaybackStreamResolver.next` into `pickNext` + `resolvePick`, and add `AutoNextPolicy.afterCreditsCountdown`.
+> 3. **Player:** `PlayerPrompts` (session helper ticked from `tick`) + `PlayerPromptOverlay` inside the `hdrUiDim` layer. `PlayerSwitching.previewNext` caches one pick per target, and `playNextEpisode(…, finished)` plays it. Focus rules: no focus grab within 1.5 s of a key, `ignoreInitialKeyUp`, seek bar `Up` → prompt, focus restore. Back tiers: overlay → prompt (`DISMISS_PROMPT`, dismissal remembered per stretch via `PromptPresenter`) → HUD → exit.
+> 4. **Settings & Backup:** per-profile `Skip intro & recap` / `Skip credits` (`Off` / `Show button` / `Auto-skip`), `Next episode prompt` and `Online skip times (IntroDB)` in the codec, Settings → Playback and `PlayerBackup` (defaults for older files).
+> 5. **Tests:** chapter titles, EBML parsing, IntroDB decoding, merge rules, every prompt window, timers, shuffle-aware Next episode preview == played pick, settings keys and backup/restore round-trips.
+>
+> Run `./gradlew testDebugUnitTest` and `./gradlew assembleDebug`.
+
+**Acceptance Criteria:**
+- Built-in player only (movies and episodes; never trailers or external players). With no skip data at all, no skip prompt appears, and `Next episode` shows only in an episode's last 30 s, without a countdown. Nothing errors and playback never waits on a lookup.
+- `Skip intro` / `Skip recap` show inside their segment until 2 s before its end and seek to its end. `Skip to post-credits` shows during the credits only when a post-credits scene is known (IntroDB or a chapter) and seeks to it. `Skip credits` makes a movie finish (saved as watched); for an episode it shows only when at least 20 s of programme follows the credits, and seeks past them.
+- An episode's `Next episode` prompt shows the badge of the very episode that will play (sequential, or the `Shuffle` / `Shuffle Season` session's single draw, which is also what the HUD `Next Episode` button plays). It saves the episode as watched and plays the `LAST USED` stream, else the top stream (preferred auto-play addon first). With *Auto-play next episode* on, a credits-opened prompt counts down 10 s (paused while paused); any key press cancels the countdown.
+- `Auto-skip` acts once per segment with a `Skipped intro` status; seeking back into it shows the button instead. Credits auto-skip of an episode with Auto-play next episode on plays the next episode.
+- A prompt is visible for 8 s of unpaused playback, shows again with the HUD, and is hidden while any right-hand panel is open, during the initial load, after a failed stream and during an episode switch. Its whites dim to 75 % during HDR / Dolby Vision playback.
+- D-pad: with the HUD hidden the prompt takes focus (never within 1.5 s of a key press); `OK` acts; `Left`/`Right` seek and `Up`/`Down` open the HUD as before. With the HUD visible, `Up` from the seek bar reaches the prompt. Holding or releasing the `OK` that opened the HUD never skips. Focus never strands when a prompt disappears: it returns to the player root (HUD hidden) or `Play / Pause` (HUD visible).
+- `Back` tiers: open overlay → visible prompt (focused or not, HUD shown or hidden) → HUD → exit. `Back` on a prompt dismisses only the prompt: playback continues, any countdown stops, and that prompt doesn't come back for its stretch (not on the next tick, nor when the HUD opens). Playback exits only once no overlay, prompt or HUD is left.
+- The four settings are per profile (`p{id}/…`), listed under Settings → `Playback`, included in profile and app backups, and older backup files restore their defaults.
+- Every Kotlin file stays under 350 lines; `testDebugUnitTest` and `assembleDebug` pass.
+
 ---
 
 ## Post-Launch Workflow (Every new feature or change)
