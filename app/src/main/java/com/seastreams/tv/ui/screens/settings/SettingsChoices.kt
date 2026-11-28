@@ -10,6 +10,7 @@ import com.seastreams.tv.core.datastore.PlaybackSpeed
 import com.seastreams.tv.core.datastore.VolumeBoost
 import com.seastreams.tv.core.datastore.PlayerSettings
 import com.seastreams.tv.core.datastore.PlayerChoice
+import com.seastreams.tv.core.datastore.SkipPromptMode
 import com.seastreams.tv.core.network.InvalidManifestException
 import com.seastreams.tv.core.network.StremioManifestParser
 import com.seastreams.tv.player.external.InstalledPlayer
@@ -142,6 +143,14 @@ fun choiceSpec(kind: ChoiceKind, state: SettingsUiState, vm: SettingsViewModel):
                 ChoiceOption(label, boost == state.settings.audio.volumeBoost) { vm.updateAudio { it.copy(volumeBoost = boost) } }
             },
         )
+        ChoiceKind.SKIP_INTRO_RECAP -> ChoiceSpec(
+            "Skip intro & recap",
+            skipModeOptions(player.skipIntroRecap) { mode -> vm.updatePlayer { it.copy(skipIntroRecap = mode) } },
+        )
+        ChoiceKind.SKIP_CREDITS -> ChoiceSpec(
+            "Skip credits",
+            skipModeOptions(player.skipCredits) { mode -> vm.updatePlayer { it.copy(skipCredits = mode) } },
+        )
         ChoiceKind.SUBTITLE_LANGUAGE -> ChoiceSpec(
             "Preferred subtitle language",
             PREFERRED_LANGUAGES.map { code ->
@@ -150,3 +159,9 @@ fun choiceSpec(kind: ChoiceKind, state: SettingsUiState, vm: SettingsViewModel):
         )
     }
 }
+
+private fun skipModeOptions(current: SkipPromptMode, apply: (SkipPromptMode) -> Unit): List<ChoiceOption> =
+    SkipPromptMode.entries.map { mode ->
+        val label = if (mode == SkipPromptMode.BUTTON) "${mode.label} (default)" else mode.label
+        ChoiceOption(label, mode == current) { apply(mode) }
+    }

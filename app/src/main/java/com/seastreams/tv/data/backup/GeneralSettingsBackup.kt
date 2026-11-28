@@ -9,6 +9,7 @@ import com.seastreams.tv.core.datastore.PlaybackBufferProfile
 import com.seastreams.tv.core.datastore.PlaybackSpeed
 import com.seastreams.tv.core.datastore.PlayerChoice
 import com.seastreams.tv.core.datastore.PlayerSettings
+import com.seastreams.tv.core.datastore.SkipPromptMode
 import com.seastreams.tv.core.datastore.SubtitleEdgeType
 import com.seastreams.tv.core.datastore.SubtitleMode
 import com.seastreams.tv.core.datastore.SubtitleSettings
@@ -73,6 +74,11 @@ data class PlayerBackup(
     val trailerAutoPlayDelaySeconds: Int = PLAYER.trailerAutoPlayDelaySeconds,
     /** Absent in files from before Next Up (Milestone 13): restores the default (on). */
     val showNextUpInContinueWatching: Boolean = PLAYER.showNextUpInContinueWatching,
+    /** Absent in files from before the skip prompts (Milestone 14): each restores its default. */
+    val skipIntroRecap: String = PLAYER.skipIntroRecap.name,
+    val skipCredits: String = PLAYER.skipCredits.name,
+    val nextEpisodePrompt: Boolean = PLAYER.nextEpisodePrompt,
+    val onlineSkipTimes: Boolean = PLAYER.onlineSkipTimes,
 ) {
     fun toSettings() = PlayerSettings(
         playerChoice = PlayerChoice.fromStorage(player),
@@ -93,6 +99,10 @@ data class PlayerBackup(
         muteAutoPlayTrailers = muteAutoPlayTrailers,
         trailerAutoPlayDelaySeconds = trailerAutoPlayDelaySeconds,
         showNextUpInContinueWatching = showNextUpInContinueWatching,
+        skipIntroRecap = enumByNameOrNull<SkipPromptMode>(skipIntroRecap) ?: PLAYER.skipIntroRecap,
+        skipCredits = enumByNameOrNull<SkipPromptMode>(skipCredits) ?: PLAYER.skipCredits,
+        nextEpisodePrompt = nextEpisodePrompt,
+        onlineSkipTimes = onlineSkipTimes,
     )
 
     companion object {
@@ -101,7 +111,8 @@ data class PlayerBackup(
             s.autoStreamFailover, s.fallbackTimeoutSeconds, s.autoPlayFromContinueWatching, s.defaultPlaybackSpeed.name,
             s.blurUnwatchedThumbnails, s.convertDvProfile7ToHdr, s.dolbyVisionPlayback.name, s.hdrWhiteDimming,
             s.playbackBufferProfile.name, s.parallelStreamConnections, s.autoPlayTrailers, s.muteAutoPlayTrailers,
-            s.trailerAutoPlayDelaySeconds, s.showNextUpInContinueWatching,
+            s.trailerAutoPlayDelaySeconds, s.showNextUpInContinueWatching, s.skipIntroRecap.name, s.skipCredits.name,
+            s.nextEpisodePrompt, s.onlineSkipTimes,
         )
     }
 }

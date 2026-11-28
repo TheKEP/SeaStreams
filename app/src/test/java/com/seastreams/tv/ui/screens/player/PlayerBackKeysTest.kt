@@ -7,6 +7,7 @@ import com.seastreams.tv.domain.model.SeasonInfo
 import com.seastreams.tv.domain.model.TrailerSource
 import com.seastreams.tv.domain.model.TrailerStream
 import com.seastreams.tv.domain.playback.PlaybackTarget
+import com.seastreams.tv.domain.playback.skip.PromptKind
 import com.seastreams.tv.testutil.testDetails
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -15,8 +16,8 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 /**
- * Three-tier single-press `Back` in the player (PRD §9), media and trailers alike: a sub-overlay
- * closes with focus going back to its bar button, else the HUD hides, else playback exits.
+ * Tiered single-press `Back` in the player (PRD §9), media and trailers alike: a sub-overlay closes with focus
+ * going back to its bar button, else a Skip / Next episode prompt is dismissed, else the HUD hides, else playback exits.
  */
 class PlayerBackKeysTest {
 
@@ -105,6 +106,7 @@ class PlayerBackKeysTest {
                         actions += action
                         current = when (action) {
                             PlayerBackAction.CLOSE_PANEL -> current.copy(panel = null)
+                            PlayerBackAction.DISMISS_PROMPT -> current.copy(prompt = null)
                             PlayerBackAction.HIDE_HUD -> current.copy(hudVisible = false)
                             PlayerBackAction.EXIT, PlayerBackAction.CANCEL_LOADING -> current
                         }
@@ -141,5 +143,53 @@ class PlayerBackKeysTest {
         assertEquals(PlayerPanel.entries.toList(), PlayerPanel.entries.filter { it.onActionBar(episode) })
         assertEquals(PlayerPanel.entries - PlayerPanel.EPISODES, PlayerPanel.entries.filter { it.onActionBar(movie) })
         assertTrue(PlayerPanel.entries.none { it.onActionBar(trailer) })
+    }
+
+    // ---- Skip / Next episode prompts (Milestone 14) ------------------------------------------------
+
+    private val skip = PlayerPromptUi(PromptKind.SKIP_INTRO)
+    private val next = PlayerPromptUi(PromptKind.NEXT_EPISODE, "S1:E4", countdownSeconds = 7)
+
+    @Test
+    fun `a prompt with the HUD hidden is dismissed by Back instead of leaving playback`() {
+        assertEquals(PlayerBackAction.DISMISS_PROMPT, playerBackAction(episode.copy(hudVisible = false, prompt = next)))
+        assertEquals(PlayerBackAction.DISMISS_PROMPT, playerBackAction(movie.copy(hudVisible = false, prompt = skip)))
+        // Once it is gone, the next Back leaves.
+        assertEquals(PlayerBackAction.EXIT, playerBackAction(episode.copy(hudVisible = false, prompt = null)))
+    }
+
+    @Test
+    fun `a prompt with the HUD visible is dismissed before the HUD hides`() {
+        assertEquals(PlayerBackAction.DISMISS_PROMPT, playerBackAction(episode.copy(prompt = skip)))
+        assertEquals(PlayerBackAction.HIDE_HUD, playerBackAction(episode.copy(prompt = null)))
+    }
+
+    @Test
+    fun `Back presses walk prompt, then HUD, then exit`() {
+        var current = episode.copy(prompt = next)
+        val actions = mutableListOf<PlayerBackAction>()
+        repeat(3) {
+            val action = playerBackAction(current)
+            actions += action
+            current = when (action) {
+                PlayerBackAction.DISMISS_PROMPT -> current.copy(prompt = null)
+                PlayerBackAction.HIDE_HUD -> current.copy(hudVisible = false)
+                else -> current
+            }
+        }
+        assertEquals(listOf(PlayerBackAction.DISMISS_PROMPT, PlayerBackAction.HIDE_HUD, PlayerBackAction.EXIT), actions)
+    }
+
+    @Test
+    fun `an open overlay still closes first`() {
+        assertEquals(PlayerBackAction.CLOSE_PANEL, playerBackAction(episode.copy(prompt = skip, panel = PlayerPanel.AUDIO)))
+    }
+
+    @Test
+    fun `a focused prompt that goes away refocuses the root, or Play-Pause with the HUD up`() {
+        assertEquals(PromptFocusRestore.ROOT, promptFocusRestore(promptWasFocused = true, hudVisible = false))
+        assertEquals(PromptFocusRestore.PLAY_PAUSE, promptFocusRestore(promptWasFocused = true, hudVisible = true))
+        assertNull(promptFocusRestore(promptWasFocused = false, hudVisible = true))
+        assertNull(promptFocusRestore(promptWasFocused = false, hudVisible = false))
     }
 }

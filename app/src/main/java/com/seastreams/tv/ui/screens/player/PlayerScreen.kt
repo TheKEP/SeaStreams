@@ -10,6 +10,7 @@ import android.view.KeyEvent.KEYCODE_MEDIA_PAUSE
 import android.view.KeyEvent.KEYCODE_MEDIA_PLAY
 import android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
 import android.view.KeyEvent.KEYCODE_MEDIA_REWIND
+import android.os.SystemClock
 import android.view.SurfaceView
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -29,6 +30,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -72,8 +74,8 @@ enum class HudFocus { PLAY, SEEK }
 /**
  * Full-screen built-in player (PRD §9). With the HUD hidden: `Enter` pauses and opens the HUD,
  * `Up`/`Down` open it while playback continues, and `Left`/`Right` seek 10 s. Each `Back` press does
- * one thing: close an open sub-overlay (focus returns to its bar button), else hide the HUD (playback
- * continues), else leave playback. The HUD hides after [HUD_TIMEOUT_MS] without a key press while playing.
+ * one thing: close an open sub-overlay (focus returns to its bar button), else dismiss a Skip / Next episode
+ * prompt, else hide the HUD (playback continues), else leave playback. The HUD hides after [HUD_TIMEOUT_MS] without a key press while playing.
  */
 @Composable
 fun PlayerScreen(request: PlaybackRequest, viewModel: PlayerViewModel, onExit: () -> Unit) {
@@ -98,6 +100,21 @@ fun PlayerScreen(request: PlaybackRequest, viewModel: PlayerViewModel, onExit: (
     val selectGate = remember { PlayerSelectKeyGate() }
     var hudBottomBlock by remember { mutableStateOf<Dp?>(null) }
     val backGate = remember { PlayerBackKeyGate() }
+    val prompt = remember { FocusRequester() }
+    var promptFocused by remember { mutableStateOf(false) }
+    var lastKeyAt by remember { mutableLongStateOf(0L) }
+    var refocusPlay by remember { mutableIntStateOf(0) }
+    // A focused prompt that goes away (Back, OK, timeout) hands focus back: the root with the HUD hidden, else Play/Pause.
+    LaunchedEffect(state.prompt == null) {
+        if (state.prompt != null) return@LaunchedEffect
+        val restore = promptFocusRestore(promptFocused, state.hudVisible)
+        promptFocused = false
+        when (restore) {
+            PromptFocusRestore.PLAY_PAUSE -> refocusPlay++
+            PromptFocusRestore.ROOT -> retryEachFrame(RESTORE_FRAMES) { root.tryRequestFocus() }
+            null -> Unit
+        }
+    }
     // The hidden-HUD state must keep a focused root, or the next Back / Enter would have nowhere to land.
     LaunchedEffect(state.hudVisible) { if (!state.hudVisible) retryEachFrame(RESTORE_FRAMES) { root.tryRequestFocus() } }
     LaunchedEffect(state.hudVisible, state.panel, state.playing, keyPresses) {
@@ -130,6 +147,8 @@ fun PlayerScreen(request: PlaybackRequest, viewModel: PlayerViewModel, onExit: (
                 }
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 keyPresses++
+                lastKeyAt = SystemClock.uptimeMillis()
+                viewModel.onUserKey()
                 handleMediaKey(event.key.nativeKeyCode, viewModel, state)
             }
             .focusRequester(root)
@@ -193,8 +212,22 @@ fun PlayerScreen(request: PlaybackRequest, viewModel: PlayerViewModel, onExit: (
             CenterIndicator(state, isTrailer = request is PlaybackRequest.Trailer, visual, Modifier.align(Alignment.Center))
             state.status?.let { StatusPill(it, Modifier.align(Alignment.TopCenter).padding(top = 28.dp)) }
             if (state.hudVisible) {
-                PlayerOverlayControls(state = state, viewModel = viewModel, initialFocus = hudFocus, onBottomBlockMeasured = { hudBottomBlock = it })
+                PlayerOverlayControls(
+                    state = state, viewModel = viewModel, initialFocus = hudFocus, onBottomBlockMeasured = { hudBottomBlock = it },
+                    promptFocus = prompt.takeIf { state.prompt != null }, refocusPlay = refocusPlay,
+                )
             }
+            // Never with a right-hand panel open (PlayerPrompts hides it then), and dimmed with the rest of the UI.
+            PlayerPromptOverlay(
+                prompt = state.prompt,
+                hudVisible = state.hudVisible,
+                hudBottomBlock = hudBottomBlock,
+                requester = prompt,
+                lastKeyAtMs = { lastKeyAt },
+                nowMs = SystemClock::uptimeMillis,
+                onFocusedChange = { promptFocused = it },
+                onAct = viewModel::actOnPrompt,
+            )
             state.panel?.let { panel -> PlayerPanels(panel, state, viewModel, hudBottomBlock, Modifier.align(Alignment.CenterEnd)) }
         }
     }

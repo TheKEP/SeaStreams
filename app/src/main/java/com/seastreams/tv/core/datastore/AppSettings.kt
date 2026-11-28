@@ -68,6 +68,13 @@ enum class DolbyVisionPlayback(val label: String) {
 
 enum class SubtitleEdgeType { NONE, OUTLINE, DROP_SHADOW }
 
+/** What the player does when it reaches an intro/recap or the credits (PRD §9 *Skip & Next Episode Prompts*). */
+enum class SkipPromptMode(val label: String) {
+    OFF("Off"),
+    BUTTON("Show button"),
+    AUTO("Auto-skip"),
+}
+
 data class PlayerSettings(
     val playerChoice: PlayerChoice = PlayerChoice.BuiltIn,
     /** Plays the top stream on `Play`/`Resume` instead of opening the stream list (PRD §11: on by default). */
@@ -101,6 +108,14 @@ data class PlayerSettings(
     val autoPlayTrailers: Boolean = true,
     val muteAutoPlayTrailers: Boolean = true,
     val trailerAutoPlayDelaySeconds: Int = DEFAULT_TRAILER_DELAY_SECONDS,
+    /** `Skip intro` / `Skip recap` in the built-in player (PRD §9: a button by default). */
+    val skipIntroRecap: SkipPromptMode = SkipPromptMode.BUTTON,
+    /** `Skip credits` / `Skip to post-credits` in the built-in player (PRD §9: a button by default). */
+    val skipCredits: SkipPromptMode = SkipPromptMode.BUTTON,
+    /** The in-player `Next episode` prompt near an episode's end (PRD §9: on by default). */
+    val nextEpisodePrompt: Boolean = true,
+    /** Looks skip times up on IntroDB (IMDb id + season/episode); off = Matroska chapters only (PRD §9: on by default). */
+    val onlineSkipTimes: Boolean = true,
 ) {
     companion object {
         const val DEFAULT_FALLBACK_TIMEOUT_SECONDS = 10

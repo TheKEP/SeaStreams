@@ -7,7 +7,6 @@ import com.seastreams.tv.core.datastore.AppSettings
 import com.seastreams.tv.core.datastore.PlaybackSpeed
 import com.seastreams.tv.core.datastore.SettingsDataStore
 import com.seastreams.tv.core.util.MILLIS_PER_SECOND
-import com.seastreams.tv.domain.model.EpisodeRef
 import com.seastreams.tv.domain.model.PlaybackRequest
 import com.seastreams.tv.domain.playback.PlayerProgressTracker
 import com.seastreams.tv.domain.playback.SubtitleSource
@@ -56,6 +55,7 @@ class PlayerViewModel @Inject constructor(
     internal val progressTracker: PlayerProgressTracker,
     internal val switching: PlayerSwitching,
     internal val streamGate: PlayerStreamGate,
+    internal val prompts: PlayerPrompts,
 ) : ViewModel() {
 
     internal val _state = MutableStateFlow(PlayerUiState())
@@ -187,6 +187,7 @@ class PlayerViewModel @Inject constructor(
             )
         }
         switching.loadLastUsed(this, request)
+        prompts.onNewTitle(this, request)
         playIndex(manager, request.streamIndex, request.startPositionMs)
     }
 
@@ -195,6 +196,7 @@ class PlayerViewModel @Inject constructor(
         val stream = streams.getOrNull(index) ?: return
         // Before any preflight: a late Ended/Failed from the stream being replaced is stale from here on.
         manager.beginSource()
+        prompts.onNewStream()
         if (_state.value.selectedSubtitle?.source == SubtitleSource.EMBEDDED) {
             _state.update { it.copy(selectedSubtitleId = null) }
             initialSubtitleDone = false
@@ -213,7 +215,10 @@ class PlayerViewModel @Inject constructor(
                 switching.onStreamReady(this)
                 _state.update { it.copy(status = null) }
             }
-            PlayerEvent.FirstFrame -> _state.update { it.onFirstFrame() }
+            PlayerEvent.FirstFrame -> {
+                _state.update { it.onFirstFrame() }
+                prompts.onFirstFrame(this, manager)
+            }
             is PlayerEvent.Failed -> when {
                 _state.value.isTrailer -> {
                     _messages.send("Trailer couldn't play")
@@ -253,10 +258,11 @@ class PlayerViewModel @Inject constructor(
 
     // ---- Back & exit ------------------------------------------------------------------------------
 
-    /** `Back`: closes an open overlay, else hides the HUD, else leaves playback (never Auto-Play Next Episode). */
+    /** `Back`: closes an open overlay, else dismisses a prompt, else hides the HUD, else leaves playback (never Auto-Play Next Episode). */
     fun back() {
         when (playerBackAction(_state.value)) {
             PlayerBackAction.CLOSE_PANEL -> closePanel()
+            PlayerBackAction.DISMISS_PROMPT -> prompts.dismiss(this)
             PlayerBackAction.HIDE_HUD -> hideHud()
             PlayerBackAction.EXIT -> userExit()
             PlayerBackAction.CANCEL_LOADING -> exit()
@@ -318,6 +324,7 @@ class PlayerViewModel @Inject constructor(
         sessionJob?.cancel()
         sessionJob = null
         switching.cancel()
+        prompts.cancel()
         progressBinding.unbind()
         streamGate.cancel()
         fallback.cancel()
@@ -328,14 +335,6 @@ class PlayerViewModel @Inject constructor(
     }
 
     override fun onCleared() = releaseManager()
-
-    fun selectStream(index: Int) = switching.selectStream(this, index)
-
-    fun nextEpisode() = switching.playNextEpisode(this, auto = false)
-
-    fun selectSeason(season: Int) = switching.selectSeason(this, season)
-
-    fun playEpisode(ref: EpisodeRef) = switching.playEpisode(this, ref)
 
     internal fun currentManager(): SeaStreamsPlayerManager? = _manager.value
 }

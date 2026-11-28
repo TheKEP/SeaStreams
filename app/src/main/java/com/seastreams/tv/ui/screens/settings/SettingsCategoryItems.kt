@@ -25,6 +25,14 @@ internal fun playbackItems(state: SettingsUiState, cb: SettingsCallbacks): List<
             },
         )
         add(toggle("autoplay-next", SeaIcons.Episodes, "Auto-play next episode", p.autoPlayNextEpisode) { cb.updatePlayer { it.copy(autoPlayNextEpisode = !it.autoPlayNextEpisode) } })
+        add(toggle("next-prompt", SeaIcons.SkipNext, "Next episode prompt", p.nextEpisodePrompt) { cb.updatePlayer { it.copy(nextEpisodePrompt = !it.nextEpisodePrompt) } })
+        add(entry(SKIP_INTRO_ROW_KEY, SeaIcons.SkipNext, "Skip intro & recap", p.skipIntroRecap.label, RowTrailing.Chevron) { cb.open(SettingsPanel.Choice(ChoiceKind.SKIP_INTRO_RECAP)) })
+        add(entry(SKIP_CREDITS_ROW_KEY, SeaIcons.SkipNext, "Skip credits", p.skipCredits.label, RowTrailing.Chevron) { cb.open(SettingsPanel.Choice(ChoiceKind.SKIP_CREDITS)) })
+        add(
+            entry("skip-online", SeaIcons.Language, "Online skip times (IntroDB)", onlineSkipDescription(p.onlineSkipTimes), RowTrailing.Toggle(p.onlineSkipTimes)) {
+                cb.updatePlayer { it.copy(onlineSkipTimes = !it.onlineSkipTimes) }
+            },
+        )
         add(
             toggle("autoplay-cw", Icons.Filled.Refresh, "Auto-play from continue watching", p.autoPlayFromContinueWatching) {
                 cb.updatePlayer { it.copy(autoPlayFromContinueWatching = !it.autoPlayFromContinueWatching) }
@@ -117,4 +125,10 @@ const val FALLBACK_ROW_KEY = "fallback"
 const val HDR_DIM_ROW_KEY = "hdr-dim"
 const val SPEED_ROW_KEY = "default-speed"
 const val VOLUME_ROW_KEY = "volume-boost"
+const val SKIP_INTRO_ROW_KEY = "skip-intro"
+const val SKIP_CREDITS_ROW_KEY = "skip-credits"
+
+/** IntroDB receives the title's IMDb id and season/episode; off, only the file's own chapters are used. */
+internal fun onlineSkipDescription(enabled: Boolean): String =
+    if (enabled) "Looks up intro and credits times online; chapters in the file are used too" else "Only chapters inside the file are used"
 private const val AUDIO_STEP_MS = 25

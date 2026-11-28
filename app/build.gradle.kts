@@ -28,8 +28,8 @@ android {
         applicationId = "com.seastreams.tv"
         minSdk = 26
         targetSdk = 37
-        versionCode = 3
-        versionName = "1.3"
+        versionCode = 4
+        versionName = "1.4"
 
         // Developer values from local.properties (never committed); "" when absent.
         val localProperties = rootProject.file("local.properties")

@@ -1,8 +1,10 @@
 package com.seastreams.tv.ui.screens.player
 
+import android.os.SystemClock
 import androidx.lifecycle.viewModelScope
 import com.seastreams.tv.core.datastore.PlaybackSpeed
 import com.seastreams.tv.core.datastore.SubtitleStyle
+import com.seastreams.tv.domain.model.EpisodeRef
 import com.seastreams.tv.domain.playback.SubtitleOption
 import com.seastreams.tv.domain.playback.SubtitleSource
 import com.seastreams.tv.domain.playback.TrackOrdering
@@ -104,7 +106,7 @@ fun PlayerViewModel.setPlaybackSpeed(speed: PlaybackSpeed) {
     manager.setPassthrough(state.audio.passthrough)
 }
 
-/** Twice a second: position, progress saves and the Info overlay; cue text every 100 ms. */
+/** Twice a second: position, progress saves, skip/next prompts and the Info overlay; cue text every 100 ms. */
 internal suspend fun PlayerViewModel.tick(manager: SeaStreamsPlayerManager) {
     var ticks = 0
     while (true) {
@@ -120,6 +122,7 @@ internal suspend fun PlayerViewModel.tick(manager: SeaStreamsPlayerManager) {
                 lastSaveAtPosition = position
                 progressTracker.save(request, position, player.duration.knownOrZero())
             }
+            prompts.update(this, manager, SystemClock.uptimeMillis())
         }
         if (state.panel == PlayerPanel.INFO && ticks % INFO_EVERY_TICKS == 0) _info.value = buildInfoRows(state, manager)
         ticks++
@@ -130,3 +133,11 @@ internal suspend fun PlayerViewModel.tick(manager: SeaStreamsPlayerManager) {
 private const val TICK_MS = 100L
 private const val PROGRESS_EVERY_TICKS = 5
 private const val INFO_EVERY_TICKS = 10
+
+fun PlayerViewModel.selectStream(index: Int) = switching.selectStream(this, index)
+
+fun PlayerViewModel.nextEpisode() = switching.playNextEpisode(this, auto = false)
+
+fun PlayerViewModel.selectSeason(season: Int) = switching.selectSeason(this, season)
+
+fun PlayerViewModel.playEpisode(ref: EpisodeRef) = switching.playEpisode(this, ref)

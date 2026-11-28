@@ -68,7 +68,14 @@ import java.util.Locale
  * play/pause and the seek bar only.
  */
 @Composable
-fun PlayerOverlayControls(state: PlayerUiState, viewModel: PlayerViewModel, initialFocus: HudFocus, onBottomBlockMeasured: (Dp) -> Unit = {}) {
+fun PlayerOverlayControls(
+    state: PlayerUiState,
+    viewModel: PlayerViewModel,
+    initialFocus: HudFocus,
+    onBottomBlockMeasured: (Dp) -> Unit = {},
+    promptFocus: FocusRequester? = null,
+    refocusPlay: Int = 0,
+) {
     val density = LocalDensity.current
     val progress by viewModel.progress.collectAsState()
     val manager by viewModel.manager.collectAsState()
@@ -77,6 +84,8 @@ fun PlayerOverlayControls(state: PlayerUiState, viewModel: PlayerViewModel, init
     val panelButtons = remember { PlayerPanel.entries.associateWith { FocusRequester() } }
     var lastPanel by remember { mutableStateOf<PlayerPanel?>(null) }
     LaunchedEffect(Unit) { (if (initialFocus == HudFocus.SEEK) seekBar else playButton).requestFocusAfterFrame() }
+    // The Skip / Next episode prompt went away while focused.
+    LaunchedEffect(refocusPlay) { if (refocusPlay > 0) retryEachFrame(RESTORE_FRAMES) { playButton.tryRequestFocus() } }
     // Closing an overlay hands focus back to the bar button that opened it (Play/Pause if that pill
     // isn't shown), retrying while the bar re-attaches so focus never stays on nothing.
     LaunchedEffect(state.panel) {
@@ -114,14 +123,14 @@ fun PlayerOverlayControls(state: PlayerUiState, viewModel: PlayerViewModel, init
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             // `Down` from the seek bar always lands on Play/Pause (seekBarDownTarget), never the pill spatially below.
-            SeekRow(progress, viewModel, seekBar, downTarget = playButton)
+            SeekRow(progress, viewModel, seekBar, downTarget = playButton, upTarget = promptFocus)
             PlayerActionBar(state, viewModel, playButton, panelButtons)
         }
     }
 }
 
 @Composable
-private fun SeekRow(progress: PlayerProgress, viewModel: PlayerViewModel, requester: FocusRequester, downTarget: FocusRequester) {
+private fun SeekRow(progress: PlayerProgress, viewModel: PlayerViewModel, requester: FocusRequester, downTarget: FocusRequester, upTarget: FocusRequester?) {
     var scrubMs by remember { mutableStateOf<Long?>(null) }
     // Held/rapid presses move a scrub marker; the seek itself happens once the presses stop.
     LaunchedEffect(scrubMs) {
@@ -139,7 +148,11 @@ private fun SeekRow(progress: PlayerProgress, viewModel: PlayerViewModel, reques
                 .weight(1f)
                 .height(20.dp)
                 .focusRequester(requester)
-                .focusProperties { down = downTarget }
+                .focusProperties {
+                    down = downTarget
+                    // `Up` reaches the Skip / Next episode prompt above the seek row when one shows.
+                    if (upTarget != null) up = upTarget
+                }
                 .onFocusChanged { focused = it.isFocused }
                 .onKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
