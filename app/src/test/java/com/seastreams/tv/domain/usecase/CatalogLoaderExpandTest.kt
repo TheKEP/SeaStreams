@@ -62,6 +62,8 @@ class CatalogLoaderExpandTest {
         assertFalse(expanded.hasMore)
         coVerify(exactly = 1) { tmdb.discoverMovies(null, 1, null) }
         (2..5).forEach { p -> coVerify(exactly = 1) { tmdb.discoverMovies(null, p, null) } }
+        // Only the row's own 20 titles were hydrated (for their slot logos); pages 2..5 never are.
+        coVerify(exactly = 20) { tmdb.getMovieDetails(any()) }
     }
 
     @Test

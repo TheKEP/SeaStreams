@@ -122,10 +122,12 @@ class AddonCatalogLoader @Inject constructor(
 
     private suspend fun findByImdbId(imdbId: String, mediaType: MediaType, names: Map<Int, String>): MediaItem? = try {
         val found = hydrator.withTmdb { tmdb -> tmdb.findByImdbId(imdbId) }
-        when (mediaType) {
+        val summary = when (mediaType) {
             MediaType.MOVIE -> found.movieResults.firstOrNull()?.toMediaItem(imageUrls, names)
             MediaType.TV -> found.tvResults.firstOrNull()?.toMediaItem(imageUrls, names)
         }
+        // `/find` results carry no logo or runtime: hydrate like `tmdb:` ids, keeping the summary on failure.
+        summary?.let { hydrator.hydrate(it.ref) ?: it }
     } catch (e: CancellationException) {
         throw e
     } catch (e: TmdbApiKeyMissingException) {

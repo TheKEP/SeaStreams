@@ -17,8 +17,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.MaterialTheme
 import com.seastreams.tv.domain.model.MediaItem
+import com.seastreams.tv.ui.theme.CatalogTypography
 import com.seastreams.tv.ui.theme.Obsidian
 import com.seastreams.tv.ui.theme.SurfaceCard
 import com.seastreams.tv.ui.theme.focusRing
@@ -30,7 +30,7 @@ private val TitleAboveBarGap = 6.dp
 /**
  * A catalog row's stationary 16:9 showcase slot (PRD §4), pinned at the left gutter. It is not
  * focusable: D-pad focus sits on the strip poster underneath it, and the slot shows that row's
- * last-focused [item] (backdrop, title logo, watched badge, [overlay] e.g. the Continue Watching
+ * last-focused [item] (backdrop, TMDB title logo (Montserrat title text only when TMDB has none), watched badge, [overlay] e.g. the Continue Watching
  * progress bar, and [trailer] for inline previews), crossfading in [SLOT_CROSSFADE_MS] when it changes.
  * The 3dp ring follows [focusRing] (the row holds focus on a media poster).
  */
@@ -74,7 +74,7 @@ private fun SlotArtwork(item: MediaItem, reserveProgressBar: Boolean) {
         TitleArt(
             item,
             logoSize = SlotLogoSize,
-            textStyle = MaterialTheme.typography.titleLarge,
+            textStyle = CatalogTypography.slotFallbackTitle,
             modifier = Modifier.align(Alignment.BottomStart).padding(
                 start = SlotTitleInset,
                 top = SlotTitleInset,
