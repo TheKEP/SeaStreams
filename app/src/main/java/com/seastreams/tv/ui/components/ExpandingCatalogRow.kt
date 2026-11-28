@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -43,15 +42,11 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.Text
 import com.seastreams.tv.domain.model.MediaItem
 import com.seastreams.tv.player.InlineTrailerSlot
 import com.seastreams.tv.ui.theme.ManualBringIntoViewSpec
-import com.seastreams.tv.ui.theme.TextSecondary
 import com.seastreams.tv.ui.theme.onDpadEdgeWrap
 import com.seastreams.tv.ui.theme.requestFocusAfterFrame
 import com.seastreams.tv.ui.theme.throttleHorizontalDpadRepeat
@@ -59,13 +54,6 @@ import kotlinx.coroutines.launch
 
 /** Left/right page gutter shared by the Home rows, hero and nav bar. */
 val RowGutter = 48.dp
-/**
- * Title (24) + metadata line (20) + 2-line synopsis (40) + 2 × 2dp gaps. With the 36dp header,
- * 218dp artwork and [InfoTopPadding], a focused row is 348dp tall, so on a 540dp-tall screen the
- * next row's title and the top ~45–50dp of its posters still show below it.
- */
-private val InfoHeight = 88.dp
-private val InfoTopPadding = 6.dp
 private const val VIEW_MORE_KEY = "view-more"
 private const val STRIP_END_KEY = "strip-end"
 private val DpadKeys = setOf(Key.DirectionLeft, Key.DirectionRight, Key.DirectionUp, Key.DirectionDown)
@@ -84,18 +72,20 @@ private const val INFO_ANIM_MILLIS = 130
  *   uniform 2:3 posters (plus `View More`) slides along; no strip item ever changes width.
  * - D-pad focus moves across the strip posters. The focused poster is glided to sit underneath the
  *   slot (laid out and focusable, but never drawn), so the next poster always sits right next to the
- *   slot and no poster ever shows to its left. The slot draws the focus ring while a media poster of
- *   this row holds focus; `View More` draws its own ring and leaves the slot on the last media item.
- * - The focused item's title, rating, year, genre, runtime and synopsis show below the slot while the
- *   row has focus, or while a long-press menu opened from it holds focus ([holdInfo]).
+ *   slot, while [PreviousPosterPeek] shows a sliver of the previous poster bleeding off the left screen
+ *   edge. The slot draws the focus ring while a media poster of this row holds focus; `View More` draws
+ *   its own ring and leaves the slot on the last media item.
+ * - The focused item's rating, year, genre, runtime and synopsis ([CatalogRowInfo]) show below the slot
+ *   while the row has focus, or while a long-press menu opened from it holds focus ([holdInfo]).
  * - [items] should already be capped (`ROW_CAP` = 20 on every tab); [hasMore] appends a `View More`
  *   card at position 21 (index 20).
  * - Edge-stop-then-wrap (PRD §1): holding `Right` stops on the last card (or `View More`); a fresh
  *   `Right` press while already there wraps focus back to the first card.
- * - Each step glides the strip in [CATALOG_ROW_GLIDE_MS], shorter than the held-key interval
- *   ([com.seastreams.tv.ui.theme.HORIZONTAL_REPEAT_INTERVAL_MS]), so every step settles before the
- *   next held tick; a step that interrupts a glide keeps its momentum ([rowGlideEasing]). Fresh taps
- *   are never throttled. The throttle sits on the row container, ahead of the edge-wrap cards.
+ * - The strip follows focus with one continuous glide per row ([StripGlider], [glideFrame]): a tap
+ *   settles in ~280ms, and a held key (paced at
+ *   [com.seastreams.tv.ui.theme.HORIZONTAL_REPEAT_INTERVAL_MS]) retargets it without stopping, so the
+ *   strip flows at a steady speed and decelerates onto the focused poster on release. Fresh taps are
+ *   never throttled. The throttle sits on the row container, ahead of the edge-wrap cards.
  * - Re-entering the row with `Up`/`Down` restores the last-focused card (first card by default),
  *   kept in [focusedIndexState] so the page can hold it while the row is scrolled away and disposed.
  */
@@ -163,13 +153,10 @@ fun ExpandingCatalogRow(
     LaunchedEffect(items) {
         if (!rowFocused) listState.scrollToItem(stripScrollIndex(focusedIndex, items.size, viewMoreFocused = false))
     }
-    // Focus moves never scroll the strip on their own; each one glides the focused card under the slot.
-    val glideTo: (Int, Boolean) -> Unit = { index, viewMore ->
-        scope.launch {
-            val target = stripScrollIndex(index, items.size, viewMore)
-            listState.glideItemToStart(target, CATALOG_ROW_GLIDE_MS, rowGlideEasing(listState.isScrollInProgress))
-        }
-    }
+    // Focus moves never scroll the strip on their own; each one retargets the row's continuous glide.
+    val pitchPx = with(LocalDensity.current) { PosterPitch.toPx() }
+    val glider = remember(listState, scope, pitchPx) { StripGlider(listState, scope, pitchPx) }
+    val glideTo: (Int, Boolean) -> Unit = { index, viewMore -> glider.retarget(stripScrollIndex(index, items.size, viewMore)) }
 
     Column(
         modifier
@@ -263,6 +250,7 @@ fun ExpandingCatalogRow(
                     item(key = STRIP_END_KEY) { Spacer(Modifier.fillParentMaxWidth()) }
                 }
             }
+            PreviousPosterPeek(items, listState, overlay = { index -> cardOverlay(index, false) })
             items.getOrNull(shownIndex)?.let { item ->
                 CatalogShowcaseSlot(
                     item = item,
@@ -283,44 +271,7 @@ fun ExpandingCatalogRow(
             enter = fadeIn(tween(INFO_ANIM_MILLIS)) + expandVertically(tween(INFO_ANIM_MILLIS)),
             exit = fadeOut(tween(INFO_ANIM_MILLIS)) + shrinkVertically(tween(INFO_ANIM_MILLIS)),
         ) {
-            // Fixed height so moving between cards (or onto View More) never shifts the rows below.
-            Box(Modifier.padding(start = RowGutter, top = InfoTopPadding).height(InfoHeight)) {
-                items.getOrNull(focusedIndex)?.let { CatalogItemInfo(it) }
-            }
-        }
-    }
-}
-
-@Composable
-fun RowTitle(title: String, modifier: Modifier = Modifier) {
-    Text(
-        title,
-        style = MaterialTheme.typography.titleLarge,
-        fontWeight = FontWeight.Bold,
-        modifier = modifier.padding(start = RowGutter, bottom = 8.dp),
-    )
-}
-
-/** Title, `👍 74%  2026  Comedy  1h 47m` and a 2-line synopsis under the showcase slot. */
-@Composable
-private fun CatalogItemInfo(item: MediaItem) {
-    Column(Modifier.width(560.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(
-            item.title,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        MediaMetadataLine(item, showCertification = false)
-        if (item.overview.isNotBlank()) {
-            Text(
-                item.overview,
-                style = MaterialTheme.typography.bodyMedium,
-                color = TextSecondary,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
+            CatalogRowInfo(items.getOrNull(focusedIndex))
         }
     }
 }

@@ -3,6 +3,8 @@ package com.seastreams.tv.domain.usecase
 import com.seastreams.tv.core.network.MdbListApiService
 import com.seastreams.tv.core.network.TmdbApiService
 import com.seastreams.tv.core.network.TmdbGenre
+import com.seastreams.tv.core.network.TmdbImage
+import com.seastreams.tv.core.network.TmdbImages
 import com.seastreams.tv.core.network.TmdbMovieSummary
 import com.seastreams.tv.core.network.TmdbPage
 import com.seastreams.tv.core.network.TmdbTvSummary
@@ -23,6 +25,7 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import java.io.IOException
 
 class CatalogLoaderTest {
 
@@ -44,17 +47,42 @@ class CatalogLoaderTest {
     }
 
     @Test
-    fun `adult discover rows fetch only page 1 and use list results without per-title lookups`() = runTest {
+    fun `adult discover rows fetch only page 1 and hydrate each title for its logo`() = runTest {
+        coEvery { tmdb.getMovieDetails(1) } returns movieDetails(1, "PG").copy(
+            images = TmdbImages(listOf(TmdbImage("/logo1.png", "en"))),
+        )
+
         val row = loader.load(CatalogSource.Discover(MediaType.MOVIE, StreamingProvider.NETFLIX), restriction = null, cap = ROW_CAP)
 
         assertEquals((1..20).toList(), row.items.map { it.tmdbId })
         assertTrue(row.hasMore, "total_pages > 1 must flag View More")
-        assertEquals(listOf("Action", "Comedy"), row.items.first().genres)
         assertEquals("https://image.tmdb.org/t/p/w342/p1.jpg", row.items.first().posterUrl)
+        assertEquals("https://image.tmdb.org/t/p/w500/logo1.png", row.items.first().logoUrl)
+        assertEquals(99, row.items.first().runtimeMinutes)
         coVerify(exactly = 1) { tmdb.discoverMovies(StreamingProvider.NETFLIX, 1, null) }
         coVerify(exactly = 0) { tmdb.discoverMovies(any(), 2, any()) }
-        coVerify(exactly = 0) { tmdb.getMovieDetails(any()) }
+        coVerify(exactly = 20) { tmdb.getMovieDetails(any()) }
         coVerify(exactly = 0) { tmdb.getExternalIds(any(), any()) }
+    }
+
+    @Test
+    fun `an adult title whose details lookup fails keeps its list version`() = runTest {
+        coEvery { tmdb.getMovieDetails(2) } throws IOException("boom")
+
+        val row = loader.load(CatalogSource.Discover(MediaType.MOVIE), restriction = null, cap = ROW_CAP)
+
+        assertEquals((1..20).toList(), row.items.map { it.tmdbId })
+        val kept = row.items[1]
+        assertNull(kept.logoUrl)
+        assertNull(kept.runtimeMinutes)
+        assertEquals(listOf("Action", "Comedy"), kept.genres)
+    }
+
+    @Test
+    fun `view more loads are not hydrated title by title`() = runTest {
+        loader.load(CatalogSource.Discover(MediaType.MOVIE), restriction = null, cap = 100)
+
+        coVerify(exactly = 0) { tmdb.getMovieDetails(any()) }
     }
 
     @Test

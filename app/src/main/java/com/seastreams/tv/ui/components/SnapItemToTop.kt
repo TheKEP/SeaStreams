@@ -2,7 +2,6 @@ package com.seastreams.tv.ui.components
 
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.withFrameNanos
@@ -81,7 +80,7 @@ suspend fun LazyListState.glideItemToStart(index: Int, durationMs: Int, easing: 
  * Offset of item [index] from the start of the content area: exact when it is laid out, estimated
  * from the visible items' average size when it is within [MAX_ESTIMATED_ITEMS] of them, else `null`.
  */
-private fun LazyListState.targetOffset(index: Int): Float? {
+internal fun LazyListState.targetOffset(index: Int): Float? {
     val info = layoutInfo
     val visible = info.visibleItemsInfo
     visible.firstOrNull { it.index == index }?.let { return it.offset.toFloat() }
@@ -124,11 +123,3 @@ internal fun glideStepFraction(eased: Float, next: Float): Float {
 
 /** A glide's eased progress: [easing] on `t` (clamped to `0..1`). */
 internal fun glideProgress(t: Float, easing: Easing = FastOutSlowInEasing): Float = easing.transform(t.coerceIn(0f, 1f))
-
-/**
- * Easing for a catalog row's fixed-slot strip glide ([CATALOG_ROW_GLIDE_MS]). A fresh move eases in and out. A move that interrupts
- * a glide still running (rapid taps, a held key) uses [LinearOutSlowInEasing], which starts at full
- * speed, so the row keeps its momentum instead of stalling and re-accelerating at every step.
- */
-fun rowGlideEasing(interruptsGlide: Boolean): Easing =
-    if (interruptsGlide) LinearOutSlowInEasing else FastOutSlowInEasing

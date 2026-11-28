@@ -30,8 +30,10 @@ import javax.inject.Singleton
  * Loads the titles behind any [CatalogSource] for a profile, already age-filtered (CLAUDE.md rule 6):
  * - MDBList exports are bare ids, so every title is hydrated through TMDB details (which carry the
  *   US certification) and filtered as it is collected.
- * - TMDB lists (`/discover`, `/trending`) already carry posters. Adult profiles get them as-is (no
- *   per-title calls); Kids profiles have each title hydrated to learn its certification first.
+ * - TMDB lists (`/discover`, `/trending`) carry posters but no title logo or runtime, so a row's titles
+ *   are hydrated through TMDB details (12h-cached, logo + runtime + certification): Kids profiles
+ *   filter on the certification, adult profiles keep a title whose lookup fails as its list version
+ *   ([MediaHydrator.hydrateOrKeep]). View More's extra pages stay un-hydrated (2:3 posters only).
  * - Kids `Trending Family` rows ([CatalogSource.FamilyTrending]) are TMDB lists too, but each page
  *   is genre-checked against its [FamilyCatalogPolicy] rule first and every title is always hydrated
  *   and checked against the rule's certification allowlist as well as the profile's ceiling.
@@ -118,7 +120,7 @@ class CatalogLoader @Inject constructor(
         val pages = fetchPages(source, 1..lastPage)
         val totalPages = pages.first().totalPages
         val titles = pages.take(maxOf(totalPages, 1)).flatMap { it.items }.distinctBy { it.key }
-        val allowed = admit(source, titles, restriction)
+        val allowed = admit(source, titles, restriction, enrich = cap <= TmdbApiService.PAGE_SIZE)
         return CatalogRow(items = allowed.take(cap), hasMore = allowed.size > cap || totalPages > lastPage)
     }
 
@@ -134,7 +136,7 @@ class CatalogLoader @Inject constructor(
         val pages = fetchPages(source, seedPages + 1..lastPage)
         val seen = seed.items.mapTo(HashSet()) { it.key }
         val fresh = pages.flatMap { it.items }.distinctBy { it.key }.filter { it.key !in seen }
-        val items = seed.items + admit(source, fresh, restriction)
+        val items = seed.items + admit(source, fresh, restriction, enrich = false)
         return CatalogRow(items = items.take(cap), hasMore = items.size > cap || pages.maxOf { it.totalPages } > lastPage)
     }
 
@@ -199,10 +201,13 @@ class CatalogLoader @Inject constructor(
     /**
      * The [titles] of a TMDB list [source] the profile may see. Family rows always hydrate (so their
      * certification allowlist holds even without a [restriction]) and must pass both that allowlist
-     * and the profile's ceiling; unrated titles are never kept there.
+     * and the profile's ceiling; unrated titles are never kept there. With [enrich] (a row's own page,
+     * shown in the 16:9 slot), adult profiles' titles are hydrated too, for their logos and runtimes.
      */
-    private suspend fun admit(source: CatalogSource, titles: List<MediaItem>, restriction: AgeRestriction?): List<MediaItem> {
-        if (source !is CatalogSource.FamilyTrending) return allowed(titles, restriction)
+    private suspend fun admit(source: CatalogSource, titles: List<MediaItem>, restriction: AgeRestriction?, enrich: Boolean): List<MediaItem> {
+        if (source !is CatalogSource.FamilyTrending) {
+            return if (restriction == null && enrich) hydrator.hydrateOrKeep(titles) else allowed(titles, restriction)
+        }
         val rule = FamilyCatalogPolicy.rule(source.mediaType)
         return hydrator.hydrateAll(titles.map { it.ref })
             .filter { rule.acceptsCertification(it.certification) && isAllowed(it, restriction) }

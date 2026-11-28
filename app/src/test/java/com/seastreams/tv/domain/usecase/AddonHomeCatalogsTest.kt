@@ -1,5 +1,7 @@
 package com.seastreams.tv.domain.usecase
 
+import com.seastreams.tv.core.network.TmdbImage
+import com.seastreams.tv.core.network.TmdbImages
 import app.cash.turbine.test
 import com.seastreams.tv.core.network.StremioMetaPreview
 import com.seastreams.tv.core.network.TmdbFindResult
@@ -125,9 +127,13 @@ class AddonHomeCatalogsTest : HomeCatalogsTestBase() {
 
         assertEquals((1..GetHomeCatalogsUseCase.ROW_CAP).toList(), row.items.map { it.tmdbId })
         assertTrue(row.hasMore)
-        // Only as many metas as the cap needs are resolved: 10 via /find, 10 via details.
+        // Only as many metas as the cap needs are resolved: 10 via /find, every one through details.
         coVerify(exactly = 10) { tmdb.findByImdbId(any()) }
-        coVerify(exactly = 10) { tmdb.getMovieDetails(any()) }
+        coVerify(exactly = 20) { tmdb.getMovieDetails(any()) }
+        // IMDb-sourced titles carry their stylized logo and runtime from the details hydration.
+        val imdbTitle = row.items.first()
+        assertEquals("https://image.tmdb.org/t/p/w500/l1.png", imdbTitle.logoUrl)
+        assertEquals(99, imdbTitle.runtimeMinutes)
         coVerify(exactly = 0) { tmdb.getExternalIds(any(), any()) }
     }
 
@@ -183,7 +189,7 @@ class AddonHomeCatalogsTest : HomeCatalogsTestBase() {
     private fun givenMovieDetails() {
         coEvery { tmdb.getMovieDetails(any()) } answers {
             val id = firstArg<Int>()
-            movieDetails(id, if (id % 3 == 0) "R" else "G")
+            movieDetails(id, if (id % 3 == 0) "R" else "G").copy(images = TmdbImages(listOf(TmdbImage("/l$id.png", "en"))))
         }
     }
 }

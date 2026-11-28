@@ -69,6 +69,18 @@ class MediaHydrator @Inject constructor(
         refs.map { ref -> async { hydrate(ref) } }.awaitAll().filterNotNull()
     }
 
+    /**
+     * Enriches list results ([items] from `/discover`, `/trending`, `/find`) with what only the details
+     * endpoint carries: the stylized title logo (English, else language-neutral), runtime and US
+     * certification. Lookups run concurrently under the shared gate and are HTTP-cached for 12h; a
+     * title whose lookup fails keeps its list version (falling back to the slot's styled title text)
+     * rather than being dropped. Never calls `/external_ids` (CLAUDE.md rule 5).
+     * @throws TmdbApiKeyMissingException when no TMDB key is configured.
+     */
+    suspend fun hydrateOrKeep(items: List<MediaItem>): List<MediaItem> = coroutineScope {
+        items.map { item -> async { hydrate(item.ref) ?: item } }.awaitAll()
+    }
+
     companion object {
         const val MAX_CONCURRENT_LOOKUPS = 6
     }

@@ -5,6 +5,7 @@ import com.seastreams.tv.core.network.TmdbApiKeyMissingException
 import com.seastreams.tv.core.network.TmdbApiService
 import com.seastreams.tv.core.network.TmdbImage
 import com.seastreams.tv.core.network.TmdbImages
+import com.seastreams.tv.domain.model.MediaItem
 import com.seastreams.tv.domain.model.MediaRef
 import com.seastreams.tv.domain.model.MediaType
 import com.seastreams.tv.testutil.movieDetails
@@ -72,6 +73,38 @@ class MediaHydratorTest {
     }
 
     @Test
+    fun `hydrateOrKeep adds logos in order and keeps titles whose lookup fails`() = runTest {
+        coEvery { tmdb.getMovieDetails(1) } returns movieDetails(1, "PG").copy(
+            images = TmdbImages(listOf(TmdbImage("/neutral.png", null))),
+        )
+        coEvery { tmdb.getMovieDetails(2) } throws IOException("boom")
+        coEvery { tmdb.getTvDetails(3) } returns tvDetails(3, "TV-14")
+        val summaries = listOf(
+            summary(1, MediaType.MOVIE),
+            summary(2, MediaType.MOVIE),
+            summary(3, MediaType.TV),
+        )
+
+        val items = hydrator.hydrateOrKeep(summaries)
+
+        assertEquals(listOf(1, 2, 3), items.map { it.tmdbId })
+        assertEquals("https://image.tmdb.org/t/p/w500/neutral.png", items[0].logoUrl)
+        assertEquals(99, items[0].runtimeMinutes)
+        // A failed lookup keeps the list version (the slot falls back to styled title text).
+        assertEquals(summaries[1], items[1])
+        assertNull(items[2].logoUrl, "TMDB genuinely has no logo for it")
+        assertEquals(22, items[2].runtimeMinutes)
+        coVerify(exactly = 0) { tmdb.getExternalIds(any(), any()) }
+    }
+
+    @Test
+    fun `hydrateOrKeep still fails fast without a TMDB key`() = runTest {
+        coEvery { tmdb.getMovieDetails(any()) } throws TmdbApiKeyMissingException()
+
+        assertThrows<TmdbApiKeyMissingException> { hydrator.hydrateOrKeep(listOf(summary(1, MediaType.MOVIE))) }
+    }
+
+    @Test
     fun `logo preference is english, then language-neutral, never svg`() {
         assertEquals("/en.png", TmdbImages(listOf(TmdbImage("/x.png", null), TmdbImage("/en.png", "en"))).preferredLogoPath())
         assertEquals("/x.png", TmdbImages(listOf(TmdbImage("/en.svg", "en"), TmdbImage("/x.png", null))).preferredLogoPath())
@@ -87,4 +120,21 @@ class MediaHydratorTest {
         assertNull(yearOf(null))
         assertEquals(1999, yearOf("1999-12-31"))
     }
+
+    private fun summary(id: Int, type: MediaType) = MediaItem(
+        tmdbId = id,
+        mediaType = type,
+        title = "List $id",
+        overview = "",
+        posterUrl = null,
+        backdropUrl = null,
+        heroBackdropUrl = null,
+        logoUrl = null,
+        year = null,
+        ratingPercent = null,
+        genres = emptyList(),
+        runtimeMinutes = null,
+        certification = null,
+        isAdultContent = false,
+    )
 }
