@@ -118,6 +118,13 @@ internal fun TopEntryEffect(
     }
 }
 
+/**
+ * Whether row [rowIndex] keeps its info panel (first card's title, metadata and synopsis) shown without holding focus:
+ * the top `Popular` row does while focus is outside the page's rows (on the nav bar at entry), so the tab opens with
+ * that row already expanded and the pill keeps focus. Once a row or the toggles take focus, normal rules apply.
+ */
+internal fun topRowInfoHeld(rowIndex: Int, contentFocused: Boolean): Boolean = rowIndex == 0 && !contentFocused
+
 @Composable
 internal fun rememberTopEntryState(freshEntry: Boolean): TopEntryState = remember { TopEntryState(freshEntry) }
 

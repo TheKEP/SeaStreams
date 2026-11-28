@@ -114,8 +114,7 @@ class PlayerSwitching @Inject constructor(
 
     fun loadEpisodes(vm: PlayerViewModel) {
         val media = vm._state.value.request as? PlaybackRequest.Media ?: return
-        val season = vm._state.value.episodes.season.takeIf { vm._state.value.episodes.episodes.isNotEmpty() }
-            ?: media.target.episode?.season ?: return
+        val season = vm._state.value.episodes.openSeason(fallback = media.target.episode?.season) ?: return
         selectSeason(vm, season)
     }
 

@@ -78,6 +78,12 @@ fun actionBarControls(state: PlayerUiState): List<BarControl> = buildList {
 }
 
 /**
+ * Where `Down` from the seek bar lands: always the bar's first control, Play/Pause, never whichever pill
+ * happens to sit below the seek bar's centre (Streams, or Audio once `Next Episode` / `- 0.0s +` shift the bar).
+ */
+fun seekBarDownTarget(state: PlayerUiState): BarControl = actionBarControls(state).first()
+
+/**
  * Bottom action bar ([actionBarControls]). Edge-stop-then-wrap both ways (PRD §9): a fresh `Right` on
  * the last visible control wraps to Play/Pause, a fresh `Left` on Play/Pause wraps to the last visible
  * control; held keys stop at the edge.

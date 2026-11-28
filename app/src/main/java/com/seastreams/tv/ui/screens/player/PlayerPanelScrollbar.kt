@@ -16,7 +16,7 @@ import kotlin.math.roundToInt
 data class ScrollMetrics(val value: Int, val maxValue: Int, val viewport: Int)
 
 /**
- * The slim vertical scrollbar of the right-hand HUD cards (Subtitles, Audio, Speed, Info): a track with a proportional
+ * The slim vertical scrollbar of the right-hand HUD cards (Subtitles, Audio, Speed, Episodes, Info): a track with a proportional
  * thumb, drawn only while the card overflows. [metrics] is read in the draw phase only, so each scroll step (the
  * D-pad's animated scroll included) redraws the thumb without recomposing or re-laying out the rows. Always lay it out
  * (fixed [SCROLLBAR_WIDTH]) so rows never reflow when it appears. Drawn in the HUD layer, so HDR White Dimming covers it.

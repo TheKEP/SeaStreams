@@ -44,8 +44,8 @@ import com.seastreams.tv.ui.theme.requestFocusAfterFrame
 
 /**
  * The open overlay, as a right-hand panel over the still-playing video. [hudBottomBlock] is the measured height of the
- * HUD's seek row + action bar block (`null` before it is measured), which the Subtitles, Audio, Speed and Info cards
- * reach down to ([cardBottomInset]); Streams and Episodes end above the action bar ([PANEL_BOTTOM_INSET]).
+ * HUD's seek row + action bar block (`null` before it is measured), which the Subtitles, Audio, Speed, Episodes and
+ * Info cards reach down to ([cardBottomInset]); Streams ends above the action bar ([PANEL_BOTTOM_INSET]).
  */
 @Composable
 fun PlayerPanels(panel: PlayerPanel, state: PlayerUiState, viewModel: PlayerViewModel, hudBottomBlock: Dp?, modifier: Modifier) {
@@ -69,7 +69,7 @@ fun PlayerPanels(panel: PlayerPanel, state: PlayerUiState, viewModel: PlayerView
             addons = state.streamAddons,
             showRank = true,
         )
-        PlayerPanel.EPISODES -> EpisodesPanel(state, viewModel, modifier)
+        PlayerPanel.EPISODES -> EpisodesPanel(state, viewModel, cardInset, modifier)
         PlayerPanel.INFO -> InfoPanel(viewModel, cardInset, modifier)
     }
 }
@@ -200,7 +200,7 @@ internal fun passthroughDetail(state: PlayerUiState): String = when {
 internal val PanelWidth = 500.dp
 
 /**
- * Streams and Episodes end above the HUD's bottom block (24 dp padding + seek row + 14 dp + 48 dp action
+ * Streams ends above the HUD's bottom block (24 dp padding + seek row + 14 dp + 48 dp action
  * bar ≈ 134 dp), so they never cover the action bar. The other cards use [cardBottomInset].
  */
 internal val PANEL_BOTTOM_INSET = 150.dp
@@ -211,17 +211,17 @@ internal val HUD_BOTTOM_BLOCK = 24.dp + 24.dp + 14.dp + CIRCLE_SIZE + 24.dp
 /** The HUD bottom block's vertical padding (above the seek row and below the action bar). */
 internal val HUD_BOTTOM_PADDING = 24.dp
 
-/** Clear space between the Subtitles/Audio/Speed/Info cards and the seek row / remaining-time text below them. */
+/** Clear space between the Subtitles/Audio/Speed/Episodes/Info cards and the seek row / remaining-time text below them. */
 internal val CARD_SEEK_GAP = 12.dp
 
 /**
  * The cards' bottom inset before the HUD block is measured: bottom padding + action bar + spacing + seek row (~24 dp)
- * + [CARD_SEEK_GAP]. It sits just above the seek row, lower than Streams and Episodes ([PANEL_BOTTOM_INSET]).
+ * + [CARD_SEEK_GAP]. It sits just above the seek row, lower than Streams ([PANEL_BOTTOM_INSET]).
  */
 internal val CARD_BOTTOM_INSET = HUD_BOTTOM_PADDING + CIRCLE_SIZE + 14.dp + 24.dp + CARD_SEEK_GAP
 
 /**
- * The Subtitles, Audio, Speed and Info cards end [CARD_SEEK_GAP] above the top of the HUD's seek row: the measured
+ * The Subtitles, Audio, Speed, Episodes and Info cards end [CARD_SEEK_GAP] above the top of the HUD's seek row: the measured
  * block ([measured], padding included) minus its top padding. Measured, so a larger font scale (a taller time label)
  * lifts the cards instead of overlapping the `-2:44:28 / 2:52:35` text.
  */

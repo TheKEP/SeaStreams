@@ -28,8 +28,8 @@ android {
         applicationId = "com.seastreams.tv"
         minSdk = 26
         targetSdk = 37
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.3"
 
         // Developer values from local.properties (never committed); "" when absent.
         val localProperties = rootProject.file("local.properties")
@@ -51,6 +51,17 @@ android {
             signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = false
             isShrinkResources = false
+        }
+    }
+    // Per-ABI APKs for 32-bit (armeabi-v7a, e.g. older Fire TV sticks) and 64-bit (arm64-v8a) devices, plus a universal
+    // APK holding both so existing sideload/debug installs keep working. Do not add ndk.abiFilters to defaultConfig:
+    // it conflicts with splits.abi.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("armeabi-v7a", "arm64-v8a")
+            isUniversalApk = true
         }
     }
     compileOptions {
