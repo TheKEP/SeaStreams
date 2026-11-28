@@ -94,9 +94,9 @@ private fun HomeSectionContent(
     returnFocus: ReturnRowFocus,
 ) {
     when (section) {
-        // Extra gap under the hero so, while it is focused, only the first row's title and the top
-        // ~45dp of its posters peek in at the bottom of the screen.
-        HomeSection.Hero -> Box(Modifier.padding(start = RowGutter, end = RowGutter, bottom = HeroBottomGap)) {
+        // HeroHeight fills the page so, while the hero is focused, only the first row's title and the
+        // top ~20dp of its showcase slot / posters peek in at the bottom of a 960x540dp screen.
+        HomeSection.Hero -> Box(Modifier.padding(horizontal = RowGutter)) {
             when (val hero = state.hero) {
                 is HeroState.Loaded -> HeroCarousel(
                     state = heroCarousel,
@@ -141,6 +141,3 @@ private fun HomeSectionContent(
         }
     }
 }
-
-/** Added to the page's 24dp section spacing below the hero. */
-private val HeroBottomGap = 10.dp
