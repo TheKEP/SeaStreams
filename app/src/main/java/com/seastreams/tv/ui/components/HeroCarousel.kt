@@ -56,7 +56,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
 
-val HeroHeight = 345.dp
+val HeroHeight = 388.dp
 private val HeroShape = RoundedCornerShape(20.dp)
 val HeroImageSize = DpSize(864.dp, HeroHeight)
 val HeroLogoSize = DpSize(280.dp, 80.dp)
@@ -171,7 +171,7 @@ fun HeroCarousel(
             ),
         )
         Column(
-            Modifier.align(Alignment.BottomStart).padding(start = 40.dp, bottom = 32.dp).width(480.dp),
+            Modifier.align(Alignment.BottomStart).padding(start = 40.dp, bottom = 40.dp).width(480.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             TitleArt(current, logoSize = HeroLogoSize, textStyle = MaterialTheme.typography.displaySmall)
@@ -228,11 +228,11 @@ private fun PageDots(count: Int, selected: Int, modifier: Modifier) {
             "${selected + 1} / $count",
             style = MaterialTheme.typography.labelLarge,
             color = TextSecondary,
-            modifier = modifier.padding(end = 32.dp, bottom = 42.dp),
+            modifier = modifier.padding(end = 32.dp, bottom = 50.dp),
         )
         return
     }
-    Row(modifier.padding(end = 32.dp, bottom = 49.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Row(modifier.padding(end = 32.dp, bottom = 57.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         repeat(count) { i ->
             Box(
                 Modifier
