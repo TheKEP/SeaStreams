@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
@@ -107,19 +108,20 @@ fun PlayerOverlayControls(state: PlayerUiState, viewModel: PlayerViewModel, init
         }
         Column(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                // The Subtitles, Audio, Speed and Info cards end just above this block's seek row (PlayerPanels.cardBottomInset).
+                // The Subtitles, Audio, Speed, Episodes and Info cards end just above this block's seek row (PlayerPanels.cardBottomInset).
                 .onSizeChanged { onBottomBlockMeasured(with(density) { it.height.toDp() }) }
                 .padding(horizontal = 48.dp, vertical = HUD_BOTTOM_PADDING),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            SeekRow(progress, viewModel, seekBar)
+            // `Down` from the seek bar always lands on Play/Pause (seekBarDownTarget), never the pill spatially below.
+            SeekRow(progress, viewModel, seekBar, downTarget = playButton)
             PlayerActionBar(state, viewModel, playButton, panelButtons)
         }
     }
 }
 
 @Composable
-private fun SeekRow(progress: PlayerProgress, viewModel: PlayerViewModel, requester: FocusRequester) {
+private fun SeekRow(progress: PlayerProgress, viewModel: PlayerViewModel, requester: FocusRequester, downTarget: FocusRequester) {
     var scrubMs by remember { mutableStateOf<Long?>(null) }
     // Held/rapid presses move a scrub marker; the seek itself happens once the presses stop.
     LaunchedEffect(scrubMs) {
@@ -137,6 +139,7 @@ private fun SeekRow(progress: PlayerProgress, viewModel: PlayerViewModel, reques
                 .weight(1f)
                 .height(20.dp)
                 .focusRequester(requester)
+                .focusProperties { down = downTarget }
                 .onFocusChanged { focused = it.isFocused }
                 .onKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onKeyEvent false

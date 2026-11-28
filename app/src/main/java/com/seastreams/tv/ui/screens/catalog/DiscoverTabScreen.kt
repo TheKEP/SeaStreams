@@ -56,7 +56,8 @@ import kotlinx.coroutines.launch
  * Body shared by [MoviesScreen] and [TvShowsScreen] (PRD §5): the nav bar, then `Popular` and one
  * row per enabled service (each an [ExpandingCatalogRow] with `View More` past 20 titles), and finally the `Streaming services` toggles at the bottom of the page.
  *
- * D-pad: entering the tab keeps focus on the tab's nav pill with the page at its top;
+ * D-pad: entering the tab keeps focus on the tab's nav pill with the page at its top, and `Popular` opens already
+ * expanded (its first card's title, metadata and synopsis shown, [topRowInfoHeld]) while the pill keeps focus;
  * `Down` from the nav bar lands on `Popular` item #1; the focused row snaps to the top; `Down` into
  * the toggles lands on the first service; `Up`/`Down` between rows (and `Up` from the toggles)
  * returns to each row's last-focused card ([RowFocusMemory], card 1 if never visited); holding `Down` stops on the toggles and a fresh `Down`
@@ -110,6 +111,8 @@ private fun DiscoverContent(
     val wrapRowCard = remember { FocusRequester() }
     val rowFocus = rememberRowFocusMemory()
     var barFocused by remember { mutableStateOf(false) }
+    // Whether any row or the toggles hold focus; while not (nav bar focused), `Popular` stays expanded.
+    var contentFocused by remember { mutableStateOf(false) }
     val rows = visibleRows(state.rows)
     val barIndex = rows.size
     val wrapTargetRow = bottomWrapTargetRow(rows.map { it.content })
@@ -159,7 +162,10 @@ private fun DiscoverContent(
             modifier = Modifier
                 .fillMaxSize()
                 .throttleVerticalDpadRepeat()
-                .onFocusChanged { if (it.hasFocus) topEntry.onContentFocused() }
+                .onFocusChanged {
+                    contentFocused = it.hasFocus
+                    if (it.hasFocus) topEntry.onContentFocused()
+                }
                 .focusProperties {
                     // `Down` from the nav bar always lands on `Popular` item #1 (PRD §5).
                     onEnter = {
@@ -194,6 +200,7 @@ private fun DiscoverContent(
                         onViewMore = onViewMore,
                         returnFocus = returnFocus,
                         trailerRowKey = "${tab.name}/${row.spec.id}",
+                        holdInfo = topRowInfoHeld(index, contentFocused),
                     )
                 }
             }
@@ -226,6 +233,8 @@ private fun DiscoverRow(
     returnFocus: ReturnRowFocus,
     /** Unique across tabs, so the same title on a Home and a Movies row never shares a preview slot. */
     trailerRowKey: String,
+    /** Shows the active card's info panel while the row is unfocused ([topRowInfoHeld]). */
+    holdInfo: Boolean,
 ) {
     val ownFirstCard = remember { FocusRequester() }
     val ownActiveCard = remember { FocusRequester() }
@@ -244,6 +253,7 @@ private fun DiscoverRow(
             focusedIndexState = rowFocus.stateFor(row.spec.id, content.row.items.map { it.key }),
             activeCard = activeCard ?: ownActiveCard,
             trailerRowKey = trailerRowKey,
+            holdInfo = holdInfo,
         )
     }
 }

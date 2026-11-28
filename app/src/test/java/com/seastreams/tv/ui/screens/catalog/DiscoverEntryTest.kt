@@ -93,4 +93,15 @@ class DiscoverEntryTest {
         assertEquals(NavDownEntry.DEFAULT, navDownEntry(true, firstRow = null, firstRowVisible = false, barShown = true))
         assertEquals(NavDownEntry.DEFAULT, navDownEntry(false, RowContent.Loading, firstRowVisible = true, barShown = true))
     }
+
+    @Test
+    fun `Popular stays expanded while focus is on the nav bar`() {
+        assertTrue(topRowInfoHeld(rowIndex = 0, contentFocused = false))
+    }
+
+    @Test
+    fun `rows below Popular never hold their info and focus inside the page releases it`() {
+        assertFalse(topRowInfoHeld(rowIndex = 1, contentFocused = false))
+        assertFalse(topRowInfoHeld(rowIndex = 0, contentFocused = true))
+    }
 }

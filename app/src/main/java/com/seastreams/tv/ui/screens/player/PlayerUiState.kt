@@ -77,6 +77,12 @@ data class EpisodeBrowser(
         episode == null || episode.season == season -> copy(playing = episode)
         else -> copy(season = episode.season, episodes = emptyList(), loading = false, playing = episode)
     }
+
+    /**
+     * The season the overlay opens on: always the playing episode's season (even after the user browsed another one
+     * last time), else [fallback] (the request's episode season). `null` when neither is known.
+     */
+    fun openSeason(fallback: Int?): Int? = playing?.season ?: fallback
 }
 
 data class PlayerUiState(

@@ -15,7 +15,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -39,6 +38,8 @@ import kotlinx.coroutines.launch
  * vertically scrolling page of hero, Continue Watching and catalog rows.
  *
  * D-pad rules (PRD §1):
+ * - Entry (first load after profile selection, or switching back from Movies / TV Shows / Library) keeps
+ *   focus on the nav bar's `Home` pill ([homeEntryFocus]); the hero is only focused by `Down`.
  * - `Back` from any content moves focus to the nav bar's `Home` pill (scrolling to the top), never a
  *   previously focused pill such as the Settings gear; `Back` while already on `Home` leaves to the
  *   profile switcher.
@@ -77,20 +78,16 @@ fun HomeScreen(
     val homePill = remember { FocusRequester() }
     val heroButton = remember { FocusRequester() }
     var homePillFocused by remember { mutableStateOf(false) }
-    var heroAutoFocused by rememberSaveable { mutableStateOf(false) }
     val heroLoaded = state.hero is HeroState.Loaded
     // Hoisted out of the LazyColumn so the hero keeps cycling (and keeps its place) while it is
     // scrolled off-screen and focus is on the nav bar or the rows.
     val heroCarousel = rememberHeroCarouselState((state.hero as? HeroState.Loaded)?.items.orEmpty())
     HeroAutoCycleEffect(heroCarousel)
 
-    val focusEntry: suspend () -> Unit = {
-        // Home is normally revealed with the hero already loaded: land straight on `View Details`.
-        heroAutoFocused = heroLoaded && heroButton.requestFocusAfterFrame()
-        if (!heroAutoFocused) homePill.requestFocusAfterFrame()
-    }
-    // Back from a row's View More lands on that row's first card instead (RestoreRowFocusEffect below).
-    LaunchedEffect(Unit) { if (returnFocus.rowId == null) focusEntry() }
+    // First load and every return to the Home tab keep focus on the `Home` pill; nothing later hands it to the
+    // hero (`Down` does). Back from a row's View More lands on that row's first card instead (RestoreRowFocusEffect).
+    val focusEntry: suspend () -> Unit = { homePill.requestFocusAfterFrame() }
+    LaunchedEffect(Unit) { if (homeEntryFocus(returnFocus.rowId) == HomeEntryFocus.HOME_PILL) focusEntry() }
     val sections = buildHomeSections(state)
     val rowFocus = rememberRowFocusMemory()
     val cards = remember { SectionCardRequesters() }
@@ -147,10 +144,6 @@ fun HomeScreen(
     RestoreRowFocusEffect(restoreStep, listState) {
         focusEntry()
         returnFocus.consume()
-    }
-    LaunchedEffect(heroLoaded) {
-        // First load: hand focus from the Home pill to `View Details`, unless the user already moved.
-        if (heroLoaded && !heroAutoFocused && homePillFocused) heroAutoFocused = heroButton.requestFocusAfterFrame()
     }
     BackHandler {
         if (homePillFocused) onSwitchProfile() else scope.focusTop(listState, homePill)

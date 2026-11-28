@@ -39,6 +39,18 @@ class PlayerActionBarTest {
     )
 
     @Test
+    fun `Down from the seek bar always targets Play-Pause whatever the bar shows`() {
+        val states = listOf(
+            movie,
+            episode,
+            trailer,
+            movie.withSubtitle(SubtitleSource.EXTERNAL),
+            episode.withSubtitle(SubtitleSource.EXTERNAL),
+        )
+        states.forEach { state -> assertEquals(PLAY_PAUSE, seekBarDownTarget(state)) }
+    }
+
+    @Test
     fun `movie bar runs Play-Pause to Info without episode controls or sync`() {
         assertEquals(listOf(PLAY_PAUSE, SUBTITLES, AUDIO, SPEED, STREAMS, INFO), actionBarControls(movie))
     }
