@@ -53,6 +53,23 @@ class FakeLibraryDao : LibraryDao {
     override suspend fun remove(profileId: Long, tmdbId: Int, mediaType: MediaType) =
         rows.update { list -> list.filterNot { it.sameKey(profileId, tmdbId, mediaType) } }
 
+    override suspend fun moviesMissingKeywords(profileId: Long): List<Int> =
+        rows.value.filter { it.profileId == profileId && it.mediaType == MediaType.MOVIE && it.keywordIds == null }.map { it.tmdbId }
+
+    /** Counts [fillMissingMovieKeywordIds] batches (one Room transaction each). */
+    var keywordBatches = 0
+        private set
+
+    override suspend fun fillMissingMovieKeywordIds(profileId: Long, keywordIds: Map<Int, String>) {
+        keywordBatches++
+        super.fillMissingMovieKeywordIds(profileId, keywordIds)
+    }
+
+    override suspend fun fillMissingKeywordIds(profileId: Long, tmdbId: Int, mediaType: MediaType, keywordIds: String) =
+        rows.update { list ->
+            list.map { if (it.sameKey(profileId, tmdbId, mediaType) && it.keywordIds == null) it.copy(keywordIds = keywordIds) else it }
+        }
+
     override suspend fun getAll(profileId: Long): List<LibraryItemEntity> = rows.value.filter { it.profileId == profileId }
 
     override suspend fun clear(profileId: Long) = rows.update { list -> list.filterNot { it.profileId == profileId } }

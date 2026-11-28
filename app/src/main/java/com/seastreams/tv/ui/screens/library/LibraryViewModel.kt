@@ -6,6 +6,7 @@ import com.seastreams.tv.core.database.entity.LibrarySortOrder
 import com.seastreams.tv.core.database.entity.ProfileEntity
 import com.seastreams.tv.core.util.DefaultDispatcher
 import com.seastreams.tv.data.catalog.GenreRepository
+import com.seastreams.tv.data.library.LibraryKeywordBackfill
 import com.seastreams.tv.data.profile.ProfileRepository
 import com.seastreams.tv.data.profile.contentForProfile
 import com.seastreams.tv.domain.usecase.GetLibraryUseCase
@@ -13,6 +14,7 @@ import com.seastreams.tv.domain.usecase.LibraryEntry
 import com.seastreams.tv.domain.usecase.LibraryFilter
 import com.seastreams.tv.ui.components.NavTab
 import com.seastreams.tv.ui.navigation.WhileUiSubscribed
+import dagger.Lazy
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -73,6 +75,7 @@ class LibraryViewModel @Inject constructor(
     private val profiles: ProfileRepository,
     private val library: GetLibraryUseCase,
     private val genres: GenreRepository,
+    private val keywordBackfill: Lazy<LibraryKeywordBackfill>,
     @DefaultDispatcher private val deriveDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
 
@@ -98,6 +101,9 @@ class LibraryViewModel @Inject constructor(
         sidebar.value = LibraryFilter.ALL
         grid.value = LibrarySelection()
         profileId.value = id
+        // Fallback for the launch-time keyword backfill (`Christmas` genre), e.g. after that run found no TMDB
+        // key; a no-op once the profile's run completed. Resolved off main: the backfill's graph is HTTP-backed.
+        viewModelScope.launch(deriveDispatcher) { keywordBackfill.get().ensure(id) }
     }
 
     /** Hover selection: highlights [selected] now and switches the grid once focus rests on it. */

@@ -5,6 +5,7 @@ import androidx.room.Embedded
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.seastreams.tv.core.database.entity.LibraryItemEntity
 import com.seastreams.tv.domain.model.MediaType
 import kotlinx.coroutines.flow.Flow
@@ -69,6 +70,23 @@ interface LibraryDao {
         "DELETE FROM library_items WHERE profileId = :profileId AND tmdbId = :tmdbId AND mediaType = :mediaType",
     )
     suspend fun remove(profileId: Long, tmdbId: Int, mediaType: MediaType)
+
+    /** Saved movies whose keywords haven't been looked up yet (rows from before Room v11, or an old backup). */
+    @Query("SELECT tmdbId FROM library_items WHERE profileId = :profileId AND mediaType = 'MOVIE' AND keywordIds IS NULL")
+    suspend fun moviesMissingKeywords(profileId: Long): List<Int>
+
+    /** Sets a title's keyword ids, only while still unknown, so a newer save is never overwritten. */
+    @Query(
+        "UPDATE library_items SET keywordIds = :keywordIds " +
+            "WHERE profileId = :profileId AND tmdbId = :tmdbId AND mediaType = :mediaType AND keywordIds IS NULL",
+    )
+    suspend fun fillMissingKeywordIds(profileId: Long, tmdbId: Int, mediaType: MediaType, keywordIds: String)
+
+    /** [fillMissingKeywordIds] for a batch of movies in one transaction, so the Library re-derives once. */
+    @Transaction
+    suspend fun fillMissingMovieKeywordIds(profileId: Long, keywordIds: Map<Int, String>) {
+        keywordIds.forEach { (tmdbId, ids) -> fillMissingKeywordIds(profileId, tmdbId, MediaType.MOVIE, ids) }
+    }
 
     @Query("SELECT * FROM library_items WHERE profileId = :profileId")
     suspend fun getAll(profileId: Long): List<LibraryItemEntity>

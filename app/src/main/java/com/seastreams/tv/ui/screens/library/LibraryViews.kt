@@ -1,6 +1,7 @@
 package com.seastreams.tv.ui.screens.library
 
 import com.seastreams.tv.core.database.entity.LibrarySortOrder
+import com.seastreams.tv.domain.filter.LibraryKeywordGenres
 import com.seastreams.tv.domain.model.Genre
 import com.seastreams.tv.domain.model.MediaItem
 import com.seastreams.tv.domain.usecase.LibraryEntry
@@ -82,12 +83,15 @@ fun deriveGenreViews(
     }
 }
 
-/** The Genre dropdown's choices under [filter]: genres of its titles that have a name, sorted by name. */
+/**
+ * The Genre dropdown's choices under [filter]: genres of its titles that have a name, sorted by name. Keyword genres
+ * (`Christmas`, movies only) are named locally, so they show before TMDB's genre names load.
+ */
 fun libraryGenreOptions(all: List<LibraryEntry>, filter: LibraryFilter, genreNames: Map<Int, String>): List<Genre> =
     all.asSequence()
         .filter { filter.matches(it.media.mediaType) }
         .flatMap { it.genreIds.asSequence() }
         .distinct()
-        .mapNotNull { id -> genreNames[id]?.let { Genre(id, it) } }
+        .mapNotNull { id -> (genreNames[id] ?: LibraryKeywordGenres.nameOf(id))?.let { Genre(id, it) } }
         .sortedBy { it.name }
         .toList()

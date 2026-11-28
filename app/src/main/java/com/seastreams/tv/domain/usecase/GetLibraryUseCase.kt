@@ -7,6 +7,7 @@ import com.seastreams.tv.core.database.entity.LibrarySortOrder
 import com.seastreams.tv.core.database.entity.ProfileEntity
 import com.seastreams.tv.data.catalog.TmdbImageUrls
 import com.seastreams.tv.domain.filter.AgeRestrictionEngine
+import com.seastreams.tv.domain.filter.LibraryKeywordGenres
 import com.seastreams.tv.domain.model.MediaItem
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -15,6 +16,7 @@ import javax.inject.Inject
 /** One saved title with what the Library's filters and sort orders need. */
 data class LibraryEntry(
     val media: MediaItem,
+    /** TMDB genre ids plus keyword genre ids ([LibraryKeywordGenres], negative). */
     val genreIds: List<Int>,
     val addedAtMillis: Long,
     /** Most recent playback of the title (any episode); `null` when never watched. */
@@ -65,7 +67,9 @@ class GetLibraryUseCase @Inject constructor(
             certification = item.certification,
             isAdultContent = false,
         ),
-        genreIds = item.genreIds.split(',').mapNotNull { it.trim().toIntOrNull() },
+        // TMDB genres plus keyword genres (`Christmas`), so the Library's genre views match both alike.
+        genreIds = LibraryKeywordGenres.parseIds(item.genreIds) +
+            LibraryKeywordGenres.genreIdsFor(item.mediaType, LibraryKeywordGenres.parseIds(item.keywordIds)),
         addedAtMillis = item.addedAtMillis,
         lastWatchedAtMillis = lastWatchedAtMillis,
     )

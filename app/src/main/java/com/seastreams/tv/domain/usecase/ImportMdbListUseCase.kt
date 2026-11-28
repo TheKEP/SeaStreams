@@ -10,6 +10,7 @@ import com.seastreams.tv.core.network.TmdbApiKeyMissingException
 import com.seastreams.tv.data.UserFacingException
 import com.seastreams.tv.data.catalog.MediaHydrator
 import com.seastreams.tv.domain.filter.AgeRestrictionEngine
+import com.seastreams.tv.domain.filter.LibraryKeywordGenres
 import com.seastreams.tv.domain.model.MediaType
 import io.ktor.client.plugins.ResponseException
 import kotlinx.coroutines.CancellationException
@@ -92,6 +93,7 @@ class ImportMdbListUseCase @Inject constructor(
                 certification = found.certification,
                 genreIds = found.genreIds.joinToString(","),
                 addedAtMillis = now,
+                keywordIds = found.keywordIds,
             )
         }
         // OnConflictStrategy.IGNORE stays the authoritative guard: a title saved concurrently
@@ -123,10 +125,13 @@ class ImportMdbListUseCase @Inject constructor(
         hydrator.withTmdb { tmdbApi ->
             when (mediaType) {
                 MediaType.MOVIE -> tmdbApi.getMovieDetails(tmdbId).let {
-                    Lookup.Found(it.id, it.title, it.posterPath, it.usCertification(), it.genres.map { g -> g.id }, it.adult)
+                    Lookup.Found(
+                        it.id, it.title, it.posterPath, it.usCertification(), it.genres.map { g -> g.id }, it.adult,
+                        keywordIds = LibraryKeywordGenres.storedKeywordIds(it.keywords?.keywords.orEmpty().map { k -> k.id }),
+                    )
                 }
                 MediaType.TV -> tmdbApi.getTvDetails(tmdbId).let {
-                    Lookup.Found(it.id, it.name, it.posterPath, it.usCertification(), it.genres.map { g -> g.id }, it.adult)
+                    Lookup.Found(it.id, it.name, it.posterPath, it.usCertification(), it.genres.map { g -> g.id }, it.adult, keywordIds = "")
                 }
             }
         }
@@ -147,6 +152,8 @@ class ImportMdbListUseCase @Inject constructor(
             val certification: String?,
             val genreIds: List<Int>,
             val isAdult: Boolean,
+            /** Stored keyword ids (movies); `""` for shows. */
+            val keywordIds: String,
         ) : Lookup
 
         data object Failed : Lookup

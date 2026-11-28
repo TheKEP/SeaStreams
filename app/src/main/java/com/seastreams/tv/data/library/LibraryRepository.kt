@@ -3,7 +3,9 @@ package com.seastreams.tv.data.library
 import com.seastreams.tv.core.database.dao.LibraryDao
 import com.seastreams.tv.core.database.entity.LibraryItemEntity
 import com.seastreams.tv.core.util.ApplicationScope
+import com.seastreams.tv.domain.filter.LibraryKeywordGenres
 import com.seastreams.tv.domain.model.MediaRef
+import com.seastreams.tv.domain.model.MediaType
 import com.seastreams.tv.domain.model.TitleDetails
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -60,6 +62,8 @@ class LibraryRepository @Inject constructor(
                 certification = details.media.certification,
                 genreIds = details.genreIds.joinToString(","),
                 addedAtMillis = clock.millis(),
+                // Shows are never matched by keyword: "" marks them looked up, so they're never backfilled.
+                keywordIds = if (ref.mediaType == MediaType.MOVIE) LibraryKeywordGenres.storedKeywordIds(details.keywordIds) else "",
             ),
         )
         if (rowId == -1L) LibraryAddResult.ALREADY_IN_LIBRARY else LibraryAddResult.ADDED

@@ -32,6 +32,8 @@ data class TitleDetails(
     val lastAiredDate: LocalDate? = null,
     /** TMDB `original_language` (ISO 639-1), e.g. `ja`; with Animation it marks anime for stream sorting (PRD §13). */
     val originalLanguage: String? = null,
+    /** TMDB keyword ids (movies only; empty for shows); stored on Library rows for keyword genres (PRD §7). */
+    val keywordIds: List<Int> = emptyList(),
 ) {
     /** Japanese animation: the stream processor's `Anime` sort list and size limits apply. */
     val isAnime: Boolean get() = ANIMATION_GENRE_ID in genreIds && originalLanguage == "ja"

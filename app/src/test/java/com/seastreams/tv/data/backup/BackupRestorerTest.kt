@@ -240,6 +240,26 @@ class BackupRestorerTest {
     }
 
     @Test
+    fun `keyword ids travel with the Library and only fill titles the TV hasn't looked up`() = runTest {
+        val a = BackupRig()
+        val ken = a.addProfile("Ken")
+        a.save(ken.id, 771, "Home Alone", addedAt = 1, keywordIds = "207317")
+        a.save(ken.id, 10719, "Elf", addedAt = 2, keywordIds = "1441")
+        a.save(ken.id, 603, "The Matrix", addedAt = 3, keywordIds = "4565")
+        a.save(ken.id, 862, "Toy Story", addedAt = 4)
+        val file = a.exporter.export(BackupScope.PROFILE, ken.id, includeCredentials = false).json
+
+        val b = BackupRig()
+        val target = b.addProfile("Living room").id
+        b.save(target, 771, "Home Alone", addedAt = 9) // saved before v11: not looked up yet
+        b.save(target, 10719, "Elf", addedAt = 9, keywordIds = "9715") // already known: kept
+        b.restorer.restore(file, target)
+
+        val keywords = b.libraryDao.getAll(target).associate { it.tmdbId to it.keywordIds }
+        assertEquals(mapOf(771 to "207317", 10719 to "9715", 603 to "4565", 862 to null), keywords)
+    }
+
+    @Test
     fun `a Kids profile only receives Library titles within its limits`() = runTest {
         val a = BackupRig()
         val ken = a.addProfile("Ken")

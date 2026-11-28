@@ -6,8 +6,10 @@ import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import com.seastreams.tv.core.cache.CacheManager
+import com.seastreams.tv.core.datastore.SettingsDataStore
 import com.seastreams.tv.core.image.buildImageLoader
 import com.seastreams.tv.core.util.ApplicationScope
+import com.seastreams.tv.data.library.LibraryKeywordBackfill
 import com.seastreams.tv.data.setup.BuiltInAddonGuard
 import com.seastreams.tv.data.setup.DebugProfileSeeder
 import com.seastreams.tv.data.trailer.NewPipeInitializer
@@ -51,6 +53,14 @@ class SeaStreamsApp : Application(), SingletonImageLoader.Factory {
     @Inject
     lateinit var sourceToggles: Lazy<SourceTogglesMigrator>
 
+    /** Library keyword lookups (`Christmas` genre) for movies saved before they were stored; HTTP-backed, so lazy. */
+    @Inject
+    lateinit var keywordBackfill: Lazy<LibraryKeywordBackfill>
+
+    /** The active profile the keyword backfill follows; DataStore is built on IO. */
+    @Inject
+    lateinit var settings: Lazy<SettingsDataStore>
+
     /** Process-lifetime scope (off the main thread) for fire-and-forget startup work. */
     @Inject
     @ApplicationScope
@@ -87,6 +97,12 @@ class SeaStreamsApp : Application(), SingletonImageLoader.Factory {
             appScope.launch {
                 runCatching { builtInAddonGuard.get().keepDebridEntries() }
                     .onFailure { Log.e("SeaStreamsApp", "Keeping the Debrid addon entries failed", it) }
+            }
+            // After the migrations and debug seeding above, so the active profile they set is seen. Quietly fills
+            // Library keyword ids for the active profile, and again on each switch (once per profile per process).
+            appScope.launch {
+                runCatching { keywordBackfill.get().followActiveProfile(settings.get().activeProfileId) }
+                    .onFailure { Log.e("SeaStreamsApp", "Following the active profile for Library keywords failed", it) }
             }
             // The HTTP and image caches bound themselves (LRU); this only drops files nothing owns.
             runCatching { cacheManager.get().sweepOrphans() }

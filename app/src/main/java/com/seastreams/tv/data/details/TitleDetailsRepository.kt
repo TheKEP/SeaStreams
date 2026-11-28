@@ -90,6 +90,7 @@ class TitleDetailsRepository @Inject constructor(
         seasons = emptyList(),
         lastAired = null,
         originalLanguage = originalLanguage,
+        keywordIds = keywords?.keywords.orEmpty().map { it.id },
     )
 
     private fun TmdbTvDetails.toTitleDetails() = TitleDetails(

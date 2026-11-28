@@ -7,7 +7,7 @@
 - `core/image/ImageLoaderSetup.kt` — Coil 3 memory (25%) + disk (150 MB) cache
 - `core/network/` — `NetworkModule.kt` (OkHttp 100 MB cache, Ktor, 429 retry), `TmdbApiService.kt`, `MdbListApiService.kt`, `StremioManifest.kt`, `StremioAddonClient.kt`, `LocalNetworkHost.kt`
 - `core/security/SecretCipher.kt` — Android Keystore AES-256-GCM encryption for Usenet/Debrid secrets
-- `core/database/` — `SeaStreamsDatabase.kt` (Room v9), migrations (`*Migration.kt`), `dao/` (`ProfileDao`, `LibraryDao`, `WatchProgressDao`, `AddonDao`, `LastUsedStreamDao`, `UsenetProviderDao`, `NewznabIndexerDao`, `DebridProviderDao`), `entity/`
+- `core/database/` — `SeaStreamsDatabase.kt` (Room v11), migrations (`*Migration.kt`, v11 = `LibraryKeywordsMigration.kt`), `dao/` (`ProfileDao`, `LibraryDao`, `WatchProgressDao`, `AddonDao`, `LastUsedStreamDao`, `UsenetProviderDao`, `NewznabIndexerDao`, `DebridProviderDao`), `entity/`
 - `core/datastore/` — `SettingsDataStore.kt` (per-profile `p{id}/`), `ProfileSettingsCodec.kt`, `PlaybackLevels.kt`, `UsenetSettingsStore.kt`, `DebridSettingsStore.kt`, `StreamProcessingStore.kt`, `StreamProcessingBackup.kt`
 - `core/webserver/` — `LocalPortalServer.kt` (Ktor port 8765), `PortalRoutes.kt`, `PortalHtmlTemplate.kt`, `PortalUsenet*`, `PortalDebrid*`, `PortalStream*`, `PortalBackup*`, `NntpProxyRoutes.kt`
 
@@ -19,10 +19,11 @@
 - `data/usenet/` — `UsenetSourcesRepository.kt`, `presets/`, `headers/` (`RequestHeaderPresets.kt`, `HeaderVersionUpdater.kt`), `newznab/` (`NewznabClient.kt`, `NzbGrabber.kt`, `UsenetStreamSearch.kt`, `ReleaseMatch.kt`)
 - `data/debrid/` — `DebridSources.kt`, `DebridSourcesRepository.kt`, `DebridConnectionTester.kt`, `api/` (per-service clients + `DebridLibraryModels.kt`), `auth/` (`DeviceFlows.kt`, `OAuthCodeFlows.kt`, `DeviceAuthSessions.kt`, `DebridTokenRefresher.kt`), `library/` (`DebridLibraryCache.kt`, `DebridLibraryMatcher.kt`, `EpisodeFilePicker.kt`, `DebridLibrarySearch.kt`), `stream/` (`DebridStreamRegistry.kt`, `DebridLinkResolver.kt`)
 - `data/backup/` — `AppBackupCodec.kt`, `BackupExporter.kt`, `BackupRestorer.kt`, `RestorePlan.kt`, `Backup*Writer.kt`, `HistoryBackup*.kt`
+- `data/library/` — `LibraryRepository.kt`, `LibraryKeywordBackfill.kt` (keyword ids for Library movies saved before v11)
 - `data/trailer/NewPipeTrailerExtractor.kt` — NewPipe YouTube trailer stream extraction
 - `domain/model/` — `MediaItem`, `TitleDetails`, `Episode`, `StreamSource`, `SubtitleTrack`, `UserProfile`, `AddonConfig`, `PlaybackRequest`
 - `domain/playback/` — `PlaybackTarget`, `PlaybackStreamResolver`, `EpisodeNavigator`, `AutoNextPolicy`, `PlaybackProgressRecorder`, `LastUsedStreams.kt`
-- `domain/filter/` — `AgeRestrictionEngine.kt`, `FamilyCatalogPolicy.kt`, `SdhSubtitleCleaner.kt`
+- `domain/filter/` — `AgeRestrictionEngine.kt`, `FamilyCatalogPolicy.kt`, `LibraryKeywordGenres.kt` (Library `Christmas` keyword genre), `SdhSubtitleCleaner.kt`
 - `domain/streams/` — `StreamProcessingSettings.kt`, `StreamPipeline.kt`, `ProcessStreamsUseCase.kt`, `parse/`, `filter/`, `sort/`, `format/`
 - `domain/usecase/` — `GetHomeCatalogsUseCase.kt`, `ResolveStreamsUseCase.kt`, `BuiltInSlot.kt`, `ResolveTrailerStreamUseCase.kt`, `ResolveContinueWatchingTargetUseCase.kt`, `ImportMdbListUseCase.kt`
 

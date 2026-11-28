@@ -121,10 +121,10 @@ class TmdbApiService @Inject constructor(
     suspend fun searchTv(query: String, page: Int = 1): TmdbPage<TmdbTvSummary> =
         get("search", "tv") { searchParameters(query, page) }
 
-    /** Movie details with US release certifications, cast and title logos in a single request. */
+    /** Movie details with US release certifications, cast, title logos and keywords in a single request. */
     suspend fun getMovieDetails(tmdbId: Int): TmdbMovieDetails = get("movie", tmdbId.toString()) {
         parameter("language", LANGUAGE)
-        parameter("append_to_response", "release_dates,credits,images")
+        parameter("append_to_response", "release_dates,credits,images,keywords")
         parameter("include_image_language", IMAGE_LANGUAGES)
     }
 
@@ -134,6 +134,12 @@ class TmdbApiService @Inject constructor(
         parameter("append_to_response", "content_ratings,credits,images")
         parameter("include_image_language", IMAGE_LANGUAGES)
     }
+
+    /**
+     * One movie's keywords. Only `LibraryKeywordBackfill` calls it, one title at a time, for Library movies saved
+     * before keywords were stored; new saves get them from [getMovieDetails].
+     */
+    suspend fun getMovieKeywords(tmdbId: Int): TmdbMovieKeywords = get("movie", tmdbId.toString(), "keywords")
 
     /** Episodes of one season of a show (titles, air dates, runtimes, stills). */
     suspend fun getSeason(tvId: Int, seasonNumber: Int): TmdbSeasonDetails =

@@ -1,6 +1,7 @@
 package com.seastreams.tv.ui.screens.library
 
 import com.seastreams.tv.core.database.entity.LibrarySortOrder
+import com.seastreams.tv.domain.filter.LibraryKeywordGenres
 import com.seastreams.tv.domain.model.Genre
 import com.seastreams.tv.domain.model.MediaItem
 import com.seastreams.tv.domain.model.MediaType
@@ -118,6 +119,34 @@ class LibraryViewsTest {
         assertEquals('I', idiot.letter)
         assertEquals(LibraryQuery.OTHER_LETTER, odyssey.letter)
         library.forEach { assertEquals(LibraryQuery.letterOf(it.media.title), it.letter) }
+    }
+
+    @Test
+    fun `Christmas is offered under All and Movies, named locally, and never under TV Shows`() {
+        val xmas = Genre(LibraryKeywordGenres.CHRISTMAS_GENRE_ID, "Christmas")
+        val festive = library + libraryEntry(6, "Elf", MediaType.MOVIE, genres = listOf(35, xmas.id))
+
+        val views = deriveLibraryViews(festive, LibrarySortOrder.A_TO_Z, names)
+        assertEquals(listOf(Genre(28, "Action"), Genre(16, "Animation"), xmas, Genre(35, "Comedy")), views.getValue(LibraryFilter.ALL).genreOptions)
+        assertEquals(listOf(Genre(28, "Action"), xmas, Genre(35, "Comedy")), views.getValue(LibraryFilter.MOVIES).genreOptions)
+        assertEquals(listOf(Genre(16, "Animation"), Genre(35, "Comedy")), views.getValue(LibraryFilter.TV_SHOWS).genreOptions)
+        // Before TMDB's names load, Christmas is still offered.
+        assertEquals(listOf(xmas), deriveLibraryViews(festive, LibrarySortOrder.A_TO_Z, emptyMap()).getValue(LibraryFilter.MOVIES).genreOptions)
+    }
+
+    @Test
+    fun `selecting Christmas narrows All and Movies and leaves TV Shows unfiltered`() {
+        val xmasId = LibraryKeywordGenres.CHRISTMAS_GENRE_ID
+        val festive = library + libraryEntry(6, "Elf", MediaType.MOVIE, genres = listOf(35, xmasId))
+        val base = deriveLibraryViews(festive, LibrarySortOrder.A_TO_Z, names)
+
+        val views = deriveGenreViews(festive, LibrarySortOrder.A_TO_Z, xmasId, base)
+
+        assertEquals(listOf("Elf"), views.getValue(LibraryFilter.ALL).entries.map { it.media.title })
+        assertEquals(listOf("Elf"), views.getValue(LibraryFilter.MOVIES).entries.map { it.media.title })
+        assertEquals(xmasId, views.getValue(LibraryFilter.MOVIES).appliedGenreId)
+        assertEquals(base.getValue(LibraryFilter.TV_SHOWS), views.getValue(LibraryFilter.TV_SHOWS))
+        assertEquals(null, views.getValue(LibraryFilter.TV_SHOWS).appliedGenreId)
     }
 }
 

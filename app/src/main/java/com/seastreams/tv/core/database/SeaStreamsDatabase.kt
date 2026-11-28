@@ -42,7 +42,8 @@ import com.seastreams.tv.core.database.entity.WatchProgressEntity
     // v8 adds the app-wide debrid_providers: manual DebridSourcesMigration.
     // v9 stores last_used_streams.streamUrl as a SHA-256 fingerprint: manual LastUsedStreamUrlMigration.
     // v10 adds next_up_dismissals: manual NextUpDismissalsMigration.
-    version = 10,
+    // v11 adds library_items.keywordIds: manual LibraryKeywordsMigration.
+    version = 11,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2, spec = SeaStreamsDatabase.DropCustomCatalogs::class),

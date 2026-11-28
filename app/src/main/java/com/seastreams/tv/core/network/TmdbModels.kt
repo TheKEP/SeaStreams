@@ -48,6 +48,14 @@ data class TmdbFindResult(
 @Serializable
 data class TmdbGenre(val id: Int, val name: String = "")
 
+/** One TMDB keyword (e.g. `207317` `christmas`). */
+@Serializable
+data class TmdbKeyword(val id: Int, val name: String = "")
+
+/** `/movie/{id}/keywords`, also appended to movie details (`append_to_response=keywords`). */
+@Serializable
+data class TmdbMovieKeywords(val keywords: List<TmdbKeyword> = emptyList())
+
 /** Response of `/genre/{movie|tv}/list`. */
 @Serializable
 data class TmdbGenreList(val genres: List<TmdbGenre> = emptyList())
@@ -125,6 +133,7 @@ data class TmdbMovieDetails(
     val credits: TmdbCredits? = null,
     val images: TmdbImages? = null,
     @SerialName("original_language") val originalLanguage: String? = null,
+    val keywords: TmdbMovieKeywords? = null,
 ) {
     /** US MPA certification, preferring the theatrical release, else the earliest typed release. */
     fun usCertification(): String? =

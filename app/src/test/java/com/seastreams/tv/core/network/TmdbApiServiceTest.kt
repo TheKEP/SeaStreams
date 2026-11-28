@@ -304,7 +304,7 @@ class TmdbApiServiceTest {
         assertEquals("R", details.usCertification())
         assertEquals(139, details.runtime)
         assertEquals(TmdbCrewMember(7467, "David Fincher", "Director", "/df.jpg"), details.credits?.crew?.single())
-        assertEquals("release_dates,credits,images", server.requests.single().queryParam("append_to_response"))
+        assertEquals("release_dates,credits,images,keywords", server.requests.single().queryParam("append_to_response"))
     }
 
     @Test

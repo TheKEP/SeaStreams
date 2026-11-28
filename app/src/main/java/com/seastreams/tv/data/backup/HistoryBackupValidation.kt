@@ -1,6 +1,7 @@
 package com.seastreams.tv.data.backup
 
 import com.seastreams.tv.core.util.enumByNameOrNull
+import com.seastreams.tv.domain.filter.LibraryKeywordGenres
 import com.seastreams.tv.domain.model.MediaType
 
 /**
@@ -23,6 +24,11 @@ internal object HistoryBackupValidation {
             val where = "$label: Library title ${i + 1}"
             common(where, item.tmdbId, item.mediaType, item.title, item.posterPath)
             if (!GENRE_IDS.matches(item.genreIds)) fail("$where has invalid genre ids")
+            item.keywordIds?.let { ids ->
+                if (!GENRE_IDS.matches(ids) || ids.count { it == ',' } >= LibraryKeywordGenres.MAX_STORED_KEYWORDS) {
+                    fail("$where has invalid keyword ids")
+                }
+            }
             if (item.addedAtMillis < 0) fail("$where has an invalid date added")
             if ((item.certification?.length ?: 0) > MAX_PATH_CHARS) fail("$where has an invalid rating")
         }

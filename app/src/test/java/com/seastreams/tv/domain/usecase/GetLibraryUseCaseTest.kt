@@ -7,6 +7,7 @@ import com.seastreams.tv.core.database.entity.LibrarySortOrder
 import com.seastreams.tv.core.network.ApiEndpoints
 import com.seastreams.tv.data.catalog.TmdbImageUrls
 import com.seastreams.tv.domain.filter.AgeRestrictionEngine
+import com.seastreams.tv.domain.filter.LibraryKeywordGenres
 import com.seastreams.tv.domain.model.MediaType
 import com.seastreams.tv.testutil.FakeProfileDao
 import com.seastreams.tv.testutil.testProfile
@@ -55,6 +56,24 @@ class GetLibraryUseCaseTest {
     }
 
     @Test
+    fun `movies with a Christmas keyword carry the Christmas genre, shows and unknown keywords don't`() = runTest {
+        val adult = testProfile(1, isKids = false)
+        every { libraryDao.observeWithActivity(adult.id) } returns flowOf(
+            listOf(
+                row(1, "Elf", MediaType.MOVIE, "PG", watched = null, keywordIds = "9715,207317"),
+                row(2, "Alien", MediaType.MOVIE, "R", watched = null, keywordIds = "9715"),
+                row(3, "Old save", MediaType.MOVIE, "PG", watched = null, keywordIds = null),
+                row(4, "Bluey", MediaType.TV, "TV-Y", watched = null, keywordIds = "207317"),
+            ),
+        )
+
+        val genres = useCase.observe(adult).first().associate { it.media.tmdbId to it.genreIds }
+
+        val xmas = LibraryKeywordGenres.CHRISTMAS_GENRE_ID
+        assertEquals(mapOf(1 to listOf(16, 10762, xmas), 2 to listOf(16, 10762), 3 to listOf(16, 10762), 4 to listOf(16, 10762)), genres)
+    }
+
+    @Test
     fun `sort order is persisted on the profile`() = runTest {
         val id = profileDao.insert(testProfile(0, isKids = false))
 
@@ -63,7 +82,7 @@ class GetLibraryUseCaseTest {
         assertEquals(LibrarySortOrder.LAST_WATCHED, profileDao.getById(id)?.librarySortOrder)
     }
 
-    private fun row(id: Int, title: String, type: MediaType, certification: String?, watched: Long?) = LibraryItemWithActivity(
+    private fun row(id: Int, title: String, type: MediaType, certification: String?, watched: Long?, keywordIds: String? = null) = LibraryItemWithActivity(
         item = LibraryItemEntity(
             profileId = 1,
             tmdbId = id,
@@ -73,6 +92,7 @@ class GetLibraryUseCaseTest {
             certification = certification,
             genreIds = "16,10762",
             addedAtMillis = id.toLong(),
+            keywordIds = keywordIds,
         ),
         lastWatchedAtMillis = watched,
     )

@@ -33,6 +33,7 @@ object DatabaseModule {
                 DebridSourcesMigration,
                 LastUsedStreamUrlMigration,
                 NextUpDismissalsMigration,
+                LibraryKeywordsMigration,
             )
             .build()
 

@@ -2,6 +2,7 @@ package com.seastreams.tv.ui.screens.library
 
 import com.seastreams.tv.core.database.entity.LibrarySortOrder
 import com.seastreams.tv.data.catalog.GenreRepository
+import com.seastreams.tv.data.library.LibraryKeywordBackfill
 import com.seastreams.tv.data.profile.ProfileRepository
 import com.seastreams.tv.domain.model.MediaType
 import com.seastreams.tv.domain.usecase.GetLibraryUseCase
@@ -64,7 +65,9 @@ class LibraryViewModelTest {
     @AfterEach
     fun tearDown() = Dispatchers.resetMain()
 
-    private fun viewModel(derive: CoroutineDispatcher = main) = LibraryViewModel(profiles, library, genres, derive)
+    private val backfill = mockk<LibraryKeywordBackfill>(relaxed = true)
+
+    private fun viewModel(derive: CoroutineDispatcher = main) = LibraryViewModel(profiles, library, genres, { backfill }, derive)
 
     /** Opens the profile, collects the UI state and records the grid's (filter, genre) on each emission. */
     private fun TestScope.opened(vm: LibraryViewModel): MutableList<LibrarySelection> {

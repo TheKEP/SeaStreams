@@ -122,7 +122,10 @@ class AppBackupCodecTest {
     @Test
     fun `Library and watch progress round-trip with every column`() {
         val withHistory = entry("Ken").copy(
-            library = listOf(LibraryItemBackup(550, "MOVIE", "Fight Club", "/p.jpg", "R", "18,53", 1_700_000_000_000)),
+            library = listOf(
+                LibraryItemBackup(550, "MOVIE", "Fight Club", "/p.jpg", "R", "18,53", 1_700_000_000_000, keywordIds = "825,207317"),
+                LibraryItemBackup(771, "MOVIE", "Home Alone", null, "PG", "35", 1_700_000_000_001),
+            ),
             watchProgress = listOf(
                 WatchProgressBackup(550, "MOVIE", title = "Fight Club", posterPath = "/p.jpg", backdropPath = "/b.jpg", positionMs = 42_000, durationMs = 8_340_000, updatedAtMillis = 5),
                 WatchProgressBackup(1399, "TV", 1, 2, "Game of Thrones", "The Kingsroad", null, null, 3_600_000, 3_600_000, 6, dismissedFromContinueWatching = true),
@@ -144,6 +147,11 @@ class AppBackupCodecTest {
         assertMessage("Profile 1 (Ken): Library title 1 has an unknown media type “SHOW”") { decode(withLibrary(item.copy(mediaType = "SHOW"))) }
         assertMessage("Profile 1 (Ken): Library title 1 has no valid title") { decode(withLibrary(item.copy(title = "  "))) }
         assertMessage("Profile 1 (Ken): Library title 1 has invalid genre ids") { decode(withLibrary(item.copy(genreIds = "28;drop"))) }
+        assertMessage("Profile 1 (Ken): Library title 1 has invalid keyword ids") { decode(withLibrary(item.copy(keywordIds = "1,x"))) }
+        assertMessage("Profile 1 (Ken): Library title 1 has invalid keyword ids") {
+            decode(withLibrary(item.copy(keywordIds = (1..201).joinToString(","))))
+        }
+        assertEquals("", decode(withLibrary(item.copy(keywordIds = ""))).profiles.single().library.single().keywordIds)
         assertMessage("Profile 1 (Ken) lists a Library title twice") { decode(withLibrary(item, item.copy(title = "Again"))) }
         assertMessage("Profile 1 (Ken): watch progress entry 1 has a negative position or duration") { decode(withProgress(movie.copy(positionMs = -1))) }
         assertMessage("Profile 1 (Ken): watch progress entry 1 is a movie with a season or episode") { decode(withProgress(movie.copy(seasonNumber = 1))) }

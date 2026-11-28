@@ -128,8 +128,10 @@ class BackupRig {
     }
 
     /** Saves [tmdbId] to [profileId]'s Library as of [addedAt]. */
-    suspend fun save(profileId: Long, tmdbId: Int, title: String, addedAt: Long, certification: String? = "PG", type: MediaType = MediaType.MOVIE) =
-        libraryDao.insert(LibraryItemEntity(profileId, tmdbId, type, title, "/p$tmdbId.jpg", certification, "28,12", addedAt))
+    suspend fun save(
+        profileId: Long, tmdbId: Int, title: String, addedAt: Long, certification: String? = "PG", type: MediaType = MediaType.MOVIE,
+        keywordIds: String? = null,
+    ) = libraryDao.insert(LibraryItemEntity(profileId, tmdbId, type, title, "/p$tmdbId.jpg", certification, "28,12", addedAt, keywordIds))
 
     /** Records playback of a movie (season/episode 0) or an episode. */
     suspend fun watch(

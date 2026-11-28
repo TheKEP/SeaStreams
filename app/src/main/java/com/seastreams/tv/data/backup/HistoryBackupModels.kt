@@ -20,14 +20,20 @@ data class LibraryItemBackup(
     /** Comma-separated TMDB genre ids. */
     val genreIds: String = "",
     val addedAtMillis: Long,
+    /**
+     * Comma-separated TMDB keyword ids (`library_items.keywordIds`, keyword genres such as `Christmas`). Absent in
+     * files written before it existed and for titles not looked up yet: restored as `NULL` and backfilled from TMDB.
+     */
+    val keywordIds: String? = null,
 ) {
     /** Only valid after `HistoryBackupValidation` checked [mediaType]. */
     fun toEntity(profileId: Long, type: MediaType) =
-        LibraryItemEntity(profileId, tmdbId, type, title, posterPath, certification, genreIds, addedAtMillis)
+        LibraryItemEntity(profileId, tmdbId, type, title, posterPath, certification, genreIds, addedAtMillis, keywordIds)
 
     companion object {
-        fun of(e: LibraryItemEntity) =
-            LibraryItemBackup(e.tmdbId, e.mediaType.name, e.title, e.posterPath, e.certification, e.genreIds, e.addedAtMillis)
+        fun of(e: LibraryItemEntity) = LibraryItemBackup(
+            e.tmdbId, e.mediaType.name, e.title, e.posterPath, e.certification, e.genreIds, e.addedAtMillis, e.keywordIds,
+        )
     }
 }
 

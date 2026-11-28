@@ -42,6 +42,16 @@ class LibraryRepositoryTest {
     }
 
     @Test
+    fun `movies are saved with their keyword ids, shows as looked up with none`() = runTest {
+        val repo = repository()
+
+        repo.add(1, movie.copy(keywordIds = listOf(207317, 9715, 207317)))
+        repo.add(1, testDetails(7, MediaType.TV))
+
+        assertEquals(mapOf(42 to "207317,9715", 7 to ""), dao.rows.value.associate { it.tmdbId to it.keywordIds })
+    }
+
+    @Test
     fun `concurrent adds (double press) never create a duplicate`() = runTest {
         val repo = repository()
 
