@@ -28,6 +28,8 @@ data class TitleDetails(
     val seasons: List<SeasonInfo>,
     /** Latest aired episode of a show; `null` for movies or when TMDB doesn't say. */
     val lastAired: EpisodeRef?,
+    /** Air date of [lastAired], when TMDB gives one. */
+    val lastAiredDate: LocalDate? = null,
     /** TMDB `original_language` (ISO 639-1), e.g. `ja`; with Animation it marks anime for stream sorting (PRD §13). */
     val originalLanguage: String? = null,
 ) {

@@ -84,6 +84,8 @@ data class PlayerSettings(
     val fallbackTimeoutSeconds: Int = DEFAULT_FALLBACK_TIMEOUT_SECONDS,
     /** `Continue Watching` cards play directly from Home, bypassing Details (PRD §3/§11: on by default). */
     val autoPlayFromContinueWatching: Boolean = true,
+    /** `Next Up` cards (the next aired episode of a finished show) join Continue Watching (PRD §3: on by default). */
+    val showNextUpInContinueWatching: Boolean = true,
     /** Speed every movie/episode starts at (PRD §9/§11); the HUD's Speed overlay changes it per session only. */
     val defaultPlaybackSpeed: PlaybackSpeed = PlaybackSpeed.DEFAULT,
     val blurUnwatchedThumbnails: Boolean = false,

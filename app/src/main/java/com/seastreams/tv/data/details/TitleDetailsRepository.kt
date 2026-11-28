@@ -101,6 +101,7 @@ class TitleDetailsRepository @Inject constructor(
         seasons = regularSeasons(seasons.map { SeasonInfo(it.seasonNumber, it.name, it.episodeCount) }),
         lastAired = lastEpisodeToAir?.takeIf { it.seasonNumber > 0 && it.episodeNumber > 0 }
             ?.let { EpisodeRef(it.seasonNumber, it.episodeNumber) },
+        lastAiredDate = parseDate(lastEpisodeToAir?.airDate),
         originalLanguage = originalLanguage,
     )
 

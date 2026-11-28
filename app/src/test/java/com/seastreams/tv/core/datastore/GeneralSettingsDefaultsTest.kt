@@ -55,6 +55,7 @@ class GeneralSettingsDefaultsTest {
         assertNull(p.preferredAutoPlayAddonUrl, "null = the first enabled stream addon")
         assertTrue(p.autoPlayNextEpisode)
         assertTrue(p.autoPlayFromContinueWatching)
+        assertTrue(p.showNextUpInContinueWatching)
         assertTrue(p.autoStreamFailover)
         assertEquals(10, p.fallbackTimeoutSeconds)
         assertEquals(PlaybackBufferProfile.LARGE, p.playbackBufferProfile)

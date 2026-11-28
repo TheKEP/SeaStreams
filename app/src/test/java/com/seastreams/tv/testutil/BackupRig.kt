@@ -49,6 +49,7 @@ class BackupRig {
     val debridDao = FakeDebridProviderDao()
     val libraryDao = FakeLibraryDao()
     val progressDao = FakeWatchProgressDao()
+    val dismissalDao = FakeNextUpDismissalDao()
     val prefs = InMemoryPreferences()
     val cipher = FakeSecretCipher()
 
@@ -71,13 +72,13 @@ class BackupRig {
 
     val exporter = BackupExporter(
         profileDao, addonDao, settings, streams, usenetSettings, debridSettings, providerDao, indexerDao, debridDao, cipher, io, clock,
-        libraryDao, progressDao,
+        libraryDao, progressDao, dismissalDao,
     )
 
     val restorer = BackupRestorer(
         profiles, addons, usenetSources, debridSources, profileDao, settings,
         BackupProfilesWriter(profileDao, addonDao, clock),
-        BackupHistoryWriter(profileDao, libraryDao, progressDao, AgeRestrictionEngine()),
+        BackupHistoryWriter(profileDao, libraryDao, progressDao, AgeRestrictionEngine(), dismissalDao),
         BackupSourcesWriter(providerDao, indexerDao, debridDao, cipher),
         BackupPreferencesWriter(prefs, streams, usenetSettings, debridSettings),
         object : BackupTransactor {

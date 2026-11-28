@@ -36,13 +36,28 @@ data class MediaItem(
     val key: String get() = "${mediaType.name}-$tmdbId"
 }
 
-/** A started-but-unfinished movie or episode on the Continue Watching row. */
+/**
+ * A card on the Continue Watching row: a started-but-unfinished movie or episode, or (when [nextUp] is set) the
+ * next aired episode of a show whose latest watched episode is finished.
+ */
 data class ContinueWatchingItem(
     val media: MediaItem,
     /** `0` for movies. */
     val seasonNumber: Int,
     /** `0` for movies. */
     val episodeNumber: Int,
-    /** Watched fraction in `0f..1f`. */
+    /** Watched fraction in `0f..1f`; `0f` for Next Up cards (no progress bar). */
     val progress: Float,
+    /** Set on Next Up cards only. */
+    val nextUp: NextUpMarker? = null,
+    /** When the card's title was last active (watched, or its Next Up episode aired); the row sorts on it. */
+    val activityAtMillis: Long = 0,
+) {
+    val isNextUp: Boolean get() = nextUp != null
+}
+
+/** What a Next Up card was built from, kept so `Remove` can record exactly what was dismissed. */
+data class NextUpMarker(
+    /** The show's latest aired episode when the card was built; `null` when TMDB didn't say. */
+    val lastAired: EpisodeRef?,
 )

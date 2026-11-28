@@ -15,8 +15,8 @@ const val CONTINUE_WATCHING_REMOVE = "Remove"
 const val CONTINUE_WATCHING_CLEAR_PROGRESS = "Clear progress"
 
 /**
- * Continue Watching card long-press menu (PRD §3): `View details`, `Remove`, `Clear progress`.
- * [returnFocus] is the row's active-card requester, which sits on the long-pressed card, so `Back`
+ * Continue Watching card long-press menu (PRD §3): `View details`, `Remove`, `Clear progress`. Next Up cards
+ * (0%, nothing to clear) get `View details` and `Remove` only. [returnFocus] is the row's active-card requester, which sits on the long-pressed card, so `Back`
  * lands exactly where the menu was opened. `View details` always opens Details, whatever *Auto-play
  * from Continue Watching* is set to.
  */
@@ -32,16 +32,18 @@ fun continueWatchingMenu(
     actions = listOf(
         MenuAction(CONTINUE_WATCHING_VIEW_DETAILS) { onViewDetails(HomeDestination.Details(item.media)) },
         MenuAction(CONTINUE_WATCHING_REMOVE, onRemove),
-        MenuAction(CONTINUE_WATCHING_CLEAR_PROGRESS, onClearProgress),
-    ),
+    ) + if (item.isNextUp) emptyList() else listOf(MenuAction(CONTINUE_WATCHING_CLEAR_PROGRESS, onClearProgress)),
     returnFocus = returnFocus,
 )
 
-/** One Continue Watching card: a movie, or one episode of a show (several can share a media key). */
-data class ContinueWatchingKey(val mediaKey: String, val seasonNumber: Int, val episodeNumber: Int)
+/**
+ * One Continue Watching card: a movie, or one episode of a show (several can share a media key). [isNextUp] tells
+ * apart an in-progress episode and the Next Up card for that same episode that replaces it after `Clear progress`.
+ */
+data class ContinueWatchingKey(val mediaKey: String, val seasonNumber: Int, val episodeNumber: Int, val isNextUp: Boolean = false)
 
 val ContinueWatchingItem.continueWatchingKey: ContinueWatchingKey
-    get() = ContinueWatchingKey(media.key, seasonNumber, episodeNumber)
+    get() = ContinueWatchingKey(media.key, seasonNumber, episodeNumber, isNextUp)
 
 /** A card the user chose `Remove` / `Clear progress` on, at [index] of the row when it was chosen. */
 data class ContinueWatchingRemoval(val key: ContinueWatchingKey, val index: Int)

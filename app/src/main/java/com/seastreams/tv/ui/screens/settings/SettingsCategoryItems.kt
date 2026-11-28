@@ -31,6 +31,11 @@ internal fun playbackItems(state: SettingsUiState, cb: SettingsCallbacks): List<
             },
         )
         add(
+            toggle("next-up-cw", SeaIcons.Episodes, "Show next up in continue watching", p.showNextUpInContinueWatching) {
+                cb.updatePlayer { it.copy(showNextUpInContinueWatching = !it.showNextUpInContinueWatching) }
+            },
+        )
+        add(
             entry(SPEED_ROW_KEY, SeaIcons.Timer, "Default playback speed", p.defaultPlaybackSpeed.label, RowTrailing.Chevron) {
                 cb.open(SettingsPanel.Choice(ChoiceKind.PLAYBACK_SPEED))
             },

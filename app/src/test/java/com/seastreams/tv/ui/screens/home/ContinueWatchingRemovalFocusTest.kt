@@ -4,6 +4,7 @@ import com.seastreams.tv.domain.model.CatalogRow
 import com.seastreams.tv.domain.model.CatalogRowSpec
 import com.seastreams.tv.domain.model.ContinueWatchingItem
 import com.seastreams.tv.domain.model.MediaType
+import com.seastreams.tv.domain.model.NextUpMarker
 import com.seastreams.tv.domain.model.RowContent
 import com.seastreams.tv.testutil.testMedia
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -72,5 +73,14 @@ class ContinueWatchingRemovalFocusTest {
 
         assertEquals(RemovalFocus.Top, focusAfterRemoval(removalOf(cw(1), 0), listOf(HomeSection.Hero, loading)))
         assertEquals(RemovalFocus.Top, focusAfterRemoval(removalOf(cw(1), 0), listOf(HomeSection.Hero)))
+    }
+
+    @Test
+    fun `clearing an episode's progress resolves once its Next Up card takes the same place`() {
+        val started = cw(5, season = 1, episode = 4)
+        val replacement = started.copy(progress = 0f, nextUp = NextUpMarker(null))
+        val sections = listOf(HomeSection.Hero, HomeSection.ContinueWatching(listOf(cw(1), replacement)))
+
+        assertEquals(RemovalFocus.Card(1), focusAfterRemoval(removalOf(started, 1), sections))
     }
 }

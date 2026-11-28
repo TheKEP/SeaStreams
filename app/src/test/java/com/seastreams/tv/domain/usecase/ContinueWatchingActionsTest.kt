@@ -1,14 +1,17 @@
 package com.seastreams.tv.domain.usecase
 
+import com.seastreams.tv.core.database.entity.NextUpDismissalEntity
 import com.seastreams.tv.core.database.entity.WatchProgressEntity
 import com.seastreams.tv.domain.model.ContinueWatchingItem
 import com.seastreams.tv.domain.model.EpisodeRef
 import com.seastreams.tv.domain.model.MediaType
+import com.seastreams.tv.domain.model.NextUpMarker
 import com.seastreams.tv.domain.model.SeasonInfo
 import com.seastreams.tv.domain.playback.PlaybackOutcome
 import com.seastreams.tv.domain.playback.PlaybackProgressRecorder
 import com.seastreams.tv.domain.playback.PlaybackTarget
 import com.seastreams.tv.domain.playback.ProgressSource
+import com.seastreams.tv.testutil.FakeNextUpDismissalDao
 import com.seastreams.tv.testutil.FakeWatchProgressDao
 import com.seastreams.tv.testutil.testDetails
 import com.seastreams.tv.testutil.testMedia
@@ -26,7 +29,8 @@ import java.time.ZoneOffset
 class ContinueWatchingActionsTest {
 
     private val dao = FakeWatchProgressDao()
-    private val actions = ContinueWatchingActions(dao)
+    private val dismissals = FakeNextUpDismissalDao()
+    private val actions = ContinueWatchingActions(dao, dismissals, Clock.fixed(Instant.ofEpochMilli(LATER), ZoneOffset.UTC))
     private val recorder = PlaybackProgressRecorder(dao, Clock.fixed(Instant.ofEpochMilli(LATER), ZoneOffset.UTC))
 
     private fun row(tmdbId: Int, type: MediaType, season: Int, episode: Int, position: Long, updated: Long, profile: Long = PROFILE) =
@@ -125,6 +129,19 @@ class ContinueWatchingActionsTest {
 
         assertNull(saved(SHOW, 1, 3))
         assertEquals(others.toSet(), dao.rows.value.toSet())
+    }
+
+    @Test
+    fun `remove on a Next Up card records a dismissal and leaves every watch record alone`() = runTest {
+        val history = listOf(row(SHOW, MediaType.TV, 1, 3, DURATION, 2), row(SHOW, MediaType.TV, 1, 2, DURATION, 1))
+        dao.rows.value = history
+        val card = ContinueWatchingItem(testMedia(SHOW, MediaType.TV), 1, 4, 0f, NextUpMarker(EpisodeRef(1, 6)))
+
+        actions.remove(PROFILE, card)
+        actions.clearProgress(PROFILE, card)
+
+        assertEquals(history, dao.rows.value)
+        assertEquals(listOf(NextUpDismissalEntity(PROFILE, SHOW, 1, 4, 1, 6, LATER)), dismissals.rows.value)
     }
 
     private companion object {
