@@ -25,3 +25,7 @@ local.properties
 
 # Third-party source clones used as reference only
 docs/code-references/
+
+# Local device logcat dumps (may hold other apps' log lines)
+/live_fail.txt
+/seastreams_crash.txt
